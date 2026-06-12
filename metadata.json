@@ -1,0 +1,6 @@
+{
+  "name": "DuitKu",
+  "description": "Aplikasi manajemen keuangan pribadi berbasis Material You (Material 3) dengan pencatatan dompet, transaksi, hutang, tagihan, dan fitur ekspor/impor.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
