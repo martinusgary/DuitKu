@@ -15,11 +15,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.data.model.Category
 import com.example.ui.viewmodel.FinanceViewModel
 
@@ -30,6 +34,8 @@ fun CategoryManagementDialog(
     onDismiss: () -> Unit
 ) {
     val categories by viewModel.categories.collectAsState()
+    val appLang by viewModel.appLanguage.collectAsState()
+    val isId = appLang == "id"
     
     // Tabs: 0 for EXPENSE, 1 for INCOME
     var selectedTabState by remember { mutableStateOf(0) }
@@ -42,10 +48,17 @@ fun CategoryManagementDialog(
     val currentType = if (selectedTabState == 0) "EXPENSE" else "INCOME"
     val filteredCategories = categories.filter { it.type == currentType }
 
-    Dialog(onDismissRequest = onDismiss) {
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val dialogWidth = if (screenWidth < 400) (screenWidth * 0.92).dp else 350.dp
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Card(
             modifier = Modifier
-                .fillMaxWidth()
+                .width(dialogWidth)
                 .fillMaxHeight(0.85f)
                 .padding(16.dp)
                 .testTag("category_management_dialog"),
@@ -66,7 +79,7 @@ fun CategoryManagementDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Manage Categories",
+                        text = if (isId) "Kelola Kategori" else "Manage Categories",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -82,34 +95,44 @@ fun CategoryManagementDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Tabs
-                TabRow(
-                    selectedTabIndex = selectedTabState,
-                    modifier = Modifier.fillMaxWidth(),
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                // Tabs (Modern Segmented Control)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Tab(
-                        selected = selectedTabState == 0,
-                        onClick = { selectedTabState = 0 },
-                        text = { 
+                    val segments = listOf(
+                        0 to (if (isId) "Pengeluaran" else "Expense"),
+                        1 to (if (isId) "Pemasukan" else "Income")
+                    )
+                    segments.forEach { (index, label) ->
+                        val isSelected = selectedTabState == index
+                        val tabItemShape = RoundedCornerShape(8.dp)
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .background(
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                    shape = tabItemShape
+                                )
+                                .clip(tabItemShape)
+                                .clickable { selectedTabState = index }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Text(
-                                "Expense", 
+                                text = label,
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold
-                            ) 
+                            )
                         }
-                    )
-                    Tab(
-                        selected = selectedTabState == 1,
-                        onClick = { selectedTabState = 1 },
-                        text = { 
-                            Text(
-                                "Income", 
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold
-                            ) 
-                        }
-                    )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -123,10 +146,11 @@ fun CategoryManagementDialog(
                     OutlinedTextField(
                         value = newCategoryName,
                         onValueChange = { newCategoryName = it },
-                        placeholder = { Text("New category name...") },
+                        placeholder = { Text(if (isId) "Kategori baru..." else "New category...") },
                         singleLine = true,
                         modifier = Modifier
                             .weight(1f)
+                            .height(56.dp)
                             .testTag("new_category_input"),
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -142,7 +166,11 @@ fun CategoryManagementDialog(
                             }
                         },
                         shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.testTag("add_category_button")
+                        contentPadding = PaddingValues(0.dp),
+                        modifier = Modifier
+                            .height(56.dp)
+                            .width(56.dp)
+                            .testTag("add_category_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
@@ -165,7 +193,7 @@ fun CategoryManagementDialog(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "No categories found.",
+                                text = if (isId) "Kategori tidak ditemukan." else "No categories found.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -250,7 +278,7 @@ fun CategoryManagementDialog(
             onDismissRequest = { editingCategory = null },
             title = {
                 Text(
-                    "Edit Category Name",
+                    if (isId) "Ubah Nama Kategori" else "Edit Category Name",
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.titleMedium
                 )
@@ -264,7 +292,7 @@ fun CategoryManagementDialog(
                         value = editCategoryName,
                         onValueChange = { editCategoryName = it },
                         singleLine = true,
-                        placeholder = { Text("Category name") },
+                        placeholder = { Text(if (isId) "Nama kategori" else "Category name") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("edit_category_input"),
@@ -284,12 +312,12 @@ fun CategoryManagementDialog(
                     modifier = Modifier.testTag("edit_category_save"),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Save")
+                    Text(if (isId) "Simpan" else "Save")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { editingCategory = null }) {
-                    Text("Cancel")
+                    Text(if (isId) "Batal" else "Cancel")
                 }
             }
         )
@@ -302,14 +330,17 @@ fun CategoryManagementDialog(
             onDismissRequest = { deletingCategory = null },
             title = {
                 Text(
-                    "Delete Category?",
+                    if (isId) "Hapus Kategori?" else "Delete Category?",
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.titleMedium
                 )
             },
             text = {
-                Text("Are you sure you want to delete the category \"${catToDelete?.name}\"? Transactions in this category will not be deleted, but they will no longer be categorized.")
+                Text(
+                    if (isId) "Apakah Anda yakin ingin menghapus kategori \"${catToDelete?.name}\"? Transaksi di kategori ini tidak akan dihapus, tetapi tidak lagi dikategorikan." 
+                    else "Are you sure you want to delete the category \"${catToDelete?.name}\"? Transactions in this category will not be deleted, but they will no longer be categorized."
+                )
             },
             confirmButton = {
                 Button(
@@ -325,12 +356,12 @@ fun CategoryManagementDialog(
                     modifier = Modifier.testTag("delete_category_confirm"),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Delete")
+                    Text(if (isId) "Hapus" else "Delete")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { deletingCategory = null }) {
-                    Text("Cancel")
+                    Text(if (isId) "Batal" else "Cancel")
                 }
             }
         )

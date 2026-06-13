@@ -1,6 +1,7 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.database.FinanceDatabase
@@ -24,6 +25,19 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     private val _importStatus = MutableStateFlow<String?>(null)
     val importStatus: StateFlow<String?> = _importStatus.asStateFlow()
+
+    val appLanguage = MutableStateFlow(getSavedLanguage())
+
+    private fun getSavedLanguage(): String {
+        val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
+        return prefs.getString("app_language", "en") ?: "en"
+    }
+
+    fun setLanguage(lang: String) {
+        val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
+        prefs.edit().putString("app_language", lang).apply()
+        appLanguage.value = lang
+    }
 
     init {
         val database = FinanceDatabase.getDatabase(application)
@@ -110,6 +124,14 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     fun deleteTransaction(transaction: Transaction) {
         viewModelScope.launch {
             repository.deleteTransaction(transaction)
+        }
+    }
+
+    fun deleteTransactionsBulk(list: List<Transaction>) {
+        viewModelScope.launch {
+            list.forEach { transaction ->
+                repository.deleteTransaction(transaction)
+            }
         }
     }
 

@@ -5,17 +5,27 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,7 +35,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.ui.util.Localization
 import com.example.ui.viewmodel.FinanceViewModel
 import kotlinx.coroutines.launch
 
@@ -38,10 +50,20 @@ fun SettingsDialog(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     
+    val prefs = remember { context.getSharedPreferences("security_settings", Context.MODE_PRIVATE) }
+    var isRegistered by remember { mutableStateOf(prefs.getBoolean("is_registered", false)) }
+    var savedPassword by remember { mutableStateOf(prefs.getString("password", "") ?: "") }
+
+    val appLang by viewModel.appLanguage.collectAsState()
+    val isId = appLang == "id"
+
+    var passwordInput by remember { mutableStateOf("") }
+    var confirmPasswordInput by remember { mutableStateOf("") }
+
     var backupJson by remember { mutableStateOf("") }
     var selectedFileName by remember { mutableStateOf("") }
     var importJsonContent by remember { mutableStateOf("") }
-    var activeTab by remember { mutableStateOf(0) } // 0: Export, 1: Import
+    var activeTab by remember { mutableStateOf(0) } // 0: Security/Language, 1: Export, 2: Import
 
     // Pre-generate JSON on opening for backup
     LaunchedEffect(Unit) {
@@ -57,7 +79,7 @@ fun SettingsDialog(
                 context.contentResolver.openOutputStream(it)?.use { outputStream ->
                     outputStream.write(backupJson.toByteArray())
                 }
-                Toast.makeText(context, "Backup downloaded successfully!", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, if (isId) "Ekspor data berhasil diunduh!" else "Backup downloaded successfully!", Toast.LENGTH_LONG).show()
                 onDismiss()
             } catch (e: Exception) {
                 Toast.makeText(context, "Error saving file: ${e.message}", Toast.LENGTH_LONG).show()
@@ -71,7 +93,6 @@ fun SettingsDialog(
     ) { uri ->
         uri?.let {
             try {
-                // Get display name of the selected file
                 var fileName = "duitku_backup.json"
                 context.contentResolver.query(it, null, null, null, null)?.use { cursor ->
                     val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
@@ -85,9 +106,9 @@ fun SettingsDialog(
                     if (content.trim().startsWith("{") || content.trim().startsWith("[")) {
                         importJsonContent = content
                         selectedFileName = fileName
-                        Toast.makeText(context, "File loaded successfully!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, if (isId) "File berkas berhasil dimuat!" else "File loaded successfully!", Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(context, "Invalid JSON file structure!", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, if (isId) "Struktur berkas JSON tidak sesuai!" else "Invalid JSON file structure!", Toast.LENGTH_LONG).show()
                     }
                 }
             } catch (e: Exception) {
@@ -98,12 +119,26 @@ fun SettingsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = Modifier
+            .widthIn(max = 500.dp)
+            .fillMaxWidth()
+            .padding(16.dp),
         title = {
-            Text(
-                "Backup & Restore Data",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    Icons.Default.Security,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = Localization.getString("settings_title", isId),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         },
         text = {
             Column(
@@ -113,28 +148,322 @@ fun SettingsDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    "Easily move your financial data to a file or restore a previous session.",
+                    text = Localization.getString("settings_desc", isId),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                TabRow(selectedTabIndex = activeTab) {
-                    Tab(
-                        selected = activeTab == 0,
-                        onClick = { activeTab = 0 },
-                        text = { Text("Backup (Download)") }
+                // Navigation Tabs (Modern Segmented Control)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    val segments = listOf(
+                        0 to Localization.getString("tab_security", isId),
+                        1 to Localization.getString("tab_backup", isId),
+                        2 to Localization.getString("tab_restore", isId)
                     )
-                    Tab(
-                        selected = activeTab == 1,
-                        onClick = { activeTab = 1 },
-                        text = { Text("Restore (Upload)") }
-                    )
+                    segments.forEach { (index, label) ->
+                        val isSelected = activeTab == index
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .background(
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .clickable { activeTab = index }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 if (activeTab == 0) {
-                    // EXPORT LAYOUT
+                    // SECURITY & LANGUAGE SELECTION
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // 1. Language Card
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = Localization.getString("lang_card_title", isId),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = Localization.getString("lang_card_subtitle", isId),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    // English option
+                                    val isEnSelected = !isId
+                                    val enBgColor by animateColorAsState(
+                                        targetValue = if (isEnSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                        label = "enBgColor"
+                                    )
+                                    val enContentColor by animateColorAsState(
+                                        targetValue = if (isEnSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        label = "enContentColor"
+                                    )
+                                    val buttonShape = RoundedCornerShape(12.dp)
+
+                                    Surface(
+                                        onClick = { viewModel.setLanguage("en") },
+                                        shape = buttonShape,
+                                        color = enBgColor,
+                                        contentColor = enContentColor,
+                                        border = if (isEnSelected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(48.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(horizontal = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center
+                                        ) {
+                                            if (isEnSelected) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp),
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                            }
+                                            Text(
+                                                text = Localization.getString("lang_en", isId),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = if (isEnSelected) FontWeight.Bold else FontWeight.Normal,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+
+                                    // Bahasa Indonesia option
+                                    val isIdSelected = isId
+                                    val idBgColor by animateColorAsState(
+                                        targetValue = if (isIdSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                        label = "idBgColor"
+                                    )
+                                    val idContentColor by animateColorAsState(
+                                        targetValue = if (isIdSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        label = "idContentColor"
+                                    )
+
+                                    Surface(
+                                        onClick = { viewModel.setLanguage("id") },
+                                        shape = buttonShape,
+                                        color = idBgColor,
+                                        contentColor = idContentColor,
+                                        border = if (isIdSelected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(48.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(horizontal = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center
+                                        ) {
+                                            if (isIdSelected) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp),
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                            }
+                                            Text(
+                                                text = Localization.getString("lang_id", isId),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = if (isIdSelected) FontWeight.Bold else FontWeight.Normal,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // 2. PIN Configuration Area
+                        if (isRegistered) {
+                            // PIN lock is active, show state and disable button
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Lock,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                        Text(
+                                            text = Localization.getString("sec_pin_active", isId),
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                    Text(
+                                        text = Localization.getString("sec_pin_active_desc", isId),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            Button(
+                                onClick = {
+                                    prefs.edit().clear().apply()
+                                    isRegistered = false
+                                    savedPassword = ""
+                                    passwordInput = ""
+                                    confirmPasswordInput = ""
+                                    Toast.makeText(context, Localization.getString("sec_pin_disabled", isId), Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = MaterialTheme.colorScheme.onError
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = "Disable PIN lock",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(Localization.getString("sec_disable_lock", isId), fontWeight = FontWeight.Bold)
+                            }
+                        } else {
+                            // Not yet configured, show Setup Input fields
+                            Text(
+                                text = Localization.getString("sec_unregistered_title", isId),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+
+                            OutlinedTextField(
+                                value = passwordInput,
+                                onValueChange = { input ->
+                                    if (input.all { it.isDigit() }) {
+                                        passwordInput = input
+                                    }
+                                },
+                                label = { Text(Localization.getString("sec_label_pin", isId)) },
+                                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                                visualTransformation = PasswordVisualTransformation(),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+
+                            OutlinedTextField(
+                                value = confirmPasswordInput,
+                                onValueChange = { input ->
+                                    if (input.all { it.isDigit() }) {
+                                        confirmPasswordInput = input
+                                    }
+                                },
+                                label = { Text(Localization.getString("sec_label_confirm", isId)) },
+                                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                                visualTransformation = PasswordVisualTransformation(),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+
+                            Button(
+                                onClick = {
+                                    if (passwordInput.trim().isEmpty()) {
+                                        Toast.makeText(context, Localization.getString("sec_pin_empty", isId), Toast.LENGTH_SHORT).show()
+                                    } else if (!passwordInput.all { it.isDigit() }) {
+                                        Toast.makeText(context, Localization.getString("sec_pin_numeric", isId), Toast.LENGTH_SHORT).show()
+                                    } else if (passwordInput != confirmPasswordInput) {
+                                        Toast.makeText(context, Localization.getString("sec_pin_mismatch", isId), Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        prefs.edit()
+                                            .putBoolean("is_registered", true)
+                                            .putString("username", "Pengguna") // compatibility placeholder for internal logic
+                                            .putString("password", passwordInput)
+                                            .putBoolean("biometric_enabled", false) // removed
+                                            .apply()
+                                        
+                                        isRegistered = true
+                                        savedPassword = passwordInput
+                                        Toast.makeText(context, Localization.getString("sec_pin_success", isId), Toast.LENGTH_LONG).show()
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(50.dp),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Default.CheckCircle, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(Localization.getString("sec_btn_create", isId), fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+
+                if (activeTab == 1) {
+                    // EXPORT TAB - Full multi-lingual backup
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -160,13 +489,17 @@ fun SettingsDialog(
                                         tint = MaterialTheme.colorScheme.primary
                                     )
                                     Text(
-                                        "Safe and Easy",
+                                        text = if (isId) "Aman dan Praktis" else "Safe and Easy",
                                         style = MaterialTheme.typography.titleSmall,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
                                 Text(
-                                    "Your transactions, accounts, active bills, and debts are compiled into a single file. Tap below to download it securely onto your device.",
+                                    text = if (isId) {
+                                        "Seluruh transaksi, akun dompet, tagihan aktif, serta data hutang akan dikompilasi menjadi satu berkas cadangan privat. Ketuk tombol di bawah untuk menyimpannya."
+                                    } else {
+                                        "Your transactions, accounts, active bills, and debts are compiled into a single file. Tap below to download it securely onto your device."
+                                    },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -186,11 +519,11 @@ fun SettingsDialog(
                                 contentDescription = "Download File"
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Download Backup File", fontWeight = FontWeight.Bold)
+                            Text(if (isId) "Unduh Berkas Cadangan" else "Download Backup File", fontWeight = FontWeight.Bold)
                         }
                     }
-                } else {
-                    // IMPORT LAYOUT
+                } else if (activeTab == 2) {
+                    // RESTORE TAB
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -216,21 +549,24 @@ fun SettingsDialog(
                                         tint = MaterialTheme.colorScheme.error
                                     )
                                     Text(
-                                        "Overwrites Current Data",
+                                        text = if (isId) "Akan Menimpa Data Saat Ini" else "Overwrites Current Data",
                                         style = MaterialTheme.typography.titleSmall,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onErrorContainer
                                     )
                                 }
                                 Text(
-                                    "Selecting and importing a backup file will fully replace all financial records in your app. This operation cannot be undone.",
+                                    text = if (isId) {
+                                        "Mengimpor berkas cadangan akan menimpa dan menggantikan seluruh data keuangan saat ini di aplikasi Anda secara permanen. Tindakan ini tidak dapat dibatalkan!"
+                                    } else {
+                                        "Selecting and importing a backup file will fully replace all financial records in your app. This operation cannot be undone."
+                                    },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
                                 )
                             }
                         }
 
-                        // Select File Button
                         OutlinedButton(
                             onClick = {
                                 importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
@@ -242,16 +578,19 @@ fun SettingsDialog(
                         ) {
                             Icon(
                                 Icons.Default.ArrowUpward,
-                                contentDescription = "Upload/Restore File"
+                                contentDescription = "Upload File"
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (selectedFileName.isEmpty()) "Select Backup File" else "Change Backup File",
+                                text = if (selectedFileName.isEmpty()) {
+                                    if (isId) "Pilih Berkas Cadangan" else "Select Backup File"
+                                } else {
+                                    if (isId) "Ganti Berkas Cadangan" else "Change Backup File"
+                                },
                                 fontWeight = FontWeight.Bold
                             )
                         }
 
-                        // File status display
                         if (selectedFileName.isNotEmpty()) {
                             Row(
                                 modifier = Modifier
@@ -270,7 +609,7 @@ fun SettingsDialog(
                                 )
                                 Column {
                                     Text(
-                                        "Ready to Import:",
+                                        text = if (isId) "Siap Diimpor:" else "Ready to Import:",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = Color(0xFF1B5E20),
                                         fontWeight = FontWeight.Bold
@@ -283,15 +622,14 @@ fun SettingsDialog(
                                 }
                             }
 
-                            // Restore Action Button
                             Button(
                                 onClick = {
                                     viewModel.importBackupJson(importJsonContent) { success ->
                                         if (success) {
-                                            Toast.makeText(context, "Data successfully restored!", Toast.LENGTH_LONG).show()
+                                            Toast.makeText(context, if (isId) "Data berhasil dipulihkan!" else "Data successfully restored!", Toast.LENGTH_LONG).show()
                                             onDismiss()
                                         } else {
-                                            Toast.makeText(context, "Failed to restore. Please check file compliance!", Toast.LENGTH_LONG).show()
+                                            Toast.makeText(context, if (isId) "Gagal memulihkan data. Periksa keselarasan berkas!" else "Failed to restore. Please check file compliance!", Toast.LENGTH_LONG).show()
                                         }
                                     }
                                 },
@@ -303,7 +641,7 @@ fun SettingsDialog(
                                     contentColor = MaterialTheme.colorScheme.onError
                                 )
                             ) {
-                                Text("Restore Data Now", fontWeight = FontWeight.Black)
+                                Text(if (isId) "Pulihkan Data Sekarang" else "Restore Data Now", fontWeight = FontWeight.Black)
                             }
                         } else {
                             Box(
@@ -315,7 +653,7 @@ fun SettingsDialog(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    "No backup file selected yet.",
+                                    text = if (isId) "Belum ada berkas cadangan terpilih." else "No backup file selected yet.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -327,7 +665,7 @@ fun SettingsDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Close")
+                Text(Localization.getString("close", isId))
             }
         }
     )

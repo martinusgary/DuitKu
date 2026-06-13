@@ -102,7 +102,7 @@ object GeminiClient {
         }
 
         val requestBody = payload.toString().toRequestBody("application/json".toMediaType())
-        val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent?key=$apiKey"
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey"
 
         val request = Request.Builder()
             .url(url)
