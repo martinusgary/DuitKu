@@ -51,7 +51,7 @@ fun DebtsBillsScreen(viewModel: FinanceViewModel) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.CompareArrows, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Hutang & Piutang")
+                        Text("Debts & Loans")
                     }
                 }
             )
@@ -62,7 +62,7 @@ fun DebtsBillsScreen(viewModel: FinanceViewModel) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Receipt, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Tagihan")
+                        Text("Bills")
                     }
                 }
             )
@@ -144,7 +144,7 @@ fun DebtsTabContent(
                 )
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Hutang Saya (Pihak Lain)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("My Debts (Owed to Others)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         viewModel.formatRupiah(totalHutang),
@@ -152,7 +152,7 @@ fun DebtsTabContent(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.error
                     )
-                    Text("Harus dibayar", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                    Text("To Pay", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                 }
             }
 
@@ -164,7 +164,7 @@ fun DebtsTabContent(
                 )
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Piutang Saya (Dipinjam Orang)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("My Loans (Owed to Me)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         viewModel.formatRupiah(totalPiutang),
@@ -172,7 +172,7 @@ fun DebtsTabContent(
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF2E7D32)
                     )
-                    Text("Akan ditagih", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                    Text("To Collect", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                 }
             }
         }
@@ -182,11 +182,11 @@ fun DebtsTabContent(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Daftar Hutang / Piutang Aktif", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("Active Debt & Loan List", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Button(onClick = onAddClick) {
                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Tambah Catatan")
+                Text("Add Note")
             }
         }
 
@@ -200,7 +200,7 @@ fun DebtsTabContent(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.CompareArrows, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f))
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Belum ada catatan hutang/piutang.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("No debt/loan records found.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         } else {
@@ -232,8 +232,8 @@ fun DebtsTabContent(
     if (selectedDebtForDelete != null) {
         AlertDialog(
             onDismissRequest = { selectedDebtForDelete = null },
-            title = { Text("Hapus Catatan Hutang?") },
-            text = { Text("Apakah Anda yakin ingin menghapus catatan dari HP Anda? Saldo saat ini tidak akan terpengaruh.") },
+            title = { Text("Delete Debt Record?") },
+            text = { Text("Are you sure you want to delete this record from your device? The current balance will not be affected.") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -241,12 +241,12 @@ fun DebtsTabContent(
                         selectedDebtForDelete = null
                     }
                 ) {
-                    Text("Hapus", color = MaterialTheme.colorScheme.error)
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { selectedDebtForDelete = null }) {
-                    Text("Batal")
+                    Text("Cancel")
                 }
             }
         )
@@ -304,7 +304,7 @@ fun DebtCardRow(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = if (isHutang) "Hutang Saya" else "Piutang Saya",
+                            text = if (isHutang) "My Debt" else "My Loan",
                             style = MaterialTheme.typography.bodySmall,
                             color = colorAccent,
                             fontWeight = FontWeight.Bold
@@ -324,7 +324,7 @@ fun DebtCardRow(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column {
-                    Text("Sisa Nominal", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Remaining Amount", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
                         viewModel.formatRupiah(debt.remainingAmount),
                         style = MaterialTheme.typography.titleMedium,
@@ -334,7 +334,7 @@ fun DebtCardRow(
                 }
 
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("Tenggat Waktu", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Due Date", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
                         viewModel.formatDate(debt.dueDate),
                         style = MaterialTheme.typography.bodyMedium,
@@ -346,7 +346,7 @@ fun DebtCardRow(
             if (debt.notes.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Catatan: ${debt.notes}",
+                    text = "Note: ${debt.notes}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                 )
@@ -373,7 +373,7 @@ fun DebtCardRow(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "Telah dibayar: ${(percentageFinished * 100).toInt()}%",
+                    "Paid: ${(percentageFinished * 100).toInt()}%",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -385,12 +385,12 @@ fun DebtCardRow(
                         modifier = Modifier.height(32.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = colorAccent)
                     ) {
-                        Text("Catat Cicilan", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                        Text("Record Installment", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                     }
                 } else {
                     SuggestionChip(
                         onClick = {},
-                        label = { Text("LUNAS", fontWeight = FontWeight.Black) },
+                        label = { Text("PAID", fontWeight = FontWeight.Black) },
                         border = null,
                         colors = SuggestionChipDefaults.suggestionChipColors(
                             containerColor = Color(0xFFE8F5E9),
@@ -416,7 +416,7 @@ fun AddDebtDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Catat Hutang/Piutang", fontWeight = FontWeight.Bold) },
+        title = { Text("Record Debt/Loan", fontWeight = FontWeight.Bold) },
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -426,20 +426,20 @@ fun AddDebtDialog(
                     Tab(
                         selected = type == "HUTANG",
                         onClick = { type = "HUTANG" },
-                        text = { Text("Saya Berhutang (Keluar)") }
+                        text = { Text("I Owe (Expense)") }
                     )
                     Tab(
                         selected = type == "PIUTANG",
                         onClick = { type = "PIUTANG" },
-                        text = { Text("Orang Berhutang (Masuk)") }
+                        text = { Text("Owed to Me (Income)") }
                     )
                 }
 
                 OutlinedTextField(
                     value = personName,
                     onValueChange = { personName = it },
-                    label = { Text("Nama Orang / Lembaga") },
-                    placeholder = { Text("Misal: Budi, Bank Mandiri") },
+                    label = { Text("Person / Institution Name") },
+                    placeholder = { Text("e.g., John Doe, Bank") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
@@ -447,7 +447,7 @@ fun AddDebtDialog(
                 OutlinedTextField(
                     value = totalAmountStr,
                     onValueChange = { if (it.all { char -> char.isDigit() }) totalAmountStr = it },
-                    label = { Text("Nominal Total") },
+                    label = { Text("Total Amount") },
                     prefix = { Text("Rp ") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     placeholder = { Text("0") },
@@ -458,8 +458,8 @@ fun AddDebtDialog(
                 OutlinedTextField(
                     value = daysToDue,
                     onValueChange = { if (it.all { char -> char.isDigit() }) daysToDue = it },
-                    label = { Text("Jumlah Hari Jatuh Tempo") },
-                    suffix = { Text("Hari lagi") },
+                    label = { Text("Days until Due Date") },
+                    suffix = { Text("Days left") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
@@ -468,7 +468,7 @@ fun AddDebtDialog(
                 OutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it },
-                    label = { Text("Keterangan Tambahan") },
+                    label = { Text("Additional Notes") },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -493,12 +493,12 @@ fun AddDebtDialog(
                 },
                 enabled = personName.trim().isNotEmpty() && totalAmountStr.isNotEmpty()
             ) {
-                Text("Simpan")
+                Text("Save")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Batal")
+                Text("Cancel")
             }
         }
     )
@@ -517,17 +517,17 @@ fun PayDebtInstallmentDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Catat Pembayaran untuk ${debt.personName}", fontWeight = FontWeight.Bold) },
+        title = { Text("Record Payment for ${debt.personName}", fontWeight = FontWeight.Bold) },
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("Sisa Hutang: ${viewModel.formatRupiah(debt.remainingAmount)}", fontWeight = FontWeight.SemiBold)
+                Text("Remaining Debt: ${viewModel.formatRupiah(debt.remainingAmount)}", fontWeight = FontWeight.SemiBold)
 
                 OutlinedTextField(
                     value = amountPaidStr,
                     onValueChange = { if (it.all { char -> char.isDigit() }) amountPaidStr = it },
-                    label = { Text("Nominal Pembayaran") },
+                    label = { Text("Payment Amount") },
                     prefix = { Text("Rp ") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     placeholder = { Text("0") },
@@ -535,9 +535,9 @@ fun PayDebtInstallmentDialog(
                     singleLine = true
                 )
 
-                Text("Pilih Dompet Rekening Pembayaran:", style = MaterialTheme.typography.labelMedium)
+                Text("Select Payment Wallet/Account:", style = MaterialTheme.typography.labelMedium)
                 if (wallets.isEmpty()) {
-                    Text("Belum ada dompet.", color = MaterialTheme.colorScheme.error)
+                    Text("No wallets found.", color = MaterialTheme.colorScheme.error)
                 } else {
                     ScrollableTabRow(
                         selectedTabIndex = wallets.indexOfFirst { it.id == selectedWalletId }.coerceAtLeast(0),
@@ -556,8 +556,8 @@ fun PayDebtInstallmentDialog(
                 OutlinedTextField(
                     value = comment,
                     onValueChange = { comment = it },
-                    label = { Text("Catatan / Cicilan keberapa") },
-                    placeholder = { Text("Misal: Cicilan ke-1, Pelunasan penuh") },
+                    label = { Text("Notes / Installment number") },
+                    placeholder = { Text("e.g., Part payment 1, full repayment") },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -578,12 +578,12 @@ fun PayDebtInstallmentDialog(
                 },
                 enabled = amountPaidStr.isNotEmpty() && wallets.isNotEmpty()
             ) {
-                Text("Simpan Pembayaran")
+                Text("Save Payment")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Batal")
+                Text("Cancel")
             }
         }
     )
@@ -614,11 +614,11 @@ fun BillsTabContent(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Daftar Tagihan Rutin", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("Recurring Bills List", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Button(onClick = onAddClick) {
                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Tambah Tagihan")
+                Text("Add Bill")
             }
         }
 
@@ -632,7 +632,7 @@ fun BillsTabContent(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.Receipt, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f))
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Belum ada tagihan rutin terdaftar.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("No recurring bills registered yet.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         } else {
@@ -690,7 +690,7 @@ fun BillsTabContent(
                                     color = if (isLunas) Color(0xFF2E7D32).copy(alpha = 0.6f) else Color(0xFFC62828)
                                 )
                                 Text(
-                                    text = "Jatuh Tempo: ${bill.dueDateValue}",
+                                    text = "Due Date: ${bill.dueDateValue}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -700,7 +700,7 @@ fun BillsTabContent(
                                 Row {
                                     if (isLunas) {
                                         TextButton(onClick = { viewModel.resetBillStatus(bill) }) {
-                                            Text("Set Ulang", style = MaterialTheme.typography.bodySmall)
+                                            Text("Reset", style = MaterialTheme.typography.bodySmall)
                                         }
                                     } else {
                                         Button(
@@ -708,7 +708,7 @@ fun BillsTabContent(
                                             modifier = Modifier.height(36.dp),
                                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                                         ) {
-                                            Text("BUKTIKAN BAYAR", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                                            Text("RECORD PAYMENT", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                                         }
                                     }
 
@@ -736,8 +736,8 @@ fun BillsTabContent(
     if (selectedBillForDelete != null) {
         AlertDialog(
             onDismissRequest = { selectedBillForDelete = null },
-            title = { Text("Hapus Tagihan?") },
-            text = { Text("Apakah Anda yakin ingin menghapus tagihan rutin '${selectedBillForDelete!!.name}' dari sistem?") },
+            title = { Text("Delete Bill?") },
+            text = { Text("Are you sure you want to delete recurring bill '${selectedBillForDelete!!.name}' from the system?") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -745,12 +745,12 @@ fun BillsTabContent(
                         selectedBillForDelete = null
                     }
                 ) {
-                    Text("Hapus", color = MaterialTheme.colorScheme.error)
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { selectedBillForDelete = null }) {
-                    Text("Batal")
+                    Text("Cancel")
                 }
             }
         )
@@ -764,11 +764,11 @@ fun AddBillDialog(
 ) {
     var name by remember { mutableStateOf("") }
     var amountStr by remember { mutableStateOf("") }
-    var dueDateValue by remember { mutableStateOf("Setiap tanggal 10") }
+    var dueDateValue by remember { mutableStateOf("Every 10th") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Tambah Tagihan Baru", fontWeight = FontWeight.Bold) },
+        title = { Text("Add New Bill", fontWeight = FontWeight.Bold) },
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -776,8 +776,8 @@ fun AddBillDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Nama Tagihan") },
-                    placeholder = { Text("Misal: WiFi Indihome, BPJS Kesehatan") },
+                    label = { Text("Bill Name") },
+                    placeholder = { Text("e.g., WiFi, Electricity, Health Insurance") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
@@ -785,7 +785,7 @@ fun AddBillDialog(
                 OutlinedTextField(
                     value = amountStr,
                     onValueChange = { if (it.all { char -> char.isDigit() }) amountStr = it },
-                    label = { Text("Nominal Bulanan") },
+                    label = { Text("Monthly Amount") },
                     prefix = { Text("Rp ") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     placeholder = { Text("0") },
@@ -796,8 +796,8 @@ fun AddBillDialog(
                 OutlinedTextField(
                     value = dueDateValue,
                     onValueChange = { dueDateValue = it },
-                    label = { Text("Pernyataan Jatuh Tempo") },
-                    placeholder = { Text("Misal: Setiap tanggal 15 atau Tanggal 5") },
+                    label = { Text("Due Date Statement") },
+                    placeholder = { Text("e.g., Every 15th of the month") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
@@ -818,12 +818,12 @@ fun AddBillDialog(
                 },
                 enabled = name.trim().isNotEmpty() && amountStr.isNotEmpty()
             ) {
-                Text("Simpan")
+                Text("Save")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Batal")
+                Text("Cancel")
             }
         }
     )
@@ -840,16 +840,16 @@ fun PayBillDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Bayar Tagihan: ${bill.name}", fontWeight = FontWeight.Bold) },
+        title = { Text("Pay Bill: ${bill.name}", fontWeight = FontWeight.Bold) },
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("Jumlah Tagihan: ${viewModel.formatRupiah(bill.amount)}")
-                Text("Pilih dompet rekening sumber dana pembayaran Anda:")
+                Text("Bill Amount: ${viewModel.formatRupiah(bill.amount)}")
+                Text("Select the source wallet/account for payment:")
                 
                 if (wallets.isEmpty()) {
-                    Text("Belum ada dompet.", color = MaterialTheme.colorScheme.error)
+                    Text("No wallets found.", color = MaterialTheme.colorScheme.error)
                 } else {
                     ScrollableTabRow(
                         selectedTabIndex = wallets.indexOfFirst { it.id == selectedWalletId }.coerceAtLeast(0),
@@ -876,12 +876,12 @@ fun PayBillDialog(
                 },
                 enabled = wallets.isNotEmpty()
             ) {
-                Text("Konfirmasi Pembayaran")
+                Text("Confirm Payment")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Batal")
+                Text("Cancel")
             }
         }
     )

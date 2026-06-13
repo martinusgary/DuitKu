@@ -142,18 +142,8 @@ class FinanceRepository(private val financeDao: FinanceDao) {
     // --- CHECK & PRE-POPULATE DEFAULT DATA ---
 
     suspend fun prepDefaultDataIfNeeded() = withContext(Dispatchers.IO) {
-        val existingWallets = financeDao.getAllWalletsDirect()
-        if (existingWallets.isEmpty()) {
-            val defaultWallets = listOf(
-                Wallet(name = "Tunai (Cash)", balance = 150000.0, icon = "cash"),
-                Wallet(name = "Bank BCA", balance = 3500000.0, icon = "bank"),
-                Wallet(name = "GoPay", balance = 250000.0, icon = "wallet"),
-                Wallet(name = "Dana Tabungan", balance = 1000000.0, icon = "savings")
-            )
-            for (w in defaultWallets) {
-                financeDao.insertWallet(w)
-            }
-
+        val existingCategories = financeDao.getAllCategoriesDirect()
+        if (existingCategories.isEmpty()) {
             val defaultCategories = listOf(
                 Category(name = "Makanan & Minuman", type = "EXPENSE"),
                 Category(name = "Transportasi", type = "EXPENSE"),
@@ -168,36 +158,6 @@ class FinanceRepository(private val financeDao: FinanceDao) {
             )
             for (c in defaultCategories) {
                 financeDao.insertCategory(c)
-            }
-
-            // Let's add 3 pre-loaded transactions to make graph and dashboard look great instantly!
-            // First we need to query back the IDs or assume they are starting with 1, 2, 3...
-            // Standard autoincrement in SQLite starts at 1. Let's insert transactions matching Wallet 1 (Tunai) and Wallet 2 (Bank BCA).
-            // Category 1: Makanan & Minuman (EXPENSE), Category 6: Gaji (INCOME)
-            val now = System.currentTimeMillis()
-            val preTransactions = listOf(
-                Transaction(amount = 25000.0, date = now - 86400000L * 2, walletId = 1, categoryId = 1, type = "EXPENSE", note = "Makan Siang Nasi Padang"),
-                Transaction(amount = 3500000.0, date = now - 86400000L * 5, walletId = 2, categoryId = 6, type = "INCOME", note = "Gaji Pokok Juni"),
-                Transaction(amount = 120000.0, date = now - 86400000L * 1, walletId = 2, categoryId = 3, type = "EXPENSE", note = "Belanja Supermarket Bulanan")
-            )
-            for (t in preTransactions) {
-                financeDao.insertTransaction(t)
-            }
-
-            val defaultDebts = listOf(
-                Debt(personName = "Rian (Teman Kantor)", totalAmount = 150000.0, remainingAmount = 150000.0, dueDate = now + 86400000L * 8, type = "PIUTANG", notes = "Pinjam buat bayar service hp harian"),
-                Debt(personName = "BCA Syariah", totalAmount = 5000000.0, remainingAmount = 4200000.0, dueDate = now + 86400000L * 25, type = "HUTANG", notes = "Cicilan Laptop Baru")
-            )
-            for (d in defaultDebts) {
-                financeDao.insertDebt(d)
-            }
-
-            val defaultBills = listOf(
-                Bill(name = "Tagihan Internet WiFi", amount = 350000.0, dueDateValue = "Setiap tanggal 12", status = "BELUM_DIBAYAR"),
-                Bill(name = "Token Air PAM", amount = 85000.0, dueDateValue = "Setiap tanggal 18", status = "PASCA_BAYAR")
-            )
-            for (b in defaultBills) {
-                financeDao.insertBill(b)
             }
         }
     }

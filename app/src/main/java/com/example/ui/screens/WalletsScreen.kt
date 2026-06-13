@@ -51,12 +51,12 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        "Belum ada tempat menyimpan uang.",
+                        "No wallets found.",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "Mulai buat dompet Anda untuk mencatat saldo awal.",
+                        "Create a wallet to record your initial balance.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -64,7 +64,7 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
                     Button(onClick = { showAddWalletDialog = true }) {
                         Icon(Icons.Default.Add, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Tambah Dompet Baru")
+                        Text("Add New Wallet")
                     }
                 }
             }
@@ -76,13 +76,13 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = "Daftar Dompet / Rekening Anda",
+                    text = "My Wallets & Accounts",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Black,
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
-                    text = "Ketuk kartu dompet untuk menghapus atau mengedit saldo Anda.",
+                    text = "Tap a wallet to delete it or adjust its balance.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -113,7 +113,7 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
                 containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                 contentColor = MaterialTheme.colorScheme.onTertiaryContainer
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Tambah Dompet")
+                Icon(Icons.Default.Add, contentDescription = "Add Wallet")
             }
         }
     }
@@ -128,8 +128,8 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
     selectedWalletToInteract?.let { wallet ->
         AlertDialog(
             onDismissRequest = { selectedWalletToInteract = null },
-            title = { Text("Hapus Dompet: ${wallet.name}?") },
-            text = { Text("Apakah Anda yakin ingin menghapus dompet ini? Menghapus dompet tidak akan menghapus riwayat transaksi secara otomatis, namun dompet tidak akan muncul lagi di pilihan.") },
+            title = { Text("Delete Wallet: ${wallet.name}?") },
+            text = { Text("Are you sure you want to delete this wallet? Deleting it will not automatically delete transaction histories, but it will no longer be available as a choice.") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -137,12 +137,12 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
                         selectedWalletToInteract = null
                     }
                 ) {
-                    Text("Hapus Dompet", color = MaterialTheme.colorScheme.error)
+                    Text("Delete Wallet", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { selectedWalletToInteract = null }) {
-                    Text("Batal")
+                    Text("Cancel")
                 }
             }
         )
@@ -219,7 +219,7 @@ fun WalletGridCard(
                         text = when (wallet.icon) {
                             "bank" -> "Bank"
                             "wallet" -> "E-Money"
-                            "savings" -> "Tabungan"
+                            "savings" -> "Savings"
                             else -> "Cash"
                         },
                         style = MaterialTheme.typography.labelSmall,
@@ -260,7 +260,7 @@ fun AddWalletDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Tambah Dompet / Sumber Dana", fontWeight = FontWeight.Bold) },
+        title = { Text("Add Wallet / Account", fontWeight = FontWeight.Bold) },
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -268,8 +268,8 @@ fun AddWalletDialog(
                 OutlinedTextField(
                     value = walletName,
                     onValueChange = { walletName = it },
-                    label = { Text("Nama Dompet / Rekening") },
-                    placeholder = { Text("Misal: Bank Mandiri, Dompet Saku, GoPay") },
+                    label = { Text("Wallet / Account Name") },
+                    placeholder = { Text("e.g. Bank Account, Cash, E-wallet") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
@@ -277,7 +277,7 @@ fun AddWalletDialog(
                 OutlinedTextField(
                     value = initialBalanceStr,
                     onValueChange = { if (it.all { char -> char.isDigit() }) initialBalanceStr = it },
-                    label = { Text("Saldo Awal") },
+                    label = { Text("Starting Balance") },
                     prefix = { Text("Rp ") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     placeholder = { Text("0") },
@@ -285,7 +285,7 @@ fun AddWalletDialog(
                     singleLine = true
                 )
 
-                Text("Jenis Dompet / Ikon:", style = MaterialTheme.typography.labelMedium)
+                Text("Wallet Type / Icon:", style = MaterialTheme.typography.labelMedium)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -294,7 +294,7 @@ fun AddWalletDialog(
                         Triple("cash", Icons.Default.Payments, "Cash"),
                         Triple("bank", Icons.Default.AccountBalance, "Bank"),
                         Triple("wallet", Icons.Default.CreditCard, "E-Money"),
-                        Triple("savings", Icons.Default.Savings, "Tabungan")
+                        Triple("savings", Icons.Default.Savings, "Savings")
                     )
 
                     icons.forEach { (key, icon, label) ->
@@ -325,12 +325,12 @@ fun AddWalletDialog(
                 },
                 enabled = walletName.trim().isNotEmpty()
             ) {
-                Text("Simpan")
+                Text("Save")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Batal")
+                Text("Cancel")
             }
         }
     )

@@ -54,13 +54,13 @@ class MainActivity : ComponentActivity() {
                                     )
                                 }
                             },
-                            actions = {
+                             actions = {
                                 var showMenu by remember { mutableStateOf(false) }
                                 Box {
                                     IconButton(onClick = { showMenu = true }) {
                                         Icon(
                                             Icons.Default.MoreVert,
-                                            contentDescription = "Opsi Menu",
+                                            contentDescription = "Menu Options",
                                             tint = MaterialTheme.colorScheme.primary
                                         )
                                     }
@@ -69,14 +69,14 @@ class MainActivity : ComponentActivity() {
                                         onDismissRequest = { showMenu = false }
                                     ) {
                                         DropdownMenuItem(
-                                            text = { Text("Kelola Kategori") },
+                                            text = { Text("Manage Categories") },
                                             onClick = {
                                                 showMenu = false
                                                 showCategoryDialog = true
                                             }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text("Cadangkan & Impor Data") },
+                                            text = { Text("Backup & Import Data") },
                                             onClick = {
                                                 showMenu = false
                                                 showBackupDialog = true
@@ -98,25 +98,25 @@ class MainActivity : ComponentActivity() {
                                 selected = selectedTab == 0,
                                 onClick = { selectedTab = 0 },
                                 icon = { Icon(Icons.Default.Home, contentDescription = "Dashboard") },
-                                label = { Text("Dasbor") }
+                                label = { Text("Dashboard") }
                             )
                             NavigationBarItem(
                                 selected = selectedTab == 1,
                                 onClick = { selectedTab = 1 },
                                 icon = { Icon(Icons.Default.AccountBalanceWallet, contentDescription = "Wallets") },
-                                label = { Text("Dompet") }
+                                label = { Text("Wallets") }
                             )
                             NavigationBarItem(
                                 selected = selectedTab == 2,
                                 onClick = { selectedTab = 2 },
                                 icon = { Icon(Icons.Default.PieChart, contentDescription = "Analytics") },
-                                label = { Text("Analisis") }
+                                label = { Text("Analytics") }
                             )
                             NavigationBarItem(
                                 selected = selectedTab == 3,
                                 onClick = { selectedTab = 3 },
                                 icon = { Icon(Icons.Default.PriceChange, contentDescription = "Debts/Bills") },
-                                label = { Text("Hutang/Tagihan") }
+                                label = { Text("Debts/Bills") }
                             )
                         }
                     }

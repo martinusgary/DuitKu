@@ -1,23 +1,30 @@
 package com.example.ui.screens
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.ContentPaste
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.ui.viewmodel.FinanceViewModel
 import kotlinx.coroutines.launch
@@ -32,19 +39,68 @@ fun SettingsDialog(
     val coroutineScope = rememberCoroutineScope()
     
     var backupJson by remember { mutableStateOf("") }
-    var importJson by remember { mutableStateOf("") }
-    var activeTab by remember { mutableStateOf(0) } // 0: Ekspor, 1: Impor
+    var selectedFileName by remember { mutableStateOf("") }
+    var importJsonContent by remember { mutableStateOf("") }
+    var activeTab by remember { mutableStateOf(0) } // 0: Export, 1: Import
 
-    // Pre-generate JSON on opening
+    // Pre-generate JSON on opening for backup
     LaunchedEffect(Unit) {
         backupJson = viewModel.getBackupJson()
+    }
+
+    // Launcher for exporting/downloading a file
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        uri?.let {
+            try {
+                context.contentResolver.openOutputStream(it)?.use { outputStream ->
+                    outputStream.write(backupJson.toByteArray())
+                }
+                Toast.makeText(context, "Backup downloaded successfully!", Toast.LENGTH_LONG).show()
+                onDismiss()
+            } catch (e: Exception) {
+                Toast.makeText(context, "Error saving file: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    // Launcher for importing/uploading a file
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            try {
+                // Get display name of the selected file
+                var fileName = "duitku_backup.json"
+                context.contentResolver.query(it, null, null, null, null)?.use { cursor ->
+                    val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex != -1 && cursor.moveToFirst()) {
+                        fileName = cursor.getString(nameIndex)
+                    }
+                }
+
+                context.contentResolver.openInputStream(it)?.use { inputStream ->
+                    val content = inputStream.bufferedReader().use { reader -> reader.readText() }
+                    if (content.trim().startsWith("{") || content.trim().startsWith("[")) {
+                        importJsonContent = content
+                        selectedFileName = fileName
+                        Toast.makeText(context, "File loaded successfully!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "Invalid JSON file structure!", Toast.LENGTH_LONG).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Error reading file: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                "Cadangkan & Impor (Backup)",
+                "Backup & Restore Data",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
@@ -57,7 +113,7 @@ fun SettingsDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    "Pindahkan catatan keuangan Anda ke perangkat lain dengan mudah.",
+                    "Easily move your financial data to a file or restore a previous session.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -66,12 +122,12 @@ fun SettingsDialog(
                     Tab(
                         selected = activeTab == 0,
                         onClick = { activeTab = 0 },
-                        text = { Text("Ekspor Data") }
+                        text = { Text("Backup (Download)") }
                     )
                     Tab(
                         selected = activeTab == 1,
                         onClick = { activeTab = 1 },
-                        text = { Text("Impor Data") }
+                        text = { Text("Restore (Upload)") }
                     )
                 }
 
@@ -79,125 +135,190 @@ fun SettingsDialog(
 
                 if (activeTab == 0) {
                     // EXPORT LAYOUT
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            "Salin kode teks di bawah ini ke HP baru Anda atau bagikan:",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        
-                        OutlinedTextField(
-                            value = backupJson,
-                            onValueChange = {},
-                            readOnly = true,
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        "Safe and Easy",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Text(
+                                    "Your transactions, accounts, active bills, and debts are compiled into a single file. Tap below to download it securely onto your device.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+                                exportLauncher.launch("duitku_backup.json")
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(130.dp),
-                            textStyle = MaterialTheme.typography.bodySmall,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                .height(56.dp)
                         ) {
-                            Button(
-                                onClick = {
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    val clip = ClipData.newPlainText("DuitKu Backup", backupJson)
-                                    clipboard.setPrimaryClip(clip)
-                                    Toast.makeText(context, "Kode backup disalin ke papan klip!", Toast.LENGTH_SHORT).show()
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = "Salin")
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Salin Kode")
-                            }
-
-                            FilledTonalButton(
-                                onClick = {
-                                    val sendIntent: Intent = Intent().apply {
-                                        action = Intent.ACTION_SEND
-                                        putExtra(Intent.EXTRA_TEXT, backupJson)
-                                        type = "text/plain"
-                                    }
-                                    val shareIntent = Intent.createChooser(sendIntent, "Simpan Cadangan DuitKu")
-                                    context.startActivity(shareIntent)
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.Share, contentDescription = "Bagikan")
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Bagikan")
-                            }
+                            Icon(
+                                Icons.Default.ArrowDownward,
+                                contentDescription = "Download File"
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Download Backup File", fontWeight = FontWeight.Bold)
                         }
                     }
                 } else {
                     // IMPORT LAYOUT
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            "Tempelkan kode teks cadangan dari HP lama Anda di bawah ini:",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                    Text(
+                                        "Overwrites Current Data",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                                Text(
+                                    "Selecting and importing a backup file will fully replace all financial records in your app. This operation cannot be undone.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
+                                )
+                            }
+                        }
 
-                        OutlinedTextField(
-                            value = importJson,
-                            onValueChange = { importJson = it },
-                            placeholder = { Text("Mulai tempelkan kode cadangan JSON di sini...") },
+                        // Select File Button
+                        OutlinedButton(
+                            onClick = {
+                                importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(130.dp),
-                            textStyle = MaterialTheme.typography.bodySmall
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                .height(56.dp),
+                            shape = RoundedCornerShape(100)
                         ) {
-                            OutlinedButton(
-                                onClick = {
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    val clipData = clipboard.primaryClip
-                                    if (clipData != null && clipData.itemCount > 0) {
-                                        importJson = clipData.getItemAt(0).text.toString()
-                                        Toast.makeText(context, "Berhasil menempelkan teks!", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        Toast.makeText(context, "Klipbort kosong!", Toast.LENGTH_SHORT).show()
-                                    }
-                                },
-                                modifier = Modifier.weight(1f)
+                            Icon(
+                                Icons.Default.ArrowUpward,
+                                contentDescription = "Upload/Restore File"
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (selectedFileName.isEmpty()) "Select Backup File" else "Change Backup File",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        // File status display
+                        if (selectedFileName.isNotEmpty()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFFE8F5E9))
+                                    .border(1.dp, Color(0xFF81C784), RoundedCornerShape(12.dp))
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Icon(Icons.Default.ContentPaste, contentDescription = "Tempel")
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Tempel Teks")
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = "Success",
+                                    tint = Color(0xFF2E7D32)
+                                )
+                                Column {
+                                    Text(
+                                        "Ready to Import:",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFF1B5E20),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        selectedFileName,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = Color(0xFF1B5E20)
+                                    )
+                                }
                             }
 
+                            // Restore Action Button
                             Button(
                                 onClick = {
-                                    if (importJson.trim().isEmpty()) {
-                                        Toast.makeText(context, "Mohon tempel kode backup yang valid!", Toast.LENGTH_SHORT).show()
-                                        return@Button
-                                    }
-                                    viewModel.importBackupJson(importJson) { success ->
+                                    viewModel.importBackupJson(importJsonContent) { success ->
                                         if (success) {
-                                            Toast.makeText(context, "Data berhasil dipulihkan!", Toast.LENGTH_LONG).show()
+                                            Toast.makeText(context, "Data successfully restored!", Toast.LENGTH_LONG).show()
                                             onDismiss()
                                         } else {
-                                            Toast.makeText(context, "Gagal memulihkan. Periksa format teks!", Toast.LENGTH_LONG).show()
+                                            Toast.makeText(context, "Failed to restore. Please check file compliance!", Toast.LENGTH_LONG).show()
                                         }
                                     }
                                 },
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(56.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.error
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = MaterialTheme.colorScheme.onError
                                 )
                             ) {
-                                Text("Impor Sekarang")
+                                Text("Restore Data Now", fontWeight = FontWeight.Black)
+                            }
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+                                    .padding(vertical = 16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    "No backup file selected yet.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }
@@ -206,7 +327,7 @@ fun SettingsDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Tutup")
+                Text("Close")
             }
         }
     )

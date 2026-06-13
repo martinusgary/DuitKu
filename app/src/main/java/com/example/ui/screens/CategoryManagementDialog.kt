@@ -66,7 +66,7 @@ fun CategoryManagementDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Kelola Kategori",
+                        text = "Manage Categories",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -74,7 +74,7 @@ fun CategoryManagementDialog(
                     IconButton(onClick = onDismiss) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = "Tutup",
+                            contentDescription = "Close",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -93,7 +93,7 @@ fun CategoryManagementDialog(
                         onClick = { selectedTabState = 0 },
                         text = { 
                             Text(
-                                "Pengeluaran", 
+                                "Expense", 
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold
                             ) 
@@ -104,7 +104,7 @@ fun CategoryManagementDialog(
                         onClick = { selectedTabState = 1 },
                         text = { 
                             Text(
-                                "Pemasukan", 
+                                "Income", 
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold
                             ) 
@@ -123,7 +123,7 @@ fun CategoryManagementDialog(
                     OutlinedTextField(
                         value = newCategoryName,
                         onValueChange = { newCategoryName = it },
-                        placeholder = { Text("Kategori baru...") },
+                        placeholder = { Text("New category name...") },
                         singleLine = true,
                         modifier = Modifier
                             .weight(1f)
@@ -146,7 +146,7 @@ fun CategoryManagementDialog(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
-                            contentDescription = "Tambah"
+                            contentDescription = "Add"
                         )
                     }
                 }
@@ -165,7 +165,7 @@ fun CategoryManagementDialog(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "Tidak ada kategori.",
+                                text = "No categories found.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -215,7 +215,7 @@ fun CategoryManagementDialog(
                                             ) {
                                                 Icon(
                                                     imageVector = Icons.Default.Edit,
-                                                    contentDescription = "Edit Kategori",
+                                                    contentDescription = "Edit Category",
                                                     tint = MaterialTheme.colorScheme.primary,
                                                     modifier = Modifier.size(18.dp)
                                                 )
@@ -228,7 +228,7 @@ fun CategoryManagementDialog(
                                             ) {
                                                 Icon(
                                                     imageVector = Icons.Default.Delete,
-                                                    contentDescription = "Hapus Kategori",
+                                                    contentDescription = "Delete Category",
                                                     tint = MaterialTheme.colorScheme.error,
                                                     modifier = Modifier.size(18.dp)
                                                 )
@@ -250,7 +250,7 @@ fun CategoryManagementDialog(
             onDismissRequest = { editingCategory = null },
             title = {
                 Text(
-                    "Ubah Nama Kategori",
+                    "Edit Category Name",
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.titleMedium
                 )
@@ -264,7 +264,7 @@ fun CategoryManagementDialog(
                         value = editCategoryName,
                         onValueChange = { editCategoryName = it },
                         singleLine = true,
-                        placeholder = { Text("Nama kategori") },
+                        placeholder = { Text("Category name") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("edit_category_input"),
@@ -284,12 +284,12 @@ fun CategoryManagementDialog(
                     modifier = Modifier.testTag("edit_category_save"),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Simpan")
+                    Text("Save")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { editingCategory = null }) {
-                    Text("Batal")
+                    Text("Cancel")
                 }
             }
         )
@@ -302,14 +302,14 @@ fun CategoryManagementDialog(
             onDismissRequest = { deletingCategory = null },
             title = {
                 Text(
-                    "Hapus Kategori?",
+                    "Delete Category?",
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.titleMedium
                 )
             },
             text = {
-                Text("Apakah Anda yakin ingin menghapus kategori \"${catToDelete?.name}\"? Catatan transaksi pada kategori ini tidak akan terhapus, namun tidak lagi memiliki kategori.")
+                Text("Are you sure you want to delete the category \"${catToDelete?.name}\"? Transactions in this category will not be deleted, but they will no longer be categorized.")
             },
             confirmButton = {
                 Button(
@@ -325,12 +325,12 @@ fun CategoryManagementDialog(
                     modifier = Modifier.testTag("delete_category_confirm"),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Hapus")
+                    Text("Delete")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { deletingCategory = null }) {
-                    Text("Batal")
+                    Text("Cancel")
                 }
             }
         )

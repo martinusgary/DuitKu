@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -8,17 +11,22 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.data.model.Category
 import com.example.data.model.Transaction
+import com.example.ui.util.PdfExporter
 import com.example.ui.viewmodel.FinanceViewModel
+import java.util.Calendar
 
 @Composable
 fun AnalyticsScreen(viewModel: FinanceViewModel) {
@@ -55,7 +63,7 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
         ) {
             item {
                 Text(
-                    text = "Arus Kas & Analisis",
+                    text = "Cash Flow & Analytics",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Black,
                     color = MaterialTheme.colorScheme.onBackground
@@ -73,7 +81,7 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
                 ) {
                     Column(modifier = Modifier.padding(20.dp)) {
                         Text(
-                            text = "Rasio Cash Flow Keseluruhan",
+                            text = "Overall Cash Flow Ratio",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -106,7 +114,7 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
                         ) {
                             Column {
                                 Text(
-                                    "Pemasukan (Total)",
+                                    "Income (Total)",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -120,7 +128,7 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
 
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(
-                                    "Pengeluaran (Total)",
+                                    "Expense (Total)",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -154,10 +162,10 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = when {
-                                        totalIncomeAmount == 0.0 && totalExpenseAmount > 0.0 -> "Ingat untuk mencatat sumber pemasukan Anda!"
-                                        ratio > 0.8 -> "Pengeluaran Anda hampir melebihi pemasukan. Kurangi pengeluaran non-primer Anda."
-                                        ratio > 0.5 -> "Pengeluaran Anda berada di zona aman, tetapi pertahankan agar tetap seimbang."
-                                        else -> "Keuangan Anda sehat! Teruslah menabung dan berinvestasi dengan bijak."
+                                        totalIncomeAmount == 0.0 && totalExpenseAmount > 0.0 -> "Remember to record your sources of income!"
+                                        ratio > 0.8 -> "Your expenses are almost exceeding your income. Reduce your non-essential spending."
+                                        ratio > 0.5 -> "Your expenses are in a safe zone, but keep them balanced."
+                                        else -> "Your finances are healthy! Continue saving and investing wisely."
                                     },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = if (ratio > 0.8) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer,
@@ -169,10 +177,191 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
                 }
             }
 
-            // 2. Spending Breakdown Title
+            // 2. Laporan PDF & Mutasi Card
+            item {
+                var selectedMonth by remember { mutableStateOf(Calendar.getInstance().get(Calendar.MONTH)) }
+                var selectedYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR)) }
+                var monthMenuExpanded by remember { mutableStateOf(false) }
+                var yearMenuExpanded by remember { mutableStateOf(false) }
+
+                val monthNames = listOf(
+                    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+                    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+                )
+
+                val yearsList = remember(transactions) {
+                    if (transactions.isEmpty()) {
+                        listOf(Calendar.getInstance().get(Calendar.YEAR))
+                    } else {
+                        val years = transactions.map {
+                            val cal = Calendar.getInstance()
+                            cal.timeInMillis = it.date
+                            cal.get(Calendar.YEAR)
+                        }.distinct().sorted()
+                        if (years.isEmpty()) listOf(Calendar.getInstance().get(Calendar.YEAR)) else years
+                    }
+                }
+
+                // Adjust selectedYear if it's no longer inside yearsList (e.g. on clean/database restore)
+                LaunchedEffect(yearsList) {
+                    if (!yearsList.contains(selectedYear)) {
+                        selectedYear = yearsList.lastOrNull() ?: Calendar.getInstance().get(Calendar.YEAR)
+                    }
+                }
+
+                ElevatedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.PictureAsPdf,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Text(
+                                text = "Laporan Bulanan & Mutasi (PDF)",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Ekspor mutasi keuangan lengkap serta ringkasan bulanan Anda langsung ke dokumen PDF standar A4.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Month Dropdown
+                            Box(modifier = Modifier.weight(1.2f)) {
+                                OutlinedButton(
+                                    onClick = { monthMenuExpanded = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text(
+                                        text = monthNames[selectedMonth],
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                }
+                                DropdownMenu(
+                                    expanded = monthMenuExpanded,
+                                    onDismissRequest = { monthMenuExpanded = false }
+                                ) {
+                                    monthNames.forEachIndexed { idx, name ->
+                                        DropdownMenuItem(
+                                            text = { Text(name) },
+                                            onClick = {
+                                                selectedMonth = idx
+                                                monthMenuExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Year Dropdown
+                            Box(modifier = Modifier.weight(1f)) {
+                                OutlinedButton(
+                                    onClick = { yearMenuExpanded = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text(
+                                        text = selectedYear.toString(),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                }
+                                DropdownMenu(
+                                    expanded = yearMenuExpanded,
+                                    onDismissRequest = { yearMenuExpanded = false }
+                                ) {
+                                    yearsList.forEach { yr ->
+                                        DropdownMenuItem(
+                                            text = { Text(yr.toString()) },
+                                            onClick = {
+                                                selectedYear = yr
+                                                yearMenuExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        val context = LocalContext.current
+                        val wallets by viewModel.wallets.collectAsState()
+
+                        val pdfLauncher = rememberLauncherForActivityResult(
+                            contract = ActivityResultContracts.CreateDocument("application/pdf")
+                        ) { uri ->
+                            uri?.let {
+                                try {
+                                    context.contentResolver.openOutputStream(it)?.use { stream ->
+                                        PdfExporter.generateMonthlyPdfReport(
+                                            context = context,
+                                            outputStream = stream,
+                                            month = selectedMonth,
+                                            year = selectedYear,
+                                            transactions = transactions,
+                                            wallets = wallets,
+                                            categories = categories,
+                                            viewModel = viewModel
+                                        )
+                                    }
+                                    Toast.makeText(context, "Laporan PDF berhasil diunduh!", Toast.LENGTH_SHORT).show()
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Gagal mengunduh PDF: ${e.message}", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+                                val defaultFilename = "Mutasi_${monthNames[selectedMonth]}_$selectedYear.pdf"
+                                pdfLauncher.launch(defaultFilename)
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Icon(Icons.Default.PictureAsPdf, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Unduh Laporan Mutasi PDF", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            // 3. Spending Breakdown Title
             item {
                 Text(
-                    text = "Distribusi Pengeluaran Kategori",
+                    text = "Category Expense Distribution",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Black,
                     color = MaterialTheme.colorScheme.onBackground
@@ -196,7 +385,7 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
-                                "Belum ada transaksi pengeluaran.",
+                                "No expense transactions recorded yet.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

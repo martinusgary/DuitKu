@@ -26,9 +26,15 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
 import com.example.data.model.Category
 import com.example.data.model.Transaction
 import com.example.data.model.Wallet
+import com.example.ui.util.GeminiClient
 import com.example.ui.viewmodel.FinanceViewModel
 import kotlinx.coroutines.launch
 
@@ -57,7 +63,7 @@ fun DashboardScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // 1. Total Balance Card with Gradient Background (Asymmetric/Atmospheric UI/UX design)
+            // 1. Total Balance Card (Clean, modern solid background matching Material You theme)
             item {
                 Card(
                     modifier = Modifier
@@ -65,72 +71,66 @@ fun DashboardScreen(
                         .clickable { onNavigateToWallets() }
                         .testTag("total_balance_card"),
                     shape = RoundedCornerShape(28.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    ),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
-                    Box(
+                    Column(
                         modifier = Modifier
-                            .background(
-                                brush = Brush.linearGradient(
-                                    colors = listOf(
-                                        MaterialTheme.colorScheme.primary,
-                                        MaterialTheme.colorScheme.tertiary
-                                    )
-                                )
-                            )
+                            .fillMaxWidth()
                             .padding(24.dp)
                     ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "TOTAL SALDO SAYA",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.82f),
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Icon(
-                                    Icons.Default.AccountBalanceWallet,
-                                    contentDescription = "Wallet",
-                                    tint = MaterialTheme.colorScheme.onPrimary
-                                )
-                            }
-                            
-                            Spacer(modifier = Modifier.height(12.dp))
-                            
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
-                                text = viewModel.formatRupiah(totalBalance),
-                                style = MaterialTheme.typography.headlineLarge,
-                                fontWeight = FontWeight.Black,
-                                color = MaterialTheme.colorScheme.onPrimary
+                                text = "MY TOTAL BALANCE",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.82f),
+                                fontWeight = FontWeight.Bold
                             )
-                            
-                            Spacer(modifier = Modifier.height(16.dp))
-                            
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.12f))
-                                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "${wallets.size} Rekening terhubung",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    text = "Lihat Detail →",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                            Icon(
+                                Icons.Default.AccountBalanceWallet,
+                                contentDescription = "Wallet",
+                                tint = MaterialTheme.colorScheme.onPrimary
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        Text(
+                            text = viewModel.formatRupiah(totalBalance),
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.12f))
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "${wallets.size} Connected accounts",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "View Details →",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
@@ -161,14 +161,14 @@ fun DashboardScreen(
                                 ) {
                                     Icon(
                                         Icons.Default.ArrowDownward,
-                                        contentDescription = "Masuk",
+                                        contentDescription = "Income",
                                         tint = Color(0xFF2E7D32),
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    "Pemasukan",
+                                    "Income",
                                     style = MaterialTheme.typography.titleSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -181,7 +181,7 @@ fun DashboardScreen(
                                 color = Color(0xFF2E7D32)
                             )
                             Text(
-                                "Bulan ini",
+                                "This month",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -207,14 +207,14 @@ fun DashboardScreen(
                                 ) {
                                     Icon(
                                         Icons.Default.ArrowUpward,
-                                        contentDescription = "Keluar",
+                                        contentDescription = "Expense",
                                         tint = Color(0xFFC62828),
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    "Pengeluaran",
+                                    "Expense",
                                     style = MaterialTheme.typography.titleSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -227,7 +227,7 @@ fun DashboardScreen(
                                 color = Color(0xFFC62828)
                             )
                             Text(
-                                "Bulan ini",
+                                "This month",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -244,7 +244,7 @@ fun DashboardScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "5 Transaksi Terakhir",
+                        text = "Last 5 Transactions",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.onBackground
@@ -271,7 +271,7 @@ fun DashboardScreen(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                "Belum ada transaksi tercatat.",
+                                "No transactions recorded yet.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -310,9 +310,9 @@ fun DashboardScreen(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Tambah")
+                Icon(Icons.Default.Add, contentDescription = "Add")
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Transaksi Baru", fontWeight = FontWeight.Bold)
+                Text("New Transaction", fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -399,7 +399,7 @@ fun TransactionItemRow(
                             val tujuan = targetWallet?.name ?: "???"
                             "Transfer: $asal → $tujuan"
                         }
-                        else -> category?.name ?: "Tanpa Kategori"
+                        else -> category?.name ?: "Uncategorized"
                     }
                     Text(
                         text = labelText,
@@ -420,7 +420,7 @@ fun TransactionItemRow(
                     }
                     
                     Text(
-                        text = "${viewModel.formatDate(transaction.date)} • ${wallet?.name ?: "Dompet"}",
+                        text = "${viewModel.formatDate(transaction.date)} • ${wallet?.name ?: "Wallet"}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
@@ -450,8 +450,8 @@ fun TransactionItemRow(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Hapus Transaksi") },
-            text = { Text("Apakah Anda yakin ingin menghapus catatan transaksi ini? Saldo dompet akan disesuaikan kembali.") },
+            title = { Text("Delete Transaction") },
+            text = { Text("Are you sure you want to delete this transaction record? The wallet balance will be adjusted accordingly.") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -459,12 +459,12 @@ fun TransactionItemRow(
                         showDeleteConfirm = false
                     }
                 ) {
-                    Text("Hapus", color = MaterialTheme.colorScheme.error)
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text("Batal")
+                    Text("Cancel")
                 }
             }
         )
@@ -513,7 +513,7 @@ fun AddTransactionDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "Tambah Transaksi Baru",
+                    text = "Add New Transaction",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -529,12 +529,12 @@ fun AddTransactionDialog(
                     Tab(
                         selected = selectedType == "EXPENSE",
                         onClick = { selectedType = "EXPENSE" },
-                        text = { Text("Pengeluaran") }
+                        text = { Text("Expense") }
                     )
                     Tab(
                         selected = selectedType == "INCOME",
                         onClick = { selectedType = "INCOME" },
-                        text = { Text("Pemasukan") }
+                        text = { Text("Income") }
                     )
                     Tab(
                         selected = selectedType == "TRANSFER",
@@ -543,11 +543,82 @@ fun AddTransactionDialog(
                     )
                 }
 
+                // Scan Receipt Feature with Gemini AI
+                var isScanning by remember { mutableStateOf(false) }
+                val context = LocalContext.current
+                val coroutineScope = rememberCoroutineScope()
+
+                val photoPickerLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.PickVisualMedia()
+                ) { uri ->
+                    if (uri != null) {
+                        isScanning = true
+                        coroutineScope.launch {
+                            try {
+                                val result = GeminiClient.scanReceipt(context, uri)
+                                if (result != null) {
+                                    amountStr = result.amount.toInt().toString()
+                                    if (result.type == "EXPENSE" || result.type == "INCOME") {
+                                        selectedType = result.type
+                                    }
+                                    note = result.note
+                                    Toast.makeText(context, "Selesai memindai nota belanja!", Toast.LENGTH_SHORT).show()
+                                }
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Gagal memindai foto: ${e.message}", Toast.LENGTH_LONG).show()
+                            } finally {
+                                isScanning = false
+                            }
+                        }
+                    }
+                }
+
+                if (isScanning) {
+                    ElevatedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.elevatedCardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                        ),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                            Text(
+                                "Gemini AI sedang membaca foto nota...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = {
+                            photoPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Icon(Icons.Default.PhotoCamera, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Pindai Foto Nota dengan Gemini AI", fontWeight = FontWeight.Bold)
+                    }
+                }
+
                 // 2. Amount Input
                 OutlinedTextField(
                     value = amountStr,
                     onValueChange = { if (it.all { char -> char.isDigit() }) amountStr = it },
-                    label = { Text("Nominal (Jumlah Uang)") },
+                    label = { Text("Amount (Money)") },
                     prefix = { Text("Rp ") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
@@ -556,9 +627,9 @@ fun AddTransactionDialog(
                 )
 
                 // 3. Wallets Selection (From / Source Wallet)
-                Text("Sumber Dana (Wallet Asal):", style = MaterialTheme.typography.labelMedium)
+                Text("Source Wallet:", style = MaterialTheme.typography.labelMedium)
                 if (wallets.isEmpty()) {
-                    Text("Belum ada dompet. Mohon tambahkan dompet terlebih dahulu di menu Akun.", color = MaterialTheme.colorScheme.error)
+                    Text("No wallets found. Please add a wallet first in the Wallets tab.", color = MaterialTheme.colorScheme.error)
                 } else {
                     ScrollableTabRow(
                         selectedTabIndex = wallets.indexOfFirst { it.id == selectedWalletId }.coerceAtLeast(0),
@@ -576,7 +647,7 @@ fun AddTransactionDialog(
 
                 // 4. Specific to Transfer Destination Wallet
                 if (selectedType == "TRANSFER") {
-                    Text("Dompet Tujuan:", style = MaterialTheme.typography.labelMedium)
+                    Text("Destination Wallet:", style = MaterialTheme.typography.labelMedium)
                     ScrollableTabRow(
                         selectedTabIndex = wallets.indexOfFirst { it.id == selectedTargetWalletId }.coerceAtLeast(0),
                         edgePadding = 0.dp
@@ -593,11 +664,11 @@ fun AddTransactionDialog(
 
                 // 5. Category Selection (Only for Income and Expense)
                 if (selectedType != "TRANSFER") {
-                    Text("Kategori:", style = MaterialTheme.typography.labelMedium)
+                    Text("Category:", style = MaterialTheme.typography.labelMedium)
                     val listToShow = if (selectedType == "INCOME") incomeCategoryList else expenseCategoryList
                     
                     if (listToShow.isEmpty()) {
-                        Text("Belum ada kategori.")
+                        Text("No categories found.")
                     } else {
                         ScrollableTabRow(
                             selectedTabIndex = listToShow.indexOfFirst { it.id == selectedCategoryId }.coerceAtLeast(0),
@@ -618,8 +689,8 @@ fun AddTransactionDialog(
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
-                    label = { Text("Catatan Tambahan") },
-                    placeholder = { Text("Misal: Beli jajan Sore, Gaji lembur, dll.") },
+                    label = { Text("Additional Note") },
+                    placeholder = { Text("e.g., Grocery store, salary bonus, coffee, etc.") },
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -632,7 +703,7 @@ fun AddTransactionDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text("Batal")
+                        Text("Cancel")
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
@@ -662,7 +733,7 @@ fun AddTransactionDialog(
                         },
                         enabled = amountStr.isNotEmpty() && wallets.isNotEmpty()
                     ) {
-                        Text("Simpan")
+                        Text("Save")
                     }
                 }
             }

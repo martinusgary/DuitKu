@@ -48,8 +48,8 @@ private val LightColorScheme =
 @Composable
 fun MyApplicationTheme(
   darkTheme: Boolean = isSystemInDarkTheme(),
-  // Disable dynamic color to enforce Polish brand's professional colors
-  dynamicColor: Boolean = false,
+  // Enable dynamic color by default to support Material You 3 adaptive theming on Android 12+
+  dynamicColor: Boolean = true,
   content: @Composable () -> Unit,
 ) {
   val colorScheme =
