@@ -9,13 +9,13 @@ plugins {
 android {
     namespace = "com.example"
     
-    // 1. Kita standarkan ke versi Android yang stabil (SDK 34 / Android 14)
-    compileSdk = 34
+    // 1. Kita standarkan ke versi Android yang stabil (SDK 36 / Android 14)
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.aistudio.duitku.pwjhzx"
         minSdk = 24
-        targetSdk = 34
+        targetSdk = 36
         versionCode = 2
         versionName = "1.1"
 
