@@ -22,6 +22,12 @@ jobs:
       - name: Memberi Izin Eksekusi pada Gradle
         run: chmod +x gradlew
 
+      # 👇 TAMBAHKAN BLOK INI: Menyuntikkan kunci ke file .env
+      - name: Menyiapkan File .env
+        run: |
+          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
+          echo "API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+          
       - name: Merakit APK Release
         run: ./gradlew assembleRelease
 
