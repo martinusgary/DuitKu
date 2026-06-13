@@ -1,0 +1,32 @@
+name: Build Android APK
+
+# Mengizinkan kita memicu proses build secara manual pakai tombol
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    # Menggunakan komputer cloud milik GitHub yang sudah ada Android SDK-nya
+    runs-on: ubuntu-latest 
+
+    steps:
+      - name: Mengambil Kode Aplikasi
+        uses: actions/checkout@v4
+
+      - name: Menyiapkan Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Memberi Izin Eksekusi pada Gradle
+        run: chmod +x gradlew
+
+      - name: Merakit APK Release
+        run: ./gradlew assembleRelease
+
+      - name: Menyimpan Hasil APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DuitKu-Release-APK
+          path: app/build/outputs/apk/release/app-release.apk
