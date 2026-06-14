@@ -28,6 +28,7 @@ object Localization {
         "sec_pin_success" to "App lock PIN enabled successfully!",
         "sec_pin_disabled" to "App lock disabled!",
         "sec_pin_numeric" to "PIN must be numeric only!",
+        "sec_pin_length_invalid" to "PIN must be exactly 6 digits!",
         
         // Settings language card
         "lang_card_title" to "Interface Language",
@@ -68,6 +69,7 @@ object Localization {
         "sec_pin_success" to "PIN keamanan berhasil diaktifkan!",
         "sec_pin_disabled" to "Kunci PIN dinonaktifkan!",
         "sec_pin_numeric" to "PIN hanya boleh berisi angka!",
+        "sec_pin_length_invalid" to "PIN harus tepat 6 digit!",
         
         // Settings language card
         "lang_card_title" to "Bahasa Tampilan",

@@ -28,9 +28,23 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     val appLanguage = MutableStateFlow(getSavedLanguage())
 
+    val isAmountsHidden = MutableStateFlow(getSavedAmountsHidden())
+
     private fun getSavedLanguage(): String {
         val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
         return prefs.getString("app_language", "en") ?: "en"
+    }
+
+    private fun getSavedAmountsHidden(): Boolean {
+        val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
+        return prefs.getBoolean("is_amounts_hidden", false)
+    }
+
+    fun toggleHideAmounts() {
+        val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
+        val newValue = !isAmountsHidden.value
+        prefs.edit().putBoolean("is_amounts_hidden", newValue).apply()
+        isAmountsHidden.value = newValue
     }
 
     fun setLanguage(lang: String) {

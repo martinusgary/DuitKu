@@ -1,9 +1,9 @@
 plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.google.devtools.ksp)
-    alias(libs.plugins.roborazzi)
-    alias(libs.plugins.secrets)
+  alias(libs.plugins.android.application)
+  alias(libs.plugins.kotlin.compose)
+  alias(libs.plugins.google.devtools.ksp)
+  alias(libs.plugins.roborazzi)
+  alias(libs.plugins.secrets)
 }
 
 android {
@@ -17,8 +17,8 @@ android {
         versionCode = 2 
         versionName = "1.1"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    }
+    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+  }
 
     // LEMARI KUNCI
     signingConfigs {
@@ -43,25 +43,45 @@ android {
             signingConfig = signingConfigs.getByName("release")
         }
     }
-    
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+    create("debugConfig") {
+      storeFile = file("${rootDir}/debug.keystore")
+      storePassword = "android"
+      keyAlias = "androiddebugkey"
+      keyPassword = "android"
     }
-    buildFeatures {
-        compose = true
-        buildConfig = true
+  }
+
+  buildTypes {
+    release {
+      isCrunchPngs = false
+      isMinifyEnabled = false
+      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+      signingConfig = signingConfigs.getByName("release")
     }
-    testOptions { 
-        unitTests { isIncludeAndroidResources = true } 
+    debug {
+      signingConfig = signingConfigs.getByName("debugConfig")
     }
+  }
+  compileOptions {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+  }
+  buildFeatures {
+    compose = true
+    buildConfig = true
+  }
+  testOptions { unitTests { isIncludeAndroidResources = true } }
 }
 
+// Configure the Secrets Gradle Plugin to use .env and .env.example files
+// to match the convention used in Web projects.
 secrets {
-    propertiesFileName = ".env"
-    defaultPropertiesFileName = ".env.example"
+  propertiesFileName = ".env"
+  defaultPropertiesFileName = ".env.example"
 }
 
+// Some unused dependencies are commented out below instead of being removed.
+// This makes it easy to add them back in the future if needed.
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(platform(libs.firebase.bom))

@@ -56,6 +56,8 @@ fun DashboardScreen(
     val appLang by viewModel.appLanguage.collectAsState()
     val isId = appLang == "id"
 
+    val isHidden by viewModel.isAmountsHidden.collectAsState()
+
     var showAddDialog by remember { mutableStateOf(false) }
 
     val last5Transactions = remember(transactions) { transactions.take(5) }
@@ -101,17 +103,33 @@ fun DashboardScreen(
                                 color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.82f),
                                 fontWeight = FontWeight.Bold
                             )
-                            Icon(
-                                Icons.Default.AccountBalanceWallet,
-                                contentDescription = "Wallet",
-                                tint = MaterialTheme.colorScheme.onPrimary
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                IconButton(
+                                    onClick = { viewModel.toggleHideAmounts() },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription = "Toggle Balance Visibility",
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                Icon(
+                                    Icons.Default.AccountBalanceWallet,
+                                    contentDescription = "Wallet",
+                                    tint = MaterialTheme.colorScheme.onPrimary
+                                )
+                            }
                         }
                         
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(15.dp))
                         
                         Text(
-                            text = viewModel.formatRupiah(totalBalance),
+                            text = if (isHidden) "Rp ••••••" else viewModel.formatRupiah(totalBalance),
                             style = MaterialTheme.typography.headlineLarge,
                             fontWeight = FontWeight.Black,
                             color = MaterialTheme.colorScheme.onPrimary
@@ -184,7 +202,7 @@ fun DashboardScreen(
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                viewModel.formatRupiah(monthlyIncome),
+                                if (isHidden) "Rp ••••••" else viewModel.formatRupiah(monthlyIncome),
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF2E7D32)
@@ -230,7 +248,7 @@ fun DashboardScreen(
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                viewModel.formatRupiah(monthlyExpense),
+                                if (isHidden) "Rp ••••••" else viewModel.formatRupiah(monthlyExpense),
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFFC62828)
@@ -348,6 +366,8 @@ fun TransactionItemRow(
     val appLang by viewModel.appLanguage.collectAsState()
     val isId = appLang == "id"
 
+    val isHidden by viewModel.isAmountsHidden.collectAsState()
+
     var showDetailsDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
@@ -454,7 +474,7 @@ fun TransactionItemRow(
             }
 
             Text(
-                text = "$prefix ${viewModel.formatRupiah(transaction.amount)}",
+                text = if (isHidden) "$prefix Rp ••••••" else "$prefix ${viewModel.formatRupiah(transaction.amount)}",
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Black,
                 color = priceColor
@@ -506,7 +526,7 @@ fun TransactionItemRow(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = viewModel.formatRupiah(transaction.amount),
+                                text = if (isHidden) "Rp ••••••" else viewModel.formatRupiah(transaction.amount),
                                 style = MaterialTheme.typography.headlineMedium,
                                 fontWeight = FontWeight.Black,
                                 color = when (transaction.type) {
