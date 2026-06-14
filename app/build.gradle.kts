@@ -8,30 +8,39 @@ plugins {
 
 android {
     namespace = "com.example"
-    
-    // 1. Kita standarkan ke versi Android yang stabil (SDK 36 / Android 14)
     compileSdk = 36
 
     defaultConfig {
         applicationId = "com.aistudio.duitku.pwjhzx"
         minSdk = 24
         targetSdk = 36
-        versionCode = 2
+        versionCode = 2 
         versionName = "1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    // 2. Blok signingConfigs buatan AI Studio SAYA HAPUS karena mencari file yang tidak ada.
+    // LEMARI KUNCI
+    signingConfigs {
+        create("release") {
+            storeFile = file("${rootDir}/my-upload-key.jks")
+            storePassword = "Apaandah"
+            keyAlias = "upload"
+            keyPassword = "Apaandah"
+        }
+    }
     
+    // MESIN PABRIK
     buildTypes {
         getByName("release") {
             isCrunchPngs = false
-            isMinifyEnabled = false
+            // Ukuran aplikasi sekarang akan di-compress menjadi kecil
+            isMinifyEnabled = true 
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             
-            // 3. Kita pinjam kunci "debug" bawaan dari sistem Android Gradle (Otomatis dibuat, aman, dan tidak butuh file eksternal)
-            signingConfig = signingConfigs.getByName("debug")
+            // Mesin pabrik mengambil kunci dari lemari di atas
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     
