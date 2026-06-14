@@ -677,7 +677,8 @@ fun AddTransactionDialog(
 
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp
-    val dialogWidth = if (screenWidth < 400) (screenWidth * 0.92).dp else 350.dp
+    val screenHeight = configuration.screenHeightDp
+    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 520.dp
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -686,14 +687,16 @@ fun AddTransactionDialog(
         Card(
             modifier = Modifier
                 .width(dialogWidth)
-                .padding(16.dp),
+                .heightIn(max = (screenHeight * 0.85).dp)
+                .padding(12.dp),
             shape = RoundedCornerShape(24.dp)
         ) {
             Column(
                 modifier = Modifier
-                    .padding(24.dp)
+                    .fillMaxWidth()
+                    .padding(20.dp)
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
                     text = if (isId) "Tambah Transaksi Baru" else "Add New Transaction",
@@ -854,16 +857,15 @@ fun AddTransactionDialog(
                     scannedReceipts.forEachIndexed { index, receipt ->
                         Card(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
+                                .fillMaxWidth(),
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
                             ),
-                            shape = RoundedCornerShape(16.dp)
+                            shape = RoundedCornerShape(20.dp)
                         ) {
                             Column(
-                                modifier = Modifier.padding(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),

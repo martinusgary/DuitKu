@@ -28,6 +28,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.example.data.model.Bill
 import com.example.data.model.Debt
 import com.example.data.model.Wallet
@@ -523,136 +527,174 @@ fun AddDebtDialog(
     var notes by remember { mutableStateOf("") }
     var daysToDue by remember { mutableStateOf("7") } // Calculate due date as CurrentTime + items * 1 day
 
-    AlertDialog(
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val screenHeight = configuration.screenHeightDp
+    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 520.dp
+
+    Dialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (isId) "Catat Hutang/Piutang" else "Record Debt/Loan", fontWeight = FontWeight.Bold) },
-        text = {
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .width(dialogWidth)
+                .heightIn(max = (screenHeight * 0.85).dp)
+                .padding(12.dp),
+            shape = RoundedCornerShape(24.dp)
+        ) {
             Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Selector
-                // Selector (Modern Segmented Control)
-                Row(
+                Text(
+                    text = if (isId) "Catat Hutang/Piutang" else "Record Debt/Loan",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                Box(
                     modifier = Modifier
+                        .weight(1f, fill = false)
                         .fillMaxWidth()
-                        .background(
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                        .padding(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    val isHutang = type == "HUTANG"
-                    val dialogTabShape = RoundedCornerShape(8.dp)
-                    // HUTANG
-                    Box(
+                    Column(
                         modifier = Modifier
-                            .weight(1f)
-                            .background(
-                                color = if (isHutang) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                shape = dialogTabShape
-                            )
-                            .clip(dialogTabShape)
-                            .clickable { type = "HUTANG" }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Text(
-                            text = if (isId) "Saya Berhutang" else "I Owe",
-                            color = if (isHutang) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold
+                        // Selector (Modern Segmented Control)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .padding(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            val isHutang = type == "HUTANG"
+                            val dialogTabShape = RoundedCornerShape(8.dp)
+                            // HUTANG
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(
+                                        color = if (isHutang) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                        shape = dialogTabShape
+                                    )
+                                    .clip(dialogTabShape)
+                                    .clickable { type = "HUTANG" }
+                                    .padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (isId) "Saya Berhutang" else "I Owe",
+                                    color = if (isHutang) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            // PIUTANG
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(
+                                        color = if (!isHutang) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                        shape = dialogTabShape
+                                    )
+                                    .clip(dialogTabShape)
+                                    .clickable { type = "PIUTANG" }
+                                    .padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (isId) "Piutang Saya" else "Owed to Me",
+                                    color = if (!isHutang) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = personName,
+                            onValueChange = { personName = it },
+                            label = { Text(if (isId) "Nama Orang / Lembaga" else "Person / Institution Name") },
+                            placeholder = { Text(if (isId) "misal: John Doe, Bank" else "e.g., John Doe, Bank") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
                         )
-                    }
-                    // PIUTANG
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .background(
-                                color = if (!isHutang) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                shape = dialogTabShape
-                            )
-                            .clip(dialogTabShape)
-                            .clickable { type = "PIUTANG" }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (isId) "Piutang Saya" else "Owed to Me",
-                            color = if (!isHutang) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold
+
+                        OutlinedTextField(
+                            value = totalAmountStr,
+                            onValueChange = { if (it.all { char -> char.isDigit() }) totalAmountStr = it },
+                            label = { Text(if (isId) "Jumlah Total" else "Total Amount") },
+                            prefix = { Text("Rp ") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            placeholder = { Text("0") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+
+                        OutlinedTextField(
+                            value = daysToDue,
+                            onValueChange = { if (it.all { char -> char.isDigit() }) daysToDue = it },
+                            label = { Text(if (isId) "Hari hingga Jatuh Tempo" else "Days until Due Date") },
+                            suffix = { Text(if (isId) "Hari lagi" else "Days left") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+
+                        OutlinedTextField(
+                            value = notes,
+                            onValueChange = { notes = it },
+                            label = { Text(if (isId) "Catatan Tambahan" else "Additional Notes") },
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
 
-                OutlinedTextField(
-                    value = personName,
-                    onValueChange = { personName = it },
-                    label = { Text(if (isId) "Nama Orang / Lembaga" else "Person / Institution Name") },
-                    placeholder = { Text(if (isId) "misal: John Doe, Bank" else "e.g., John Doe, Bank") },
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = totalAmountStr,
-                    onValueChange = { if (it.all { char -> char.isDigit() }) totalAmountStr = it },
-                    label = { Text(if (isId) "Jumlah Total" else "Total Amount") },
-                    prefix = { Text("Rp ") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    placeholder = { Text("0") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = daysToDue,
-                    onValueChange = { if (it.all { char -> char.isDigit() }) daysToDue = it },
-                    label = { Text(if (isId) "Hari hingga Jatuh Tempo" else "Days until Due Date") },
-                    suffix = { Text(if (isId) "Hari lagi" else "Days left") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it },
-                    label = { Text(if (isId) "Catatan Tambahan" else "Additional Notes") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val amountVal = totalAmountStr.toDoubleOrNull() ?: 0.0
-                    val daysVal = daysToDue.toLongOrNull() ?: 7
-                    val dueDateCalculated = System.currentTimeMillis() + daysVal * 24 * 60 * 60 * 1000L
-                    
-                    if (personName.trim().isNotEmpty() && amountVal > 0) {
-                        viewModel.addDebt(
-                            personName = personName,
-                            totalAmount = amountVal,
-                            dueDate = dueDateCalculated,
-                            type = type,
-                            notes = notes
-                        )
-                        onDismiss()
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(if (isId) "Batal" else "Cancel")
                     }
-                },
-                enabled = personName.trim().isNotEmpty() && totalAmountStr.isNotEmpty()
-            ) {
-                Text(if (isId) "Simpan" else "Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(if (isId) "Batal" else "Cancel")
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            val amountVal = totalAmountStr.toDoubleOrNull() ?: 0.0
+                            val daysVal = daysToDue.toLongOrNull() ?: 7
+                            val dueDateCalculated = System.currentTimeMillis() + daysVal * 24 * 60 * 60 * 1000L
+                            
+                            if (personName.trim().isNotEmpty() && amountVal > 0) {
+                                viewModel.addDebt(
+                                    personName = personName,
+                                    totalAmount = amountVal,
+                                    dueDate = dueDateCalculated,
+                                    type = type,
+                                    notes = notes
+                                )
+                                onDismiss()
+                            }
+                        },
+                        enabled = personName.trim().isNotEmpty() && totalAmountStr.isNotEmpty()
+                    ) {
+                        Text(if (isId) "Simpan" else "Save")
+                    }
+                }
             }
         }
-    )
+    }
 }
 
 @Composable
@@ -669,78 +711,117 @@ fun PayDebtInstallmentDialog(
     var selectedWalletId by remember { mutableStateOf(wallets.firstOrNull()?.id ?: 0) }
     var comment by remember { mutableStateOf("") }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (isId) "Catat Pembayaran untuk ${debt.personName}" else "Record Payment for ${debt.personName}", fontWeight = FontWeight.Bold) },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text((if (isId) "Sisa Hutang: " else "Remaining Debt: ") + viewModel.formatRupiah(debt.remainingAmount), fontWeight = FontWeight.SemiBold)
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val screenHeight = configuration.screenHeightDp
+    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 520.dp
 
-                OutlinedTextField(
-                    value = amountPaidStr,
-                    onValueChange = { if (it.all { char -> char.isDigit() }) amountPaidStr = it },
-                    label = { Text(if (isId) "Jumlah Pembayaran" else "Payment Amount") },
-                    prefix = { Text("Rp ") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    placeholder = { Text("0") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .width(dialogWidth)
+                .heightIn(max = (screenHeight * 0.85).dp)
+                .padding(12.dp),
+            shape = RoundedCornerShape(24.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = if (isId) "Catat Pembayaran untuk ${debt.personName}" else "Record Payment for ${debt.personName}",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
                 )
 
-                Text(if (isId) "Pilih Dompet Sumber Pembayaran:" else "Select Payment Wallet/Account:", style = MaterialTheme.typography.labelMedium)
-                if (wallets.isEmpty()) {
-                    Text(if (isId) "Tidak ada dompet ditemukan." else "No wallets found.", color = MaterialTheme.colorScheme.error)
-                } else {
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
+                Box(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        items(wallets, key = { it.id }) { w ->
-                            SimpleCustomChip(
-                                text = w.name,
-                                isSelected = selectedWalletId == w.id,
-                                onClick = { selectedWalletId = w.id }
-                            )
+                        Text((if (isId) "Sisa Hutang: " else "Remaining Debt: ") + viewModel.formatRupiah(debt.remainingAmount), fontWeight = FontWeight.SemiBold)
+
+                        OutlinedTextField(
+                            value = amountPaidStr,
+                            onValueChange = { if (it.all { char -> char.isDigit() }) amountPaidStr = it },
+                            label = { Text(if (isId) "Jumlah Pembayaran" else "Payment Amount") },
+                            prefix = { Text("Rp ") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            placeholder = { Text("0") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+
+                        Text(if (isId) "Pilih Dompet Sumber Pembayaran:" else "Select Payment Wallet/Account:", style = MaterialTheme.typography.labelMedium)
+                        if (wallets.isEmpty()) {
+                            Text(if (isId) "Tidak ada dompet ditemukan." else "No wallets found.", color = MaterialTheme.colorScheme.error)
+                        } else {
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                items(wallets, key = { it.id }) { w ->
+                                    SimpleCustomChip(
+                                        text = w.name,
+                                        isSelected = selectedWalletId == w.id,
+                                        onClick = { selectedWalletId = w.id }
+                                    )
+                                }
+                            }
                         }
+
+                        OutlinedTextField(
+                            value = comment,
+                            onValueChange = { comment = it },
+                            label = { Text(if (isId) "Catatan / Keterangan Cicilan" else "Notes / Installment number") },
+                            placeholder = { Text(if (isId) "misal: Cicilan ke-1, pelunasan" else "e.g., Part payment 1, full repayment") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
 
-                OutlinedTextField(
-                    value = comment,
-                    onValueChange = { comment = it },
-                    label = { Text(if (isId) "Catatan / Keterangan Cicilan" else "Notes / Installment number") },
-                    placeholder = { Text(if (isId) "misal: Cicilan ke-1, pelunasan" else "e.g., Part payment 1, full repayment") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val payVal = amountPaidStr.toDoubleOrNull() ?: 0.0
-                    if (payVal > 0 && selectedWalletId != 0) {
-                        viewModel.payDebtInstallment(
-                            debt = debt,
-                            amountPaid = payVal,
-                            walletId = selectedWalletId,
-                            note = comment
-                        )
-                        onDismiss()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(if (isId) "Batal" else "Cancel")
                     }
-                },
-                enabled = amountPaidStr.isNotEmpty() && wallets.isNotEmpty()
-            ) {
-                Text(if (isId) "Simpan Pembayaran" else "Save Payment")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(if (isId) "Batal" else "Cancel")
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            val payVal = amountPaidStr.toDoubleOrNull() ?: 0.0
+                            if (payVal > 0 && selectedWalletId != 0) {
+                                viewModel.payDebtInstallment(
+                                    debt = debt,
+                                    amountPaid = payVal,
+                                    walletId = selectedWalletId,
+                                    note = comment
+                                )
+                                onDismiss()
+                            }
+                        },
+                        enabled = amountPaidStr.isNotEmpty() && wallets.isNotEmpty()
+                    ) {
+                        Text(if (isId) "Simpan Pembayaran" else "Save Payment")
+                    }
+                }
             }
         }
-    )
+    }
 }
 
 // ==========================================
@@ -928,67 +1009,106 @@ fun AddBillDialog(
     var amountStr by remember { mutableStateOf("") }
     var dueDateValue by remember { mutableStateOf("Every 10th") }
 
-    AlertDialog(
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val screenHeight = configuration.screenHeightDp
+    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 520.dp
+
+    Dialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (isId) "Tambah Tagihan Baru" else "Add New Bill", fontWeight = FontWeight.Bold) },
-        text = {
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .width(dialogWidth)
+                .heightIn(max = (screenHeight * 0.85).dp)
+                .padding(12.dp),
+            shape = RoundedCornerShape(24.dp)
+        ) {
             Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text(if (isId) "Nama Tagihan" else "Bill Name") },
-                    placeholder = { Text(if (isId) "misal: WiFi, Listrik, Asuransi Kesehatan" else "e.g., WiFi, Electricity, Health Insurance") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                Text(
+                    text = if (isId) "Tambah Tagihan Baru" else "Add New Bill",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
                 )
 
-                OutlinedTextField(
-                    value = amountStr,
-                    onValueChange = { if (it.all { char -> char.isDigit() }) amountStr = it },
-                    label = { Text(if (isId) "Jumlah Bulanan" else "Monthly Amount") },
-                    prefix = { Text("Rp ") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    placeholder = { Text("0") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = dueDateValue,
-                    onValueChange = { dueDateValue = it },
-                    label = { Text(if (isId) "Keterangan Jatuh Tempo" else "Due Date Statement") },
-                    placeholder = { Text(if (isId) "misal: Setiap tanggal 15 setiap bulan" else "e.g., Every 15th of the month") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val amountVal = amountStr.toDoubleOrNull() ?: 0.0
-                    if (name.trim().isNotEmpty() && amountVal > 0) {
-                        viewModel.addBill(
-                            name = name,
-                            amount = amountVal,
-                            dueDateValue = dueDateValue
+                Box(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            label = { Text(if (isId) "Nama Tagihan" else "Bill Name") },
+                            placeholder = { Text(if (isId) "misal: WiFi, Listrik, Asuransi Kesehatan" else "e.g., WiFi, Electricity, Health Insurance") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
                         )
-                        onDismiss()
+
+                        OutlinedTextField(
+                            value = amountStr,
+                            onValueChange = { if (it.all { char -> char.isDigit() }) amountStr = it },
+                            label = { Text(if (isId) "Jumlah Bulanan" else "Monthly Amount") },
+                            prefix = { Text("Rp ") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            placeholder = { Text("0") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+
+                        OutlinedTextField(
+                            value = dueDateValue,
+                            onValueChange = { dueDateValue = it },
+                            label = { Text(if (isId) "Keterangan Jatuh Tempo" else "Due Date Statement") },
+                            placeholder = { Text(if (isId) "misal: Setiap tanggal 15 setiap bulan" else "e.g., Every 15th of the month") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
                     }
-                },
-                enabled = name.trim().isNotEmpty() && amountStr.isNotEmpty()
-            ) {
-                Text(if (isId) "Simpan" else "Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(if (isId) "Batal" else "Cancel")
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(if (isId) "Batal" else "Cancel")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            val amountVal = amountStr.toDoubleOrNull() ?: 0.0
+                            if (name.trim().isNotEmpty() && amountVal > 0) {
+                                viewModel.addBill(
+                                    name = name,
+                                    amount = amountVal,
+                                    dueDateValue = dueDateValue
+                                )
+                                onDismiss()
+                            }
+                        },
+                        enabled = name.trim().isNotEmpty() && amountStr.isNotEmpty()
+                    ) {
+                        Text(if (isId) "Simpan" else "Save")
+                    }
+                }
             }
         }
-    )
+    }
 }
 
 @Composable
@@ -1003,53 +1123,92 @@ fun PayBillDialog(
 
     var selectedWalletId by remember { mutableStateOf(wallets.firstOrNull()?.id ?: 0) }
 
-    AlertDialog(
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val screenHeight = configuration.screenHeightDp
+    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 520.dp
+
+    Dialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (isId) "Bayar Tagihan: ${bill.name}" else "Pay Bill: ${bill.name}", fontWeight = FontWeight.Bold) },
-        text = {
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .width(dialogWidth)
+                .heightIn(max = (screenHeight * 0.85).dp)
+                .padding(12.dp),
+            shape = RoundedCornerShape(24.dp)
+        ) {
             Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text((if (isId) "Jumlah Tagihan: " else "Bill Amount: ") + viewModel.formatRupiah(bill.amount))
-                Text(if (isId) "Pilih dompet/akun sumber pembayaran:" else "Select the source wallet/account for payment:")
-                
-                if (wallets.isEmpty()) {
-                    Text(if (isId) "Tidak ada dompet ditemukan." else "No wallets found.", color = MaterialTheme.colorScheme.error)
-                } else {
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
+                Text(
+                    text = if (isId) "Bayar Tagihan: ${bill.name}" else "Pay Bill: ${bill.name}",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        items(wallets, key = { it.id }) { w ->
-                            SimpleCustomChip(
-                                text = w.name,
-                                isSelected = selectedWalletId == w.id,
-                                onClick = { selectedWalletId = w.id }
-                            )
+                        Text((if (isId) "Jumlah Tagihan: " else "Bill Amount: ") + viewModel.formatRupiah(bill.amount))
+                        Text(if (isId) "Pilih dompet/akun sumber pembayaran:" else "Select the source wallet/account for payment:")
+                        
+                        if (wallets.isEmpty()) {
+                            Text(if (isId) "Tidak ada dompet ditemukan." else "No wallets found.", color = MaterialTheme.colorScheme.error)
+                        } else {
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                items(wallets, key = { it.id }) { w ->
+                                    SimpleCustomChip(
+                                        text = w.name,
+                                        isSelected = selectedWalletId == w.id,
+                                        onClick = { selectedWalletId = w.id }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (selectedWalletId != 0) {
-                        viewModel.payBill(bill, selectedWalletId)
-                        onDismiss()
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(if (isId) "Batal" else "Cancel")
                     }
-                },
-                enabled = wallets.isNotEmpty()
-            ) {
-                Text(if (isId) "Konfirmasi Pembayaran" else "Confirm Payment")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(if (isId) "Batal" else "Cancel")
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            if (selectedWalletId != 0) {
+                                viewModel.payBill(bill, selectedWalletId)
+                                onDismiss()
+                            }
+                        },
+                        enabled = wallets.isNotEmpty()
+                    ) {
+                        Text(if (isId) "Konfirmasi Pembayaran" else "Confirm Payment")
+                    }
+                }
             }
         }
-    )
+    }
 }
 
 @Composable

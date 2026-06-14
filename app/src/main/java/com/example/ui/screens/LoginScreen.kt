@@ -146,6 +146,15 @@ fun LoginScreen(
                             // Enforce digits-only rule and max 6 characters length
                             if (input.all { it.isDigit() } && input.length <= 6) {
                                 pinInput = input
+                                if (input.length == 6) {
+                                    if (input == savedPin) {
+                                        Toast.makeText(context, Localization.getString("login_access_granted", isId), Toast.LENGTH_SHORT).show()
+                                        onLoginSuccess()
+                                    } else {
+                                        Toast.makeText(context, Localization.getString("login_incorrect_pin", isId), Toast.LENGTH_SHORT).show()
+                                        pinInput = ""
+                                    }
+                                }
                             }
                         },
                         label = { Text(Localization.getString("login_label_pin", isId)) },
@@ -172,26 +181,6 @@ fun LoginScreen(
                             .testTag("login_password_input"),
                         shape = RoundedCornerShape(12.dp)
                     )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Button(
-                        onClick = {
-                            if (pinInput == savedPin) {
-                                Toast.makeText(context, Localization.getString("login_access_granted", isId), Toast.LENGTH_SHORT).show()
-                                onLoginSuccess()
-                            } else {
-                                Toast.makeText(context, Localization.getString("login_incorrect_pin", isId), Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .testTag("login_submit_button")
-                    ) {
-                        Text(Localization.getString("login_btn_submit", isId), fontWeight = FontWeight.Bold)
-                    }
 
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(

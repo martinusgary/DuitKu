@@ -23,6 +23,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.example.data.model.Wallet
 import com.example.ui.viewmodel.FinanceViewModel
 
@@ -274,85 +278,119 @@ fun AddWalletDialog(
 
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp
-    val dialogWidth = if (screenWidth < 400) (screenWidth * 0.92).dp else 350.dp
+    val screenHeight = configuration.screenHeightDp
+    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 520.dp
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        modifier = Modifier.width(dialogWidth),
-        title = { Text(if (isId) "Tambah Dompet / Akun" else "Add Wallet / Account", fontWeight = FontWeight.Bold) },
-        text = {
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .width(dialogWidth)
+                .heightIn(max = (screenHeight * 0.85).dp)
+                .padding(12.dp),
+            shape = RoundedCornerShape(24.dp)
+        ) {
             Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                OutlinedTextField(
-                    value = walletName,
-                    onValueChange = { walletName = it },
-                    label = { Text(if (isId) "Nama Dompet / Akun" else "Wallet / Account Name") },
-                    placeholder = { Text(if (isId) "misal: Rekening Bank, Tunai, E-wallet" else "e.g. Bank Account, Cash, E-wallet") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                Text(
+                    text = if (isId) "Tambah Dompet / Akun" else "Add Wallet / Account",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
                 )
 
-                OutlinedTextField(
-                    value = initialBalanceStr,
-                    onValueChange = { if (it.all { char -> char.isDigit() }) initialBalanceStr = it },
-                    label = { Text(if (isId) "Saldo Awal" else "Starting Balance") },
-                    prefix = { Text("Rp ") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    placeholder = { Text("0") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
+                Box(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = walletName,
+                            onValueChange = { walletName = it },
+                            label = { Text(if (isId) "Nama Dompet / Akun" else "Wallet / Account Name") },
+                            placeholder = { Text(if (isId) "misal: Rekening Bank, Tunai, E-wallet" else "e.g. Bank Account, Cash, E-wallet") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
 
-                Text(if (isId) "Tipe / Ikon Dompet:" else "Wallet Type / Icon:", style = MaterialTheme.typography.labelMedium)
+                        OutlinedTextField(
+                            value = initialBalanceStr,
+                            onValueChange = { if (it.all { char -> char.isDigit() }) initialBalanceStr = it },
+                            label = { Text(if (isId) "Saldo Awal" else "Starting Balance") },
+                            prefix = { Text("Rp ") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            placeholder = { Text("0") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+
+                        Text(if (isId) "Tipe / Ikon Dompet:" else "Wallet Type / Icon:", style = MaterialTheme.typography.labelMedium)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            val icons = listOf(
+                                Triple("cash", Icons.Default.Payments, if (isId) "Tunai" else "Cash"),
+                                Triple("bank", Icons.Default.AccountBalance, "Bank"),
+                                Triple("wallet", Icons.Default.CreditCard, "E-Money"),
+                                Triple("savings", Icons.Default.Savings, if (isId) "Tabungan" else "Savings")
+                            )
+
+                            icons.forEach { (key, icon, label) ->
+                                val isSelected = selectedIcon == key
+                                OutlinedIconContainerButton(
+                                    icon = icon,
+                                    label = label,
+                                    isSelected = isSelected,
+                                    onClick = { selectedIcon = key },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                }
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val icons = listOf(
-                        Triple("cash", Icons.Default.Payments, if (isId) "Tunai" else "Cash"),
-                        Triple("bank", Icons.Default.AccountBalance, "Bank"),
-                        Triple("wallet", Icons.Default.CreditCard, "E-Money"),
-                        Triple("savings", Icons.Default.Savings, if (isId) "Tabungan" else "Savings")
-                    )
-
-                    icons.forEach { (key, icon, label) ->
-                        val isSelected = selectedIcon == key
-                        OutlinedIconContainerButton(
-                            icon = icon,
-                            label = label,
-                            isSelected = isSelected,
-                            onClick = { selectedIcon = key },
-                            modifier = Modifier.weight(1f)
-                        )
+                    TextButton(onClick = onDismiss) {
+                        Text(if (isId) "Batal" else "Cancel")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            val balanceVal = initialBalanceStr.toDoubleOrNull() ?: 0.0
+                            if (walletName.trim().isNotEmpty()) {
+                                viewModel.addWallet(
+                                    name = walletName,
+                                    balance = balanceVal,
+                                    icon = selectedIcon
+                                )
+                                onDismiss()
+                            }
+                        },
+                        enabled = walletName.trim().isNotEmpty()
+                    ) {
+                        Text(if (isId) "Simpan" else "Save")
                     }
                 }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val balanceVal = initialBalanceStr.toDoubleOrNull() ?: 0.0
-                    if (walletName.trim().isNotEmpty()) {
-                        viewModel.addWallet(
-                            name = walletName,
-                            balance = balanceVal,
-                            icon = selectedIcon
-                        )
-                        onDismiss()
-                    }
-                },
-                enabled = walletName.trim().isNotEmpty()
-            ) {
-                Text(if (isId) "Simpan" else "Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(if (isId) "Batal" else "Cancel")
-            }
         }
-    )
+    }
 }
 
 @Composable

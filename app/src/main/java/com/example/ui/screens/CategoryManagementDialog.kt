@@ -50,7 +50,8 @@ fun CategoryManagementDialog(
 
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp
-    val dialogWidth = if (screenWidth < 400) (screenWidth * 0.92).dp else 350.dp
+    val screenHeight = configuration.screenHeightDp
+    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 520.dp
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -59,8 +60,9 @@ fun CategoryManagementDialog(
         Card(
             modifier = Modifier
                 .width(dialogWidth)
+                .heightIn(max = (screenHeight * 0.85).dp)
                 .fillMaxHeight(0.85f)
-                .padding(16.dp)
+                .padding(12.dp)
                 .testTag("category_management_dialog"),
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(
