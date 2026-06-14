@@ -117,12 +117,12 @@ fun LoginScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = Localization.getString("login_welcome", isId),
+                            text = Localization.getString("login_welcome"),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = Localization.getString("app_lock_title", isId),
+                            text = Localization.getString("app_lock_title"),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
