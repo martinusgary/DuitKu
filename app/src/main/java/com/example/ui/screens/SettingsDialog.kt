@@ -399,7 +399,7 @@ fun SettingsDialog(
                             OutlinedTextField(
                                 value = passwordInput,
                                 onValueChange = { input ->
-                                    if (input.all { it.isDigit() }) {
+                                    if (input.all { it.isDigit() } && input.length <= 6) {
                                         passwordInput = input
                                     }
                                 },
@@ -415,7 +415,7 @@ fun SettingsDialog(
                             OutlinedTextField(
                                 value = confirmPasswordInput,
                                 onValueChange = { input ->
-                                    if (input.all { it.isDigit() }) {
+                                    if (input.all { it.isDigit() } && input.length <= 6) {
                                         confirmPasswordInput = input
                                     }
                                 },
@@ -434,6 +434,8 @@ fun SettingsDialog(
                                         Toast.makeText(context, Localization.getString("sec_pin_empty", isId), Toast.LENGTH_SHORT).show()
                                     } else if (!passwordInput.all { it.isDigit() }) {
                                         Toast.makeText(context, Localization.getString("sec_pin_numeric", isId), Toast.LENGTH_SHORT).show()
+                                    } else if (passwordInput.length != 6) {
+                                        Toast.makeText(context, Localization.getString("sec_pin_length_invalid", isId), Toast.LENGTH_SHORT).show()
                                     } else if (passwordInput != confirmPasswordInput) {
                                         Toast.makeText(context, Localization.getString("sec_pin_mismatch", isId), Toast.LENGTH_SHORT).show()
                                     } else {

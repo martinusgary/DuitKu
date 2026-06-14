@@ -143,8 +143,8 @@ fun LoginScreen(
                     OutlinedTextField(
                         value = pinInput,
                         onValueChange = { input ->
-                            // Enforce digits-only rule
-                            if (input.all { it.isDigit() }) {
+                            // Enforce digits-only rule and max 6 characters length
+                            if (input.all { it.isDigit() } && input.length <= 6) {
                                 pinInput = input
                             }
                         },
