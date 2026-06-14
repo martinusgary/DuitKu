@@ -660,6 +660,7 @@ fun AddTransactionDialog(
     var selectedTargetWalletId by remember { mutableStateOf(wallets.getOrNull(1)?.id ?: wallets.firstOrNull()?.id ?: 0) }
     var selectedCategoryId by remember { mutableStateOf(0) }
     var note by remember { mutableStateOf("") }
+    var scannedReceipts by remember { mutableStateOf<List<GeminiClient.ScanResult>>(emptyList()) }
 
     // Group categories
     val incomeCategoryList = remember(categories) { categories.filter { it.type == "INCOME" } }
@@ -747,23 +748,21 @@ fun AddTransactionDialog(
                 val coroutineScope = rememberCoroutineScope()
 
                 val photoPickerLauncher = rememberLauncherForActivityResult(
-                    contract = ActivityResultContracts.PickVisualMedia()
-                ) { uri ->
-                    if (uri != null) {
+                    contract = ActivityResultContracts.PickMultipleVisualMedia()
+                ) { uris ->
+                    if (uris.isNotEmpty()) {
                         isScanning = true
                         coroutineScope.launch {
                             try {
-                                val result = GeminiClient.scanReceipt(context, uri)
-                                if (result != null) {
-                                    amountStr = result.amount.toInt().toString()
-                                    if (result.type == "EXPENSE" || result.type == "INCOME") {
-                                        selectedType = result.type
-                                    }
-                                    note = result.note
-                                    Toast.makeText(context, if (isId) "Pemindaian struk selesai!" else "Receipt scanning completed!", Toast.LENGTH_SHORT).show()
+                                val results = GeminiClient.scanMultipleReceipts(context, uris)
+                                if (results.isNotEmpty()) {
+                                    scannedReceipts = results
+                                    Toast.makeText(context, if (isId) "Pendeteksian multi-nota selesai!" else "Multi-receipt detection completed!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, if (isId) "Gagal mendeteksi rincian dari struk." else "No details detected from the receipts.", Toast.LENGTH_SHORT).show()
                                 }
                             } catch (e: Exception) {
-                                Toast.makeText(context, (if (isId) "Gagal memindai struk: " else "Failed to scan receipt: ") + e.message, Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, (if (isId) "Gagal memindai struk: " else "Failed to scan receipts: ") + e.message, Toast.LENGTH_LONG).show()
                             } finally {
                                 isScanning = false
                             }
@@ -800,37 +799,139 @@ fun AddTransactionDialog(
                                 }
                             }
                         } else {
-                            OutlinedButton(
-                                onClick = {
-                                    photoPickerLauncher.launch(
-                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                    )
-                                },
+                            Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.primary
-                                )
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.PhotoCamera, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(if (isId) "Pindai Struk Belanja" else "Scan Receipt", fontWeight = FontWeight.Bold)
+                                OutlinedButton(
+                                    onClick = {
+                                        photoPickerLauncher.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                        )
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.primary
+                                    )
+                                ) {
+                                    Icon(Icons.Default.PhotoCamera, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = if (scannedReceipts.isEmpty()) {
+                                            if (isId) "Pindai Struk Belanja" else "Scan Receipts"
+                                        } else {
+                                            if (isId) "Pindai Ulang Struk" else "Scan Receipts Again"
+                                        },
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                if (scannedReceipts.isNotEmpty()) {
+                                    IconButton(
+                                        onClick = { scannedReceipts = emptyList() },
+                                        modifier = Modifier.size(48.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Clear,
+                                            contentDescription = "Clear scanned receipts",
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 }
 
-                // 2. Amount Input
-                OutlinedTextField(
-                    value = amountStr,
-                    onValueChange = { if (it.all { char -> char.isDigit() }) amountStr = it },
-                    label = { Text(if (isId) "Jumlah (Uang)" else "Amount (Money)") },
-                    prefix = { Text("Rp ") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    placeholder = { Text("0") }
-                )
+                if (scannedReceipts.isNotEmpty()) {
+                    Text(
+                        text = if (isId) "Rincian Transaksi Terdeteksi:" else "Detected Transactions Detail:",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    scannedReceipts.forEachIndexed { index, receipt ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                            ),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "${if (isId) "Nota" else "Receipt"} #${index + 1}",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    IconButton(
+                                        onClick = {
+                                            scannedReceipts = scannedReceipts.filterIndexed { idx, _ -> idx != index }
+                                        },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = "Hapus Nota",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                                OutlinedTextField(
+                                    value = receipt.note,
+                                    onValueChange = { newNote ->
+                                        scannedReceipts = scannedReceipts.mapIndexed { idx, item ->
+                                            if (idx == index) item.copy(note = newNote) else item
+                                        }
+                                    },
+                                    label = { Text(if (isId) "Catatan / Toko" else "Note / Store") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
+                                OutlinedTextField(
+                                    value = if (receipt.amount == 0.0) "" else receipt.amount.toInt().toString(),
+                                    onValueChange = { newAmtStr ->
+                                        val amtDouble = newAmtStr.toDoubleOrNull() ?: 0.0
+                                        scannedReceipts = scannedReceipts.mapIndexed { idx, item ->
+                                            if (idx == index) item.copy(amount = amtDouble) else item
+                                        }
+                                    },
+                                    label = { Text(if (isId) "Jumlah (Uang)" else "Amount") },
+                                    prefix = { Text("Rp ") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                } else {
+                    // 2. Regular Single Amount Input
+                    OutlinedTextField(
+                        value = amountStr,
+                        onValueChange = { if (it.all { char -> char.isDigit() }) amountStr = it },
+                        label = { Text(if (isId) "Jumlah (Uang)" else "Amount (Money)") },
+                        prefix = { Text("Rp ") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        placeholder = { Text("0") }
+                    )
+                }
 
                 // 3. Wallets Selection (From / Source Wallet)
                 Text(if (isId) "Dompet Asal:" else "Source Wallet:", style = MaterialTheme.typography.labelMedium)
@@ -891,14 +992,16 @@ fun AddTransactionDialog(
                     }
                 }
 
-                // 6. Notes Input
-                OutlinedTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    label = { Text(if (isId) "Catatan Tambahan" else "Additional Note") },
-                    placeholder = { Text(if (isId) "misal: Belanja bulanan, bonus gaji, kopi, dll." else "e.g., Grocery store, salary bonus, coffee, etc.") },
-                    modifier = Modifier.fillMaxWidth()
-                )
+                // 6. Notes Input (only show if no scanned receipts are active)
+                if (scannedReceipts.isEmpty()) {
+                    OutlinedTextField(
+                        value = note,
+                        onValueChange = { note = it },
+                        label = { Text(if (isId) "Catatan Tambahan" else "Additional Note") },
+                        placeholder = { Text(if (isId) "misal: Belanja bulanan, bonus gaji, kopi, dll." else "e.g., Grocery store, salary bonus, coffee, etc.") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -914,30 +1017,48 @@ fun AddTransactionDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
-                            val amountVal = amountStr.toDoubleOrNull() ?: 0.0
-                            if (amountVal <= 0.0) {
-                                // Invalid amount
-                                return@Button
-                            }
                             if (selectedWalletId == 0) return@Button
 
-                            if (selectedType == "TRANSFER" && selectedWalletId == selectedTargetWalletId) {
-                                // Can't transfer to same wallet
-                                return@Button
-                            }
+                            if (scannedReceipts.isNotEmpty()) {
+                                // Save all scanned receipts
+                                for (receipt in scannedReceipts) {
+                                    if (receipt.amount > 0.0) {
+                                        viewModel.addTransaction(
+                                            amount = receipt.amount,
+                                            type = receipt.type,
+                                            walletId = selectedWalletId,
+                                            categoryId = selectedCategoryId,
+                                            note = receipt.note,
+                                            date = System.currentTimeMillis(),
+                                            targetWalletId = null
+                                        )
+                                    }
+                                }
+                            } else {
+                                // Save single manual transaction
+                                val amountVal = amountStr.toDoubleOrNull() ?: 0.0
+                                if (amountVal <= 0.0) return@Button
 
-                            viewModel.addTransaction(
-                                amount = amountVal,
-                                type = selectedType,
-                                walletId = selectedWalletId,
-                                categoryId = selectedCategoryId,
-                                note = note,
-                                date = System.currentTimeMillis(),
-                                targetWalletId = if (selectedType == "TRANSFER") selectedTargetWalletId else null
-                            )
+                                if (selectedType == "TRANSFER" && selectedWalletId == selectedTargetWalletId) {
+                                    // Can't transfer to same wallet
+                                    return@Button
+                                }
+
+                                viewModel.addTransaction(
+                                    amount = amountVal,
+                                    type = selectedType,
+                                    walletId = selectedWalletId,
+                                    categoryId = selectedCategoryId,
+                                    note = note,
+                                    date = System.currentTimeMillis(),
+                                    targetWalletId = if (selectedType == "TRANSFER") selectedTargetWalletId else null
+                                )
+                            }
                             onDismiss()
                         },
-                        enabled = amountStr.isNotEmpty() && wallets.isNotEmpty()
+                        enabled = wallets.isNotEmpty() && (
+                            scannedReceipts.isNotEmpty() || amountStr.isNotEmpty()
+                        )
                     ) {
                         Text(if (isId) "Simpan" else "Save")
                     }

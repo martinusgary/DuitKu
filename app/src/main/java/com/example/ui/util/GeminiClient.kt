@@ -35,6 +35,167 @@ object GeminiClient {
         val note: String
     )
 
+    suspend fun scanMultipleReceipts(context: Context, uris: List<Uri>): List<ScanResult> = withContext(Dispatchers.IO) {
+        val apiKey = BuildConfig.GEMINI_API_KEY
+        if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
+            Log.e(TAG, "API Key is empty or still a placeholder.")
+            throw Exception("API Key Gemini belum disetel. Silakan masukkan kunci API Gemini di Panel Rahasia (Secrets).")
+        }
+
+        val allResults = mutableListOf<ScanResult>()
+
+        for (uri in uris) {
+            val bitmap = loadOptimizedBitmap(context, uri) ?: continue
+            val base64Image = bitmap.toResizedBase64()
+
+            val payload = JSONObject().apply {
+                val contentsArray = JSONArray().apply {
+                    val contentObj = JSONObject().apply {
+                        val partsArray = JSONArray().apply {
+                            val textPart = JSONObject().apply {
+                                put("text", """
+                                    Analisis foto ini. Foto ini dapat berisi satu atau beberapa nota/kwitansi belanja sekaligus secara bersamaan (misal ditata berdampingan atau bertumpuk). Temukan semua struk/kwitansi belanja yang terdeteksi di dalam foto ini. Untuk setiap struk yang teratur, ekstrak:
+                                    - amount: total belanja (Double)
+                                    - type: tipe transaksi ("EXPENSE" atau "INCOME", biasanya EXPENSE)
+                                    - note: nama toko dan barang utama yang dibeli (String).
+
+                                    Kembalikan tanggapan hanya dalam format JSON ARRAY seperti contoh berikut:
+                                    [
+                                      {
+                                        "amount": 45000.0,
+                                        "type": "EXPENSE",
+                                        "note": "Kopi Susu di Kopi Kenangan"
+                                      },
+                                      {
+                                        "amount": 120000.0,
+                                        "type": "EXPENSE",
+                                        "note": "Bahan Pokok di Indomaret"
+                                      }
+                                    ]
+                                    Harap pastikan jumlah/amount berupa nilai numerik biasa murni tanpa format Rp atau titik ribu.
+                                    Kembalikan HANYA teks JSON ARRAY tersebut tanpa prefiks markdown penjelasan lainnya.
+                                """.trimIndent())
+                            }
+                            val imagePart = JSONObject().apply {
+                                val inlineData = JSONObject().apply {
+                                    put("mimeType", "image/jpeg")
+                                    put("data", base64Image)
+                                }
+                                put("inlineData", inlineData)
+                            }
+                            put(textPart)
+                            put(imagePart)
+                        }
+                        put("parts", partsArray)
+                    }
+                    put(contentObj)
+                }
+                put("contents", contentsArray)
+
+                val systemInstructionObj = JSONObject().apply {
+                    val partsArray = JSONArray().apply {
+                        put(JSONObject().apply {
+                            put("text", "You are an expert Indonesian receipt analyzer. You detect all receipts in an image and return them as a raw, valid JSON Array containing objects with amount (Double), type (String), and note (String).")
+                        })
+                    }
+                    put("parts", partsArray)
+                }
+                put("systemInstruction", systemInstructionObj)
+
+                val generationConfigObj = JSONObject().apply {
+                    put("responseMimeType", "application/json")
+                    put("temperature", 0.1f)
+                }
+                put("generationConfig", generationConfigObj)
+            }
+
+            val requestBody = payload.toString().toRequestBody("application/json".toMediaType())
+            val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey"
+
+            val request = Request.Builder()
+                .url(url)
+                .post(requestBody)
+                .build()
+
+            try {
+                val response = client.newCall(request).execute()
+                if (!response.isSuccessful) {
+                    val errorBody = response.body?.string() ?: ""
+                    Log.e(TAG, "Response failed for URI $uri: $errorBody")
+                    continue
+                }
+
+                val responseBody = response.body?.string() ?: continue
+                Log.d(TAG, "Raw response of multi-scan: $responseBody")
+
+                val root = JSONObject(responseBody)
+                val candidates = root.optJSONArray("candidates")
+                if (candidates == null || candidates.length() == 0) continue
+
+                val textResult = candidates.getJSONObject(0)
+                    .getJSONObject("content")
+                    .getJSONArray("parts")
+                    .getJSONObject(0)
+                    .getString("text")
+
+                val firstBracket = textResult.indexOf('[')
+                val lastBracket = textResult.lastIndexOf(']')
+                val cleanedJson = if (firstBracket != -1 && lastBracket != -1 && lastBracket > firstBracket) {
+                    textResult.substring(firstBracket, lastBracket + 1).trim()
+                } else {
+                    textResult.trim()
+                }
+
+                Log.d(TAG, "Cleaned JSON Array extracted: $cleanedJson")
+
+                val jsonArray = JSONArray(cleanedJson)
+                for (i in 0 until jsonArray.length()) {
+                    val parsedOutput = jsonArray.getJSONObject(i)
+                    val amountRaw = parsedOutput.opt("amount")
+                    val amount = when (amountRaw) {
+                        is Number -> amountRaw.toDouble()
+                        is String -> {
+                            val cleaned = amountRaw.replace(Regex("[^0-9.,]"), "")
+                            if (cleaned.contains(",") && cleaned.contains(".")) {
+                                val firstComma = cleaned.indexOf(",")
+                                val firstDot = cleaned.indexOf(".")
+                                if (firstComma < firstDot) {
+                                    cleaned.replace(",", "").toDoubleOrNull() ?: 0.0
+                                } else {
+                                    cleaned.replace(".", "").replace(",", ".").toDoubleOrNull() ?: 0.0
+                                }
+                            } else if (cleaned.contains(",")) {
+                                val parts = cleaned.split(",")
+                                if (parts.size == 2 && parts[1].length == 3) {
+                                    cleaned.replace(",", "").toDoubleOrNull() ?: 0.0
+                                } else {
+                                    cleaned.replace(",", ".").toDoubleOrNull() ?: 0.0
+                                }
+                            } else if (cleaned.contains(".")) {
+                                val parts = cleaned.split(".")
+                                if (parts.size == 2 && parts[1].length == 3) {
+                                    cleaned.replace(".", "").toDoubleOrNull() ?: 0.0
+                                } else {
+                                    cleaned.toDoubleOrNull() ?: 0.0
+                                }
+                            } else {
+                                cleaned.toDoubleOrNull() ?: 0.0
+                            }
+                        }
+                        else -> 0.0
+                    }
+
+                    val type = parsedOutput.optString("type", "EXPENSE").uppercase()
+                    val noteText = parsedOutput.optString("note", "Pindaan Nota")
+                    allResults.add(ScanResult(amount, type, noteText))
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error scanning URI $uri", e)
+            }
+        }
+        allResults
+    }
+
     suspend fun scanReceipt(context: Context, uri: Uri): ScanResult? = withContext(Dispatchers.IO) {
         val apiKey = BuildConfig.GEMINI_API_KEY
         if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
