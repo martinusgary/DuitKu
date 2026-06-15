@@ -936,8 +936,11 @@ fun BillsTabContent(
                                 )
                             }
 
-                            Column(horizontalAlignment = Alignment.End) {
-                                Row {
+                            Column(
+                                horizontalAlignment = Alignment.End,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     if (isLunas) {
                                         TextButton(onClick = { viewModel.resetBillStatus(bill) }) {
                                             Text("Reset", style = MaterialTheme.typography.bodySmall)

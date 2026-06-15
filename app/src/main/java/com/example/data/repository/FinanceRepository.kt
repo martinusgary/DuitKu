@@ -57,33 +57,22 @@ class FinanceRepository(private val financeDao: FinanceDao) {
         val amount = tx.amount
         when (tx.type) {
             "INCOME" -> {
-                val wallet = financeDao.getWalletById(tx.walletId)
-                if (wallet != null) {
-                    val balanceDiff = if (isReversal) -amount else amount
-                    financeDao.updateWallet(wallet.copy(balance = wallet.balance + balanceDiff))
-                }
+                val balanceDiff = if (isReversal) -amount else amount
+                financeDao.adjustWalletBalanceSql(tx.walletId, balanceDiff)
             }
             "EXPENSE" -> {
-                val wallet = financeDao.getWalletById(tx.walletId)
-                if (wallet != null) {
-                    val balanceDiff = if (isReversal) amount else -amount
-                    financeDao.updateWallet(wallet.copy(balance = wallet.balance + balanceDiff))
-                }
+                val balanceDiff = if (isReversal) amount else -amount
+                financeDao.adjustWalletBalanceSql(tx.walletId, balanceDiff)
             }
             "TRANSFER" -> {
                 // Source Wallet (decrease on transfer, increase on reversal)
-                val sourceWallet = financeDao.getWalletById(tx.walletId)
-                if (sourceWallet != null) {
-                    val sourceDiff = if (isReversal) amount else -amount
-                    financeDao.updateWallet(sourceWallet.copy(balance = sourceWallet.balance + sourceDiff))
-                }
+                val sourceDiff = if (isReversal) amount else -amount
+                financeDao.adjustWalletBalanceSql(tx.walletId, sourceDiff)
+
                 // Target Wallet (increase on transfer, decrease on reversal)
                 if (tx.targetWalletId != null) {
-                    val targetWallet = financeDao.getWalletById(tx.targetWalletId)
-                    if (targetWallet != null) {
-                        val targetDiff = if (isReversal) -amount else amount
-                        financeDao.updateWallet(targetWallet.copy(balance = targetWallet.balance + targetDiff))
-                    }
+                    val targetDiff = if (isReversal) -amount else amount
+                    financeDao.adjustWalletBalanceSql(tx.targetWalletId, targetDiff)
                 }
             }
         }

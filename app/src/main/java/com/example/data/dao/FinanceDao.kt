@@ -19,6 +19,9 @@ interface FinanceDao {
     @Query("SELECT * FROM wallets WHERE id = :walletId LIMIT 1")
     suspend fun getWalletById(walletId: Int): Wallet?
 
+    @Query("UPDATE wallets SET balance = balance + :diff WHERE id = :walletId")
+    suspend fun adjustWalletBalanceSql(walletId: Int, diff: Double)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertWallet(wallet: Wallet): Long
 

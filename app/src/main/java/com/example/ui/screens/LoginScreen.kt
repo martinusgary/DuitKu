@@ -115,18 +115,6 @@ fun LoginScreen(
                             color = MaterialTheme.colorScheme.primary,
                             letterSpacing = 1.sp
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = Localization.getString("login_welcome"),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = Localization.getString("app_lock_title"),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
