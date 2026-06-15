@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -315,7 +316,7 @@ fun DashboardScreen(
                         targetWallet = targetWalletOfTx,
                         category = categoryOfTx,
                         viewModel = viewModel,
-                        onDelete = { viewModel.deleteTransaction(txn) },
+                        onDelete = {},
                         modifier = Modifier.animateItem()
                     )
                 }
@@ -599,24 +600,112 @@ fun TransactionItemRow(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text(if (isId) "Hapus Transaksi" else "Delete Transaction") },
-            text = { Text(if (isId) "Apakah Anda yakin ingin menghapus catatan transaksi ini? Saldo dompet akan disesuaikan." else "Are you sure you want to delete this transaction record? The wallet balance will be adjusted accordingly.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onDelete()
-                        showDeleteConfirm = false
-                        showDetailsDialog = false
-                    }
+            title = {
+                Text(
+                    text = if (isId) "Hapus Transaksi" else "Delete Transaction",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleLarge
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(if (isId) "Hapus" else "Delete", color = MaterialTheme.colorScheme.error)
+                    Text(
+                        text = if (isId) 
+                            "Pilih bagaimana Anda ingin menghapus transaksi ini:" 
+                        else "Choose how you want to delete this transaction:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    // Option 1: Only history
+                    Surface(
+                        onClick = {
+                            viewModel.deleteTransaction(transaction, refund = false)
+                            showDeleteConfirm = false
+                            showDetailsDialog = false
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.History,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (isId) "Hanya Hapus Riwayat" else "Delete History Only",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (isId)
+                                    "Hanya menghapus catatan. Saldo dompet tidak akan diubah/dikembalikan."
+                                else "Removes record only. The wallet balance will NOT be modified.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // Option 2: Refund
+                    Surface(
+                        onClick = {
+                            viewModel.deleteTransaction(transaction, refund = true)
+                            showDeleteConfirm = false
+                            showDetailsDialog = false
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.SettingsBackupRestore,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (isId) "Batalkan & Refund Saldo" else "Cancel & Refund Wallet",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.secondary
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (isId)
+                                    "Membatalkan transaksi dan mengembalikan uang ke saldo dompet Anda."
+                                else "Cancels the transaction and restores/reverts funds in the wallet.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             },
+            confirmButton = {},
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) {
                     Text(if (isId) "Batal" else "Cancel")
                 }
-            }
+            },
+            shape = RoundedCornerShape(28.dp)
         )
     }
 }

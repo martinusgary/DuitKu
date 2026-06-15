@@ -135,16 +135,16 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun deleteTransaction(transaction: Transaction) {
+    fun deleteTransaction(transaction: Transaction, refund: Boolean) {
         viewModelScope.launch {
-            repository.deleteTransaction(transaction)
+            repository.deleteTransaction(transaction, refund)
         }
     }
 
-    fun deleteTransactionsBulk(list: List<Transaction>) {
+    fun deleteTransactionsBulk(list: List<Transaction>, refund: Boolean) {
         viewModelScope.launch {
             list.forEach { transaction ->
-                repository.deleteTransaction(transaction)
+                repository.deleteTransaction(transaction, refund)
             }
         }
     }
