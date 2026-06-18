@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -202,8 +203,8 @@ fun LoginScreen(
                                 .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
                         ) {
                             Icon(
-                                imageVector = androidx.compose.material.icons.Icons.Default.Fingerprint,
-                                contentDescription = "Fingerprint Login",
+                                imageVector = Icons.Default.Security,
+                                contentDescription = "Security Biometric Login",
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(36.dp)
                             )
