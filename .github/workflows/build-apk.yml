@@ -1,0 +1,96 @@
+name: Build Android APK (Auto Versioning)
+
+on:
+  workflow_dispatch: # Allows manual builds
+  push:
+    tags:
+      - 'v*' # Trigger build on pushing a tag like v1.2, v1.3, etc.
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Mengambil Kode Aplikasi
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Menghitung Version Code
+        id: version_code
+        run: |
+          CODE=$(git rev-list --count HEAD)
+          echo "VERSION_CODE=$CODE" >> $GITHUB_ENV
+
+      - name: Mengambil Version Name
+        id: version_name
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            NAME=${GITHUB_REF#refs/tags/v}
+          else
+            NAME="Manual-Build"
+          fi
+          echo "VERSION_NAME=$NAME" >> $GITHUB_ENV
+
+      - name: Menyiapkan Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Memberi Izin Eksekusi Gradle
+        run: chmod +x gradlew
+
+      - name: Menyiapkan JKS Release Keystore (Jika Ada)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ ! -z "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > my-upload-key.jks
+            echo "Keystore release berhasil dipasang dari Secret!"
+          else
+            echo "Secret KEYSTORE_BASE64 tidak ditemukan, menyiapkan kunci debug bawaan."
+            if [ -f "debug.keystore.base64" ]; then
+              base64 -d debug.keystore.base64 > debug.keystore
+            elif [ -f "app/debug.keystore.base64" ]; then
+              base64 -d app/debug.keystore.base64 > debug.keystore
+            fi
+          fi
+
+      - name: Menyiapkan API Key Gemini
+        run: |
+          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
+          echo "API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+
+      - name: Merakit APK Release
+        run: |
+          ./gradlew assembleRelease \
+            -Pandroid.injected.version.code=${{ env.VERSION_CODE }} \
+            -Pandroid.injected.version.name="${{ env.VERSION_NAME }}"
+
+      - name: Menyimpan File APK sebagai Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DuitKu-${{ env.VERSION_NAME }}-APK
+          path: app/build/outputs/apk/release/app-release.apk
+
+      - name: Membuat GitHub Release Otomatis
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: app/build/outputs/apk/release/app-release.apk
+          name: Release v${{ env.VERSION_NAME }}
+          body: |
+            ## Rilis Otomatis DuitKu v${{ env.VERSION_NAME }}
+            
+            Informasi Build:
+            - **Versi**: ${{ env.VERSION_NAME }}
+            - **Kode Build**: ${{ env.VERSION_CODE }}
+            - **Tanggal**: ${{ github.event.head_commit.timestamp }}
+            
+            Unduh file `app-release.apk` di bawah ini untuk memasang atau memperbarui aplikasi ke versi terbaru.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

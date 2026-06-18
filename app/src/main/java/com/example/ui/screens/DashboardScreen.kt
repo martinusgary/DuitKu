@@ -38,6 +38,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.core.content.FileProvider
 import java.io.File
 import android.net.Uri
+import android.content.Intent
+import com.example.ui.util.UpdateResult
 import com.example.data.model.Category
 import com.example.data.model.Transaction
 import com.example.data.model.Wallet
@@ -63,6 +65,20 @@ fun DashboardScreen(
     val isHidden by viewModel.isAmountsHidden.collectAsState()
 
     var showAddDialog by remember { mutableStateOf(false) }
+
+    val updateResult by viewModel.updateResult.collectAsState()
+    val context = LocalContext.current
+    var showUpdateDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        viewModel.checkForAppUpdates()
+    }
+
+    LaunchedEffect(updateResult) {
+        if (updateResult is UpdateResult.NewUpdate) {
+            showUpdateDialog = true
+        }
+    }
 
     val last5Transactions = remember(transactions) { transactions.take(5) }
 
@@ -354,6 +370,98 @@ fun DashboardScreen(
             categories = categories,
             onDismiss = { showAddDialog = false }
         )
+    }
+
+    if (showUpdateDialog) {
+        val update = updateResult as? UpdateResult.NewUpdate
+        if (update != null) {
+            AlertDialog(
+                onDismissRequest = { showUpdateDialog = false },
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = if (isId) "Pembaruan Tersedia" else "Update Available",
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                    }
+                },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = if (isId)
+                                "Versi baru (${update.latestVersionName}) telah dirilis! Versi Anda saat ini adalah v1.2."
+                                else "A new version (${update.latestVersionName}) is available! Your current version is v1.2.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        
+                        if (update.releaseNotes.isNotEmpty()) {
+                            Text(
+                                text = if (isId) "Catatan Rilis:" else "Release Notes:",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 150.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp)
+                                        .verticalScroll(rememberScrollState())
+                                ) {
+                                    Text(
+                                        text = update.releaseNotes,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            try {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(update.downloadUrl))
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                            showUpdateDialog = false
+                        }
+                    ) {
+                        Text(if (isId) "Unduh & Perbarui" else "Download & Update", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { showUpdateDialog = false }
+                    ) {
+                        Text(if (isId) "Nanti" else "Later")
+                    }
+                }
+            )
+        }
     }
 }
 

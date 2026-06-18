@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.ui.util.Localization
+import com.example.ui.util.UpdateResult
 import com.example.ui.viewmodel.FinanceViewModel
 import kotlinx.coroutines.launch
 
@@ -483,6 +484,87 @@ fun SettingsDialog(
                                 Icon(Icons.Default.CheckCircle, contentDescription = null)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(Localization.getString("sec_btn_create", isId), fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        // 3. App Version & Update Checker Card
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                            ),
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = if (isId) "Versi Aplikasi" else "App Version",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                        Text(
+                                            text = "v1.2",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = if (isId) "Tekan untuk memeriksa rilis baru" else "Tap to check for new releases",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    
+                                    val updateResult by viewModel.updateResult.collectAsState()
+                                    var checkingUpdate by remember { mutableStateOf(false) }
+
+                                    LaunchedEffect(updateResult) {
+                                        if (checkingUpdate && updateResult != null) {
+                                            checkingUpdate = false
+                                            when (updateResult) {
+                                                is UpdateResult.NoUpdate -> {
+                                                    Toast.makeText(context, if (isId) "Aplikasi Anda sudah versi terbaru!" else "Your app is already up to date!", Toast.LENGTH_SHORT).show()
+                                                }
+                                                is UpdateResult.NewUpdate -> {
+                                                    Toast.makeText(context, if (isId) "Pembaruan ditemukan!" else "Update found!", Toast.LENGTH_SHORT).show()
+                                                }
+                                                is UpdateResult.Error -> {
+                                                    Toast.makeText(context, (if (isId) "Gagal memeriksa pembaruan: " else "Failed to check update: ") + (updateResult as UpdateResult.Error).message, Toast.LENGTH_LONG).show()
+                                                }
+                                                else -> {}
+                                            }
+                                        }
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            if (!checkingUpdate) {
+                                                checkingUpdate = true
+                                                viewModel.checkForAppUpdates()
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        contentPadding = PaddingValues(horizontal = 12.dp)
+                                    ) {
+                                        if (checkingUpdate) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(16.dp),
+                                                color = MaterialTheme.colorScheme.onPrimary,
+                                                strokeWidth = 2.dp
+                                            )
+                                        } else {
+                                            Text(if (isId) "Periksa" else "Check", fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

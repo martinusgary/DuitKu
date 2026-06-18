@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.database.FinanceDatabase
 import com.example.data.model.*
 import com.example.data.repository.FinanceRepository
+import com.example.ui.util.UpdateResult
+import com.example.ui.util.UpdateChecker
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
@@ -51,6 +53,22 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
         prefs.edit().putString("app_language", lang).apply()
         appLanguage.value = lang
+    }
+
+    private val _updateResult = MutableStateFlow<UpdateResult?>(null)
+    val updateResult: StateFlow<UpdateResult?> = _updateResult.asStateFlow()
+
+    fun checkForAppUpdates() {
+        viewModelScope.launch {
+            _updateResult.value = null
+            val currentVersion = "1.2"
+            val result = UpdateChecker.check(currentVersion)
+            _updateResult.value = result
+        }
+    }
+
+    fun clearUpdateState() {
+        _updateResult.value = null
     }
 
     init {
