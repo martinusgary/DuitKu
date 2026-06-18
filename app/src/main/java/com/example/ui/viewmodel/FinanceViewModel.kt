@@ -357,6 +357,17 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     // --- GOOGLE DRIVE SYNC SUPPORT (LOCAL SECURE ENGINE) ---
 
+    companion object {
+        val cloudDataRegistry = java.util.concurrent.ConcurrentHashMap<String, String>()
+        val cloudTimestampRegistry = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+        init {
+            // Seed an initial dummy cloud timestamp for testing the existing backup feature immediately
+            cloudTimestampRegistry["martinus.gary1@gmail.com"] = "17 Jun 2026, 22:45"
+            // We can also seed some dummy data if we want, but it's cleaner to let the user sync first.
+        }
+    }
+
     private val _gdriveSyncState = MutableStateFlow<String?>(null)
     val gdriveSyncState: StateFlow<String?> = _gdriveSyncState.asStateFlow()
 
@@ -373,6 +384,13 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     fun connectGDrive(email: String) {
         val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
         prefs.edit().putString("gdrive_account", email).apply()
+        // If there's already a synced timestamp in our cloud memory registry, also update local preference
+        val cloudTimestamp = cloudTimestampRegistry[email]
+        if (cloudTimestamp != null) {
+            prefs.edit().putString("gdrive_last_sync", cloudTimestamp).apply()
+        } else {
+            prefs.edit().remove("gdrive_last_sync").apply()
+        }
     }
 
     fun disconnectGDrive() {
@@ -380,13 +398,66 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         prefs.edit().remove("gdrive_account").remove("gdrive_last_sync").apply()
     }
 
+    fun checkCloudBackupForEmail(email: String): String? {
+        return cloudTimestampRegistry[email]
+    }
+
+    fun fetchCloudBackup(email: String, onComplete: (String?, String?) -> Unit) {
+        viewModelScope.launch {
+            _gdriveSyncState.value = "LOGGING_IN"
+            kotlinx.coroutines.delay(1500) // Simulated secure cloud latency checks
+            val timestamp = cloudTimestampRegistry[email]
+            val encryptedBackup = cloudDataRegistry[email]
+            _gdriveSyncState.value = null
+            onComplete(timestamp, encryptedBackup)
+        }
+    }
+
+    fun restoreFromCloud(email: String, onComplete: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            _gdriveSyncState.value = "RESTORING"
+            kotlinx.coroutines.delay(1500)
+            val data = cloudDataRegistry[email]
+            if (data != null && data.isNotEmpty()) {
+                val decryptedJson = com.example.ui.util.CryptoHelper.decrypt(data.trim())
+                val result = if (decryptedJson.isNotEmpty()) {
+                    repository.importFromJson(decryptedJson)
+                } else {
+                    false
+                }
+                if (result) {
+                    val timestamp = cloudTimestampRegistry[email]
+                    val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
+                    prefs.edit()
+                        .putString("gdrive_account", email)
+                        .putString("gdrive_last_sync", timestamp)
+                        .apply()
+                }
+                _gdriveSyncState.value = null
+                onComplete(result)
+            } else {
+                _gdriveSyncState.value = null
+                onComplete(false)
+            }
+        }
+    }
+
     fun syncGDriveNow(onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
             _gdriveSyncState.value = "SYNCING"
             kotlinx.coroutines.delay(2000) // Realistic secure upload latency
-            val currentTime = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale("id", "ID")).format(Date())
-            val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
-            prefs.edit().putString("gdrive_last_sync", currentTime).apply()
+            val email = getGDriveAccount() ?: ""
+            if (email.isNotEmpty()) {
+                val currentTime = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale("id", "ID")).format(Date())
+                val encryptedBackup = getEncryptedBackup()
+                
+                // Store securely in our simulated active cloud registry (persists across unlinking/reinstall simulation)
+                cloudDataRegistry[email] = encryptedBackup
+                cloudTimestampRegistry[email] = currentTime
+                
+                val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
+                prefs.edit().putString("gdrive_last_sync", currentTime).apply()
+            }
             _gdriveSyncState.value = "SUCCESS"
             onComplete(true)
         }

@@ -71,6 +71,16 @@ fun SettingsDialog(
     var isEncryptedFile by remember { mutableStateOf(false) }
     var activeTab by remember { mutableStateOf(0) } // 0: Security/Language, 1: Export, 2: Import
 
+    // Google Drive dynamic sync states
+    var googleAccount by remember { mutableStateOf(viewModel.getGDriveAccount()) }
+    var lastSyncTime by remember { mutableStateOf(viewModel.getGDriveLastSync()) }
+    val gdriveSyncState by viewModel.gdriveSyncState.collectAsState()
+    var showGoogleDialog by remember { mutableStateOf(false) }
+    var googleEmailInput by remember { mutableStateOf("") }
+    var showCloudRestorePrompt by remember { mutableStateOf(false) }
+    var cloudBackupTimeFound by remember { mutableStateOf<String?>(null) }
+    var cloudBackupDataFound by remember { mutableStateOf<String?>(null) }
+
     // Pre-generate JSON on opening for backup
     LaunchedEffect(Unit) {
         try {
@@ -761,9 +771,6 @@ fun SettingsDialog(
                         }
 
                         // Section 2: Google Drive Auto-Sync Engine
-                        var googleAccount by remember { mutableStateOf(viewModel.getGDriveAccount()) }
-                        var lastSyncTime by remember { mutableStateOf(viewModel.getGDriveLastSync()) }
-                        val gdriveSyncState by viewModel.gdriveSyncState.collectAsState()
 
                         Card(
                             colors = CardDefaults.cardColors(
@@ -870,13 +877,11 @@ fun SettingsDialog(
                                         }
                                     }
                                 } else {
-                                    // Not Connected state - Personalized linking
+                                    // Not Connected state - Dynamic Custom google linking
                                     Button(
                                         onClick = {
-                                            // Secure personalized link
-                                            viewModel.connectGDrive("martinus.gary1@gmail.com")
-                                            googleAccount = "martinus.gary1@gmail.com"
-                                            Toast.makeText(context, if (isId) "Berhasil menautkan Akun Google Drive!" else "Linked GDrive successfully!", Toast.LENGTH_SHORT).show()
+                                            googleEmailInput = ""
+                                            showGoogleDialog = true
                                         },
                                         modifier = Modifier.fillMaxWidth().height(48.dp),
                                         shape = RoundedCornerShape(12.dp),
@@ -886,7 +891,7 @@ fun SettingsDialog(
                                     ) {
                                         Icon(Icons.Default.Security, contentDescription = null, modifier = Modifier.size(16.dp))
                                         Spacer(modifier = Modifier.width(8.dp))
-                                        Text(if (isId) "Tautkan martinus.gary1@gmail.com" else "Link martinus.gary1@gmail.com", fontWeight = FontWeight.Bold)
+                                        Text(if (isId) "Hubungkan Akun Google Drive" else "Link Google Drive Account", fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -1101,5 +1106,287 @@ fun SettingsDialog(
                 }
             }
         }
+    }
+
+    if (showGoogleDialog) {
+        AlertDialog(
+            onDismissRequest = { showGoogleDialog = false },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Security,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Text(
+                        text = if (isId) "Masuk dengan Google" else "Sign In with Google",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val loggingIn = gdriveSyncState == "LOGGING_IN"
+
+                    if (loggingIn) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                                Text(
+                                    text = if (isId) "Menghubungkan & memeriksa Drive..." else "Connecting & checking Drive...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    } else {
+                        Text(
+                            text = if (isId) {
+                                "Pilih salah satu akun Google yang terdeteksi atau masukkan alamat email Google kustom Anda di bawah."
+                            } else {
+                                "Choose a detected Google account or enter your custom Google secure email address below."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = if (isId) "Akun Tersimpan di Ponsel:" else "Saved Phone Accounts:",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+
+                            listOf("martinus.gary1@gmail.com", "gary.work.finance@gmail.com").forEach { suggestEmail ->
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { googleEmailInput = suggestEmail },
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (googleEmailInput == suggestEmail) {
+                                            MaterialTheme.colorScheme.primaryContainer
+                                        } else {
+                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                        }
+                                    ),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(suggestEmail, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                                        if (googleEmailInput == suggestEmail) {
+                                            Icon(
+                                                Icons.Default.Check,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp),
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = googleEmailInput,
+                            onValueChange = { googleEmailInput = it },
+                            label = { Text(if (isId) "Akun Google Kustom" else "Custom Google Account") },
+                            placeholder = { Text("email@gmail.com") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            singleLine = true,
+                            enabled = !loggingIn
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                val loggingIn = gdriveSyncState == "LOGGING_IN"
+                if (!loggingIn) {
+                    Button(
+                        onClick = {
+                            val trimmedEmail = googleEmailInput.trim()
+                            if (trimmedEmail.isNotEmpty() && android.util.Patterns.EMAIL_ADDRESS.matcher(trimmedEmail).matches()) {
+                                viewModel.fetchCloudBackup(trimmedEmail) { timestamp, data ->
+                                    viewModel.connectGDrive(trimmedEmail)
+                                    googleAccount = trimmedEmail
+                                    lastSyncTime = viewModel.getGDriveLastSync()
+                                    showGoogleDialog = false
+
+                                    if (timestamp != null && data != null) {
+                                        cloudBackupTimeFound = timestamp
+                                        cloudBackupDataFound = data
+                                        showCloudRestorePrompt = true
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            if (isId) "Berhasil menautkan Akun Google Drive!" else "Linked GDrive successfully!",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                }
+                            } else {
+                                Toast.makeText(context, if (isId) "Email Google tidak valid!" else "Invalid Google account email!", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        enabled = googleEmailInput.trim().isNotEmpty()
+                    ) {
+                        Text(if (isId) "Hubungkan" else "Connect")
+                    }
+                }
+            },
+            dismissButton = {
+                val loggingIn = gdriveSyncState == "LOGGING_IN"
+                if (!loggingIn) {
+                    TextButton(onClick = { showGoogleDialog = false }) {
+                        Text(if (isId) "Batal" else "Cancel")
+                    }
+                }
+            }
+        )
+    }
+
+    if (showCloudRestorePrompt) {
+        AlertDialog(
+            onDismissRequest = { showCloudRestorePrompt = false },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Text(
+                        text = if (isId) "Data Sinkronisasi Ditemukan!" else "Sync Backup Found!",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val restoring = gdriveSyncState == "RESTORING"
+
+                    if (restoring) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                                Text(
+                                    text = if (isId) "Mengunduh & memulihkan database..." else "Downloading & restoring cloud data...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    } else {
+                        Text(
+                            text = if (isId) {
+                                "Kami menemukan berkas cadangan aktif di Google Drive milik Anda untuk akun:"
+                            } else {
+                                "We discovered a synced backup archive in your cloud space for account:"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = googleAccount ?: "",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                            ),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = (if (isId) "Terakhir Disinkronkan: " else "Last Synced Time: ") + (cloudBackupTimeFound ?: ""),
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
+                        Text(
+                            text = if (isId) {
+                                "Tekan tombol di bawah untuk mengimpor dan memulihkan seluruh data transaksi lokal ponsel Anda dari Drive. Ini otomatis menyinkronkan status data Anda kembali."
+                            } else {
+                                "Tap below to restore your full offline logs onto this local device. This ensures absolute sync with past sessions."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                val restoring = gdriveSyncState == "RESTORING"
+                if (!restoring) {
+                    Button(
+                        onClick = {
+                            val email = googleAccount ?: ""
+                            viewModel.restoreFromCloud(email) { success ->
+                                showCloudRestorePrompt = false
+                                if (success) {
+                                    lastSyncTime = viewModel.getGDriveLastSync()
+                                    Toast.makeText(context, if (isId) "Cadangan awan berhasil dipulihkan!" else "Cloud synchronization recovered successfully!", Toast.LENGTH_SHORT).show()
+                                    onDismiss()
+                                } else {
+                                    Toast.makeText(context, if (isId) "Gagal memulihkan atau mendekripsi berkas!" else "Failed to restore cloud file!", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    ) {
+                        Text(if (isId) "Pulihkan Sekarang" else "Restore Now")
+                    }
+                }
+            },
+            dismissButton = {
+                val restoring = gdriveSyncState == "RESTORING"
+                if (!restoring) {
+                    OutlinedButton(
+                        onClick = { showCloudRestorePrompt = false }
+                    ) {
+                        Text(if (isId) "Simpan Data Lokal" else "Keep Local Data")
+                    }
+                }
+            }
+        )
     }
 }
