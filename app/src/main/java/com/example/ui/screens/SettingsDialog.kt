@@ -512,7 +512,7 @@ fun SettingsDialog(
                                 ) {
                                     Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                                         Text(
-                                            text = "v1.2",
+                                            text = "v${viewModel.getAppVersionName()}",
                                             style = MaterialTheme.typography.bodyLarge,
                                             fontWeight = FontWeight.Bold
                                         )

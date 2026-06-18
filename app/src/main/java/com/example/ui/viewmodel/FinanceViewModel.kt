@@ -58,10 +58,25 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     private val _updateResult = MutableStateFlow<UpdateResult?>(null)
     val updateResult: StateFlow<UpdateResult?> = _updateResult.asStateFlow()
 
+    fun getAppVersionName(): String {
+        return try {
+            val context = getApplication<Application>()
+            val packageInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getPackageInfo(context.packageName, android.content.pm.PackageManager.PackageInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageInfo(context.packageName, 0)
+            }
+            packageInfo.versionName ?: "1.2"
+        } catch (e: Exception) {
+            "1.2"
+        }
+    }
+
     fun checkForAppUpdates() {
         viewModelScope.launch {
             _updateResult.value = null
-            val currentVersion = "1.2"
+            val currentVersion = getAppVersionName()
             val result = UpdateChecker.check(currentVersion)
             _updateResult.value = result
         }

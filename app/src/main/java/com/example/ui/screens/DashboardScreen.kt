@@ -401,8 +401,8 @@ fun DashboardScreen(
                     ) {
                         Text(
                             text = if (isId)
-                                "Versi baru (${update.latestVersionName}) telah dirilis! Versi Anda saat ini adalah v1.2."
-                                else "A new version (${update.latestVersionName}) is available! Your current version is v1.2.",
+                                "Versi baru (${update.latestVersionName}) telah dirilis! Versi Anda saat ini adalah v${viewModel.getAppVersionName()}."
+                                else "A new version (${update.latestVersionName}) is available! Your current version is v${viewModel.getAppVersionName()}.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
