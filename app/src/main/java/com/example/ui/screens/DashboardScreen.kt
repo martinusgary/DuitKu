@@ -978,6 +978,38 @@ fun AddTransactionDialog(
                     }
                 }
 
+                val requestPermissionLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.RequestPermission()
+                ) { isGranted ->
+                    if (isGranted) {
+                        val uri = try {
+                            val tempFile = File.createTempFile("receipt_cam_", ".jpg", context.cacheDir).apply {
+                                createNewFile()
+                                deleteOnExit()
+                            }
+                            FileProvider.getUriForFile(
+                                context,
+                                "${context.packageName}.fileprovider",
+                                tempFile
+                            )
+                        } catch (e: Exception) {
+                            null
+                        }
+                        if (uri != null) {
+                            tempPhotoUri = uri
+                            try {
+                                cameraLauncher.launch(uri)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, (if (isId) "Gagal membuka kamera: " else "Failed to open camera: ") + e.message, Toast.LENGTH_SHORT).show()
+                            }
+                        } else {
+                            Toast.makeText(context, if (isId) "Gagal membuat file foto" else "Failed to initialize camera file", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        Toast.makeText(context, if (isId) "Izin kamera diperlukan untuk mengambil foto struk" else "Camera permission is required to take receipt photos", Toast.LENGTH_SHORT).show()
+                    }
+                }
+
                 val photoPickerLauncher = rememberLauncherForActivityResult(
                     contract = ActivityResultContracts.PickMultipleVisualMedia()
                 ) { uris ->
@@ -1038,24 +1070,37 @@ fun AddTransactionDialog(
                                 // Camera Button
                                 OutlinedButton(
                                     onClick = {
-                                        val uri = try {
-                                            val tempFile = File.createTempFile("receipt_cam_", ".jpg", context.cacheDir).apply {
-                                                createNewFile()
-                                                deleteOnExit()
+                                        val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                                            context,
+                                            android.Manifest.permission.CAMERA
+                                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                                        
+                                        if (hasPermission) {
+                                            val uri = try {
+                                                val tempFile = File.createTempFile("receipt_cam_", ".jpg", context.cacheDir).apply {
+                                                    createNewFile()
+                                                    deleteOnExit()
+                                                }
+                                                FileProvider.getUriForFile(
+                                                    context,
+                                                    "${context.packageName}.fileprovider",
+                                                    tempFile
+                                                )
+                                            } catch (e: Exception) {
+                                                null
                                             }
-                                            FileProvider.getUriForFile(
-                                                context,
-                                                "${context.packageName}.fileprovider",
-                                                tempFile
-                                            )
-                                        } catch (e: Exception) {
-                                            null
-                                        }
-                                        if (uri != null) {
-                                            tempPhotoUri = uri
-                                            cameraLauncher.launch(uri)
+                                            if (uri != null) {
+                                                tempPhotoUri = uri
+                                                try {
+                                                    cameraLauncher.launch(uri)
+                                                } catch (e: Exception) {
+                                                    Toast.makeText(context, (if (isId) "Gagal membuka kamera: " else "Failed to open camera: ") + e.message, Toast.LENGTH_SHORT).show()
+                                                }
+                                            } else {
+                                                Toast.makeText(context, if (isId) "Gagal membuat file foto" else "Failed to initialize camera file", Toast.LENGTH_SHORT).show()
+                                            }
                                         } else {
-                                            Toast.makeText(context, if (isId) "Gagal membuat file foto" else "Failed to initialize camera file", Toast.LENGTH_SHORT).show()
+                                            requestPermissionLauncher.launch(android.Manifest.permission.CAMERA)
                                         }
                                     },
                                     modifier = Modifier.weight(1f),

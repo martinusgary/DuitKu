@@ -2,6 +2,11 @@ name: Build Android APK (Auto Versioning)
 
 on:
   workflow_dispatch: # Allows manual builds
+    inputs:
+      version_name:
+        description: 'Nama Versi Rilis (misal: 1.2, 1.3, dll. Jika kosong, default v1.2)'
+        required: false
+        default: '1.2'
   push:
     tags:
       - 'v*' # Trigger build on pushing a tag like v1.2, v1.3, etc.
@@ -25,10 +30,15 @@ jobs:
       - name: Mengambil Version Name
         id: version_name
         run: |
-          if [[ $GITHUB_REF == refs/tags/* ]]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            NAME="${{ github.event.inputs.version_name }}"
+            if [ -z "$NAME" ]; then
+              NAME="1.2"
+            fi
+          elif [[ $GITHUB_REF == refs/tags/* ]]; then
             NAME=${GITHUB_REF#refs/tags/v}
           else
-            NAME="Manual-Build"
+            NAME="1.2"
           fi
           echo "VERSION_NAME=$NAME" >> $GITHUB_ENV
 
@@ -77,9 +87,9 @@ jobs:
       - name: Membuat GitHub Release Otomatis
         id: create_release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
         with:
           files: app/build/outputs/apk/release/app-release.apk
+          tag_name: v${{ env.VERSION_NAME }}
           name: Release v${{ env.VERSION_NAME }}
           body: |
             ## Rilis Otomatis DuitKu v${{ env.VERSION_NAME }}
@@ -87,7 +97,7 @@ jobs:
             Informasi Build:
             - **Versi**: ${{ env.VERSION_NAME }}
             - **Kode Build**: ${{ env.VERSION_CODE }}
-            - **Tanggal**: ${{ github.event.head_commit.timestamp }}
+            - **Metode Build**: ${{ github.event_name }}
             
             Unduh file `app-release.apk` di bawah ini untuk memasang atau memperbarui aplikasi ke versi terbaru.
           draft: false
