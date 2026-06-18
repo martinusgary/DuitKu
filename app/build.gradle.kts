@@ -14,8 +14,13 @@ android {
     applicationId = "com.aistudio.duitku.pwjhzx"
     minSdk = 24
     targetSdk = 36
-    versionCode = 3
-    versionName = "1.2"
+
+    // Dynamically retrieve version code and version name from project properties (e.g., from command line or GitHub Actions)
+    val projVersionCode = (project.findProperty("android.injected.version.code") ?: project.findProperty("versionCode"))?.toString()?.toIntOrNull() ?: 4
+    val projVersionName = (project.findProperty("android.injected.version.name") ?: project.findProperty("versionName"))?.toString() ?: "1.4"
+
+    versionCode = projVersionCode
+    versionName = projVersionName
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
