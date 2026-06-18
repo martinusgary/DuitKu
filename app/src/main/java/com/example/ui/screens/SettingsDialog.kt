@@ -388,6 +388,73 @@ fun SettingsDialog(
                                 }
                             }
 
+                            // Biometric Configuration Toggle (Only available if PIN is configured)
+                            val isBiometricSupported = remember { com.example.ui.util.BiometricHelper.isBiometricAvailable(context) }
+                            var isBiometricEnabled by remember { mutableStateOf(prefs.getBoolean("biometric_enabled", false)) }
+
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                ),
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                        Text(
+                                            text = Localization.getString("sec_biometric_title", isId),
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = Localization.getString("sec_biometric_desc", isId),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    
+                                    Switch(
+                                        checked = isBiometricEnabled,
+                                        onCheckedChange = { checked ->
+                                            if (checked) {
+                                                if (isBiometricSupported) {
+                                                    val activity = context as? androidx.fragment.app.FragmentActivity
+                                                    if (activity != null) {
+                                                        com.example.ui.util.BiometricHelper.showBiometricPrompt(
+                                                            activity = activity,
+                                                            title = Localization.getString("sec_biometric_prompt", isId),
+                                                            subtitle = Localization.getString("sec_biometric_desc", isId),
+                                                            negativeButtonText = Localization.getString("close", isId),
+                                                            onSuccess = {
+                                                                prefs.edit().putBoolean("biometric_enabled", true).apply()
+                                                                isBiometricEnabled = true
+                                                                Toast.makeText(context, Localization.getString("sec_biometric_success", isId), Toast.LENGTH_LONG).show()
+                                                            },
+                                                            onError = { err ->
+                                                                Toast.makeText(context, err, Toast.LENGTH_LONG).show()
+                                                            }
+                                                        )
+                                                    }
+                                                } else {
+                                                    Toast.makeText(context, Localization.getString("sec_biometric_error_setup", isId), Toast.LENGTH_LONG).show()
+                                                }
+                                            } else {
+                                                prefs.edit().putBoolean("biometric_enabled", false).apply()
+                                                isBiometricEnabled = false
+                                                Toast.makeText(context, Localization.getString("sec_biometric_disabled", isId), Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+
                             Button(
                                 onClick = {
                                     prefs.edit().clear().apply()

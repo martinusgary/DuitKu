@@ -41,6 +41,7 @@ fun LoginScreen(
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("security_settings", Context.MODE_PRIVATE) }
     val savedPin = remember { prefs.getString("password", "") ?: "" }
+    val isBiometricEnabled = remember { prefs.getBoolean("biometric_enabled", false) }
 
     val appLang by viewModel.appLanguage.collectAsState()
     val isId = appLang == "id"
@@ -48,9 +49,30 @@ fun LoginScreen(
     var pinInput by remember { mutableStateOf("") }
     var isPinVisible by remember { mutableStateOf(false) }
 
+    val activity = context as? androidx.fragment.app.FragmentActivity
+
+    fun triggerBiometric() {
+        if (isBiometricEnabled && activity != null && com.example.ui.util.BiometricHelper.isBiometricAvailable(context)) {
+            com.example.ui.util.BiometricHelper.showBiometricPrompt(
+                activity = activity,
+                title = Localization.getString("sec_biometric_prompt", isId),
+                subtitle = Localization.getString("sec_biometric_desc", isId),
+                negativeButtonText = Localization.getString("close", isId),
+                onSuccess = {
+                    Toast.makeText(context, Localization.getString("login_access_granted", isId), Toast.LENGTH_SHORT).show()
+                    onLoginSuccess()
+                },
+                onError = { err ->
+                    // user can enter PIN manually
+                }
+            )
+        }
+    }
+
     var showEnterTransition by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         showEnterTransition = true
+        triggerBiometric()
     }
 
     Box(
@@ -170,7 +192,32 @@ fun LoginScreen(
                         shape = RoundedCornerShape(12.dp)
                     )
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    if (isBiometricEnabled) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        IconButton(
+                            onClick = { triggerBiometric() },
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
+                        ) {
+                            Icon(
+                                imageVector = androidx.compose.material.icons.Icons.Default.Fingerprint,
+                                contentDescription = "Fingerprint Login",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
+                        Text(
+                            text = if (isId) "Ketuk untuk Sidik Jari" else "Tap for Biometric",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.clickable { triggerBiometric() }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = Localization.getString("login_footer_secured", isId),
                         style = MaterialTheme.typography.bodySmall,

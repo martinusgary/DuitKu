@@ -29,6 +29,14 @@ object Localization {
         "sec_pin_disabled" to "App lock disabled!",
         "sec_pin_numeric" to "PIN must be numeric only!",
         "sec_pin_length_invalid" to "PIN must be exactly 6 digits!",
+        "sec_biometric_title" to "Biometric Authentication",
+        "sec_biometric_desc" to "Authenticate using fingerprint or face unlock where available.",
+        "sec_biometric_enable" to "Enable Biometric Unlock",
+        "sec_biometric_disable" to "Disable Biometric Unlock",
+        "sec_biometric_prompt" to "Unlock DuitKu",
+        "sec_biometric_error_setup" to "Biometric enrollment is required on this device / not supported.",
+        "sec_biometric_success" to "Biometric unlock configured successfully!",
+        "sec_biometric_disabled" to "Biometric unlock disabled!",
         
         // Settings language card
         "lang_card_title" to "Interface Language",
@@ -70,6 +78,14 @@ object Localization {
         "sec_pin_disabled" to "Kunci PIN dinonaktifkan!",
         "sec_pin_numeric" to "PIN hanya boleh berisi angka!",
         "sec_pin_length_invalid" to "PIN harus tepat 6 digit!",
+        "sec_biometric_title" to "Autentikasi Biometrik",
+        "sec_biometric_desc" to "Gunakan sidik jari atau pemindai wajah untuk membuka aplikasi.",
+        "sec_biometric_enable" to "Aktifkan Sidik Jari / Biometrik",
+        "sec_biometric_disable" to "Nonaktifkan Kunci Biometrik",
+        "sec_biometric_prompt" to "Buka Kunci DuitKu",
+        "sec_biometric_error_setup" to "Perangkat Anda belum mendaftarkan biometrik / tidak didukung.",
+        "sec_biometric_success" to "Kunci biometrik berhasil dikonfigurasi!",
+        "sec_biometric_disabled" to "Kunci biometrik dinonaktifkan!",
         
         // Settings language card
         "lang_card_title" to "Bahasa Tampilan",
