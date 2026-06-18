@@ -35,6 +35,9 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.core.content.FileProvider
+import java.io.File
+import android.net.Uri
 import com.example.data.model.Category
 import com.example.data.model.Transaction
 import com.example.data.model.Wallet
@@ -527,7 +530,7 @@ fun TransactionItemRow(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = if (isHidden) "Rp ••••••" else viewModel.formatRupiah(transaction.amount),
+                                text = viewModel.formatRupiah(transaction.amount),
                                 style = MaterialTheme.typography.headlineMedium,
                                 fontWeight = FontWeight.Black,
                                 color = when (transaction.type) {
@@ -839,6 +842,34 @@ fun AddTransactionDialog(
                 val context = LocalContext.current
                 val coroutineScope = rememberCoroutineScope()
 
+                var tempPhotoUri by remember { mutableStateOf<Uri?>(null) }
+
+                val cameraLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.TakePicture()
+                ) { success ->
+                    if (success) {
+                        val uri = tempPhotoUri
+                        if (uri != null) {
+                            isScanning = true
+                            coroutineScope.launch {
+                                try {
+                                    val results = GeminiClient.scanMultipleReceipts(context, listOf(uri))
+                                    if (results.isNotEmpty()) {
+                                        scannedReceipts = results
+                                        Toast.makeText(context, if (isId) "Pendeteksian struk selesai!" else "Receipt detection completed!", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, if (isId) "Gagal mendeteksi rincian dari struk." else "No details detected from the receipt.", Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, (if (isId) "Gagal memindai struk: " else "Failed to scan receipt: ") + e.message, Toast.LENGTH_LONG).show()
+                                } finally {
+                                    isScanning = false
+                                }
+                            }
+                        }
+                    }
+                }
+
                 val photoPickerLauncher = rememberLauncherForActivityResult(
                     contract = ActivityResultContracts.PickMultipleVisualMedia()
                 ) { uris ->
@@ -896,6 +927,46 @@ fun AddTransactionDialog(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                // Camera Button
+                                OutlinedButton(
+                                    onClick = {
+                                        val uri = try {
+                                            val tempFile = File.createTempFile("receipt_cam_", ".jpg", context.cacheDir).apply {
+                                                createNewFile()
+                                                deleteOnExit()
+                                            }
+                                            FileProvider.getUriForFile(
+                                                context,
+                                                "${context.packageName}.fileprovider",
+                                                tempFile
+                                            )
+                                        } catch (e: Exception) {
+                                            null
+                                        }
+                                        if (uri != null) {
+                                            tempPhotoUri = uri
+                                            cameraLauncher.launch(uri)
+                                        } else {
+                                            Toast.makeText(context, if (isId) "Gagal membuat file foto" else "Failed to initialize camera file", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.primary
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)
+                                ) {
+                                    Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = if (isId) "Kamera" else "Camera",
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.labelLarge
+                                    )
+                                }
+
+                                // Gallery Button
                                 OutlinedButton(
                                     onClick = {
                                         photoPickerLauncher.launch(
@@ -906,19 +977,18 @@ fun AddTransactionDialog(
                                     shape = RoundedCornerShape(12.dp),
                                     colors = ButtonDefaults.outlinedButtonColors(
                                         contentColor = MaterialTheme.colorScheme.primary
-                                    )
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)
                                 ) {
-                                    Icon(Icons.Default.PhotoCamera, contentDescription = null)
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = if (scannedReceipts.isEmpty()) {
-                                            if (isId) "Pindai Struk Belanja" else "Scan Receipts"
-                                        } else {
-                                            if (isId) "Pindai Ulang Struk" else "Scan Receipts Again"
-                                        },
-                                        fontWeight = FontWeight.Bold
+                                        text = if (isId) "Galeri" else "Gallery",
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.labelLarge
                                     )
                                 }
+
                                 if (scannedReceipts.isNotEmpty()) {
                                     IconButton(
                                         onClick = { scannedReceipts = emptyList() },
