@@ -1,32 +1,21 @@
-# --- ATURAN DASAR ANDROID ---
--dontwarn android.**
--dontwarn androidx.**
--keepattributes Signature, Exceptions, *Annotation*
+# Add project specific ProGuard rules here.
+# You can control the set of applied configuration files using the
+# proguardFiles setting in build.gradle.
+#
+# For more details, see
+#   http://developer.android.com/guide/developing/tools/proguard.html
 
-# --- ROOM DATABASE ---
--dontwarn androidx.room.**
--keep class androidx.room.** { *; }
+# If your project uses WebView with JS, uncomment the following
+# and specify the fully qualified class name to the JavaScript interface
+# class:
+#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
+#   public *;
+#}
 
-# --- RETROFIT & OKHTTP (INTERNET) ---
--dontwarn okio.**
--dontwarn javax.annotation.**
--keepclasseswithmembers class * {
-    @retrofit2.http.* <methods>;
-}
--keep class retrofit2.** { *; }
--dontwarn retrofit2.**
--keep class okhttp3.** { *; }
--dontwarn okhttp3.**
+# Uncomment this to preserve the line number information for
+# debugging stack traces.
+#-keepattributes SourceFile,LineNumberTable
 
-# --- MOSHI (KONVERTER DATA) ---
--keep class com.squareup.moshi.** { *; }
--keep @com.squareup.moshi.JsonClass class * { *; }
--dontwarn com.squareup.moshi.**
-
-# --- COROUTINES (PROSES LATAR BELAKANG) ---
--keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
--keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
--keepclassmembernames class kotlinx.** {
-    volatile <fields>;
-}
--dontwarn kotlinx.coroutines.**
+# If you keep the line number information, uncomment this to
+# hide the original source file name.
+#-renamesourcefileattribute SourceFile

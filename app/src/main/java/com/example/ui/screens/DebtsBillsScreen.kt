@@ -44,6 +44,8 @@ fun DebtsBillsScreen(viewModel: FinanceViewModel) {
     val wallets by viewModel.wallets.collectAsState()
     val appLang by viewModel.appLanguage.collectAsState()
     val isId = appLang == "id"
+    val uiStyle by viewModel.uiStyle.collectAsState()
+    val isFresh = uiStyle == "FRESH"
 
     var showAddDebtDialog by remember { mutableStateOf(false) }
     var showAddBillDialog by remember { mutableStateOf(false) }
@@ -66,13 +68,14 @@ fun DebtsBillsScreen(viewModel: FinanceViewModel) {
         }
 
         // Sub-navigation tab row (Modern Segmented Control)
+        val controlShape = RoundedCornerShape(16.dp)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
                 .background(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = controlShape
                 )
                 .padding(4.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -80,7 +83,7 @@ fun DebtsBillsScreen(viewModel: FinanceViewModel) {
             val isDebtsSelected = pagerState.currentPage == 0
             
             // Debts & Loans
-            val debtsTabShape = RoundedCornerShape(8.dp)
+            val debtsTabShape = RoundedCornerShape(12.dp)
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -122,7 +125,7 @@ fun DebtsBillsScreen(viewModel: FinanceViewModel) {
             }
             
             // Bills
-            val billsTabShape = RoundedCornerShape(8.dp)
+            val billsTabShape = RoundedCornerShape(12.dp)
             Box(
                 modifier = Modifier
                     .weight(1f)

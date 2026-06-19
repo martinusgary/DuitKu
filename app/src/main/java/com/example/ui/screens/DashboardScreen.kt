@@ -1,9 +1,12 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.isSystemInDarkTheme
+import com.example.ui.util.PdfExporter
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -20,8 +23,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
+import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.sp
+import com.example.ui.util.Localization
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -51,7 +58,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun DashboardScreen(
     viewModel: FinanceViewModel,
-    onNavigateToWallets: () -> Unit
+    onNavigateToTab: (Int) -> Unit
 ) {
     val totalBalance by viewModel.totalBalance.collectAsState(initial = 0.0)
     val monthlyIncome by viewModel.monthlyIncomeSum.collectAsState(initial = 0.0)
@@ -63,12 +70,46 @@ fun DashboardScreen(
     val isId = appLang == "id"
 
     val isHidden by viewModel.isAmountsHidden.collectAsState()
+    val currentStyle by viewModel.uiStyle.collectAsState()
+    val currentTheme by viewModel.appTheme.collectAsState()
+    val isFresh = currentStyle == "FRESH"
+    val userGreetingName by viewModel.userGreetingName.collectAsState()
 
     var showAddDialog by remember { mutableStateOf(false) }
+    var showQRISDialog by remember { mutableStateOf(false) }
+    var showSavingsSimDialog by remember { mutableStateOf(false) }
+    var showTipsDialog by remember { mutableStateOf(false) }
+    var showDashboardCategoryDialog by remember { mutableStateOf(false) }
 
     val updateResult by viewModel.updateResult.collectAsState()
     val context = LocalContext.current
     var showUpdateDialog by remember { mutableStateOf(false) }
+
+    val pdfLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/pdf")
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val outputStream = context.contentResolver.openOutputStream(uri)
+                if (outputStream != null) {
+                     val calendar = java.util.Calendar.getInstance()
+                     PdfExporter.generateMonthlyPdfReport(
+                         context = context,
+                         outputStream = outputStream,
+                         month = calendar.get(java.util.Calendar.MONTH),
+                         year = calendar.get(java.util.Calendar.YEAR),
+                         transactions = transactions,
+                         wallets = wallets,
+                         categories = categories,
+                         viewModel = viewModel
+                     )
+                     Toast.makeText(context, if (isId) "Laporan PDF berhasil disimpan!" else "PDF Report saved successfully!", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Error saving PDF: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.checkForAppUpdates()
@@ -92,25 +133,414 @@ fun DashboardScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // 1. Total Balance Card (Clean, modern solid background matching Material You theme)
+            // 0. Greeting Header (Fresh Wallet Style)
+            if (isFresh) {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = if (isId) "Halo, $userGreetingName! 👋" else "Hello, $userGreetingName! 👋",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Black
+                                ),
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                            Text(
+                                text = if (isId) "Kantong keuangan aman terkendali." else "All pocket funds are safe & secure.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            IconButton(
+                                onClick = { showTipsDialog = true },
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Notifications,
+                                    contentDescription = "Notifications",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = if (isId) "Halo, $userGreetingName! 👋" else "Hello, $userGreetingName! 👋",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Black
+                                ),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = if (isId) "Semua keuangan aman dan terkendali." else "Financial health is secure and steady.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 1. Total Balance Card
             item {
-                val cardShape = RoundedCornerShape(28.dp)
+                val isDark = isSystemInDarkTheme()
+                val cardShape = RoundedCornerShape(24.dp)
+                
+                val customCardBg = if (isFresh) {
+                    if (isDark) {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                    } else {
+                        when (currentTheme) {
+                            "MINT" -> Color(0xFFF0FDFB)
+                            "OCEAN" -> Color(0xFFF0F7FF)
+                            "SUNSET" -> Color(0xFFFFFBEB)
+                            "SAKURA" -> Color(0xFFFFF5F5)
+                            else -> Color(0xFFFAF9F6)
+                        }
+                    }
+                } else {
+                    MaterialTheme.colorScheme.primaryContainer
+                }
+
+                val borderStroke = if (isFresh) {
+                    BorderStroke(
+                        width = 1.dp,
+                        color = if (isDark) Color.White.copy(alpha = 0.08f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                    )
+                } else {
+                    null
+                }
+
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(cardShape)
-                        .clickable { onNavigateToWallets() }
                         .testTag("total_balance_card"),
                     shape = cardShape,
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    border = borderStroke,
+                    colors = CardDefaults.cardColors(containerColor = customCardBg),
+                    elevation = CardDefaults.cardElevation(defaultElevation = if (isFresh) 0.dp else 2.dp)
                 ) {
-                    Column(
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        if (isFresh) {
+                            Canvas(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .alpha(if (isDark) 0.04f else 0.08f)
+                            ) {
+                                drawCircle(
+                                    color = if (isDark) Color.White else Color(0xFFFFCC00),
+                                    radius = size.width * 0.32f,
+                                    center = androidx.compose.ui.geometry.Offset(size.width * 0.94f, size.height * 0.12f)
+                                )
+                            }
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(if (isFresh) 20.dp else 24.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(
+                                                if (isFresh) {
+                                                    if (isDark) Color.White.copy(alpha = 0.1f) else Color(0xFFFFECB3)
+                                                } else {
+                                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                                }
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.AccountBalanceWallet,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                    Column {
+                                        Text(
+                                            text = if (isFresh) {
+                                                if (isId) "Kantong Utama" else "Main Pocket"
+                                            } else {
+                                                if (isId) "TOTAL SALDO" else "TOTAL BALANCE"
+                                            },
+                                            style = MaterialTheme.typography.titleMedium.copy(
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 15.sp
+                                            ),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        if (isFresh) {
+                                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                Text(
+                                                    text = if (isHidden) "Pocket ID: ••••-••••-••••" else "Pocket ID: 1032-8633-9142",
+                                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                                Icon(
+                                                    imageVector = Icons.Default.ContentCopy,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier
+                                                        .size(10.dp)
+                                                        .clickable {
+                                                            if (isHidden) {
+                                                                Toast.makeText(context, if (isId) "Buka sembunyi saku untuk menyalin!" else "Unhide pocket values to copy!", Toast.LENGTH_SHORT).show()
+                                                            } else {
+                                                                Toast.makeText(context, if (isId) "Pocket ID disalin!" else "Pocket ID copied!", Toast.LENGTH_SHORT).show()
+                                                            }
+                                                        }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    IconButton(
+                                        onClick = { viewModel.toggleHideAmounts() },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                            contentDescription = "Toggle Balance Visibility",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Text(
+                                text = if (isHidden) "Rp ••••••" else viewModel.formatRupiah(totalBalance),
+                                style = if (isFresh) {
+                                    MaterialTheme.typography.headlineLarge.copy(
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 32.sp,
+                                        letterSpacing = (-0.5).sp
+                                    )
+                                } else {
+                                    MaterialTheme.typography.headlineLarge.copy(
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                },
+                                color = if (isFresh) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary
+                            )
+
+                            if (isFresh) {
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(if (isDark) Color.White.copy(alpha = 0.08f) else Color.White)
+                                        .border(
+                                            BorderStroke(
+                                                1.dp,
+                                                if (isDark) Color.White.copy(alpha = 0.08f) else Color(0xFFEEEEEE)
+                                            ),
+                                            RoundedCornerShape(12.dp)
+                                        )
+                                        .clickable { onNavigateToTab(1) }
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.AccountBalanceWallet,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            text = if (isId) "Kelola Kantong Keuangan →" else "Manage Financial Pockets →",
+                                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            } else {
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
+                                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = if (isId) "${wallets.size} Akun Terhubung" else "${wallets.size} Connected accounts",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = if (isId) "Lihat Rincian →" else "View Details →",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (isFresh) {
+                // Large double pills side-by-side like "Transfer & Pay" and "Scan QRIS"
+                item {
+                    Row(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp)
+                            .fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        val isDark = isSystemInDarkTheme()
+                        val pillBg = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else Color.White
+                        val strokeColor = if (isDark) Color.White.copy(alpha = 0.08f) else Color(0xFFEFEFEF)
+                        val pillShape = RoundedCornerShape(24.dp)
+                        
+                        // Pill 1: Kirim & Bayar (Transfer & Pay)
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(64.dp)
+                                .clip(pillShape)
+                                .clickable { showAddDialog = true },
+                            shape = pillShape,
+                            border = BorderStroke(1.dp, strokeColor),
+                            colors = CardDefaults.cardColors(containerColor = pillBg),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFFFEADF)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Send,
+                                        contentDescription = null,
+                                        tint = Color(0xFFFF5E14),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = if (isId) "Kirim & Bayar" else "Transfer & Pay",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+
+                        // Pill 2: Pindai QRIS (Scan QRIS)
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(64.dp)
+                                .clip(pillShape)
+                                .clickable { showQRISDialog = true },
+                            shape = pillShape,
+                            border = BorderStroke(1.dp, strokeColor),
+                            colors = CardDefaults.cardColors(containerColor = pillBg),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFEDE7F6)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.QrCodeScanner,
+                                        contentDescription = null,
+                                        tint = Color(0xFF673AB7),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = if (isId) "Pindai QRIS" else "Scan QRIS",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Plan Ahead Banner Section like Jago's
+                item {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -118,166 +548,532 @@ fun DashboardScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = if (isId) "TOTAL SALDO" else "TOTAL BALANCE",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.82f),
-                                fontWeight = FontWeight.Bold
+                                text = if (isId) "Asisten Rencana" else "Plan Ahead",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 16.sp
+                                ),
+                                color = MaterialTheme.colorScheme.onBackground
                             )
+                            Text(
+                                text = if (isId) "Sembunyikan" else "Hide",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Black),
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.clickable {
+                                    Toast.makeText(context, if (isId) "Asisten selalu bersamamu!" else "Your plan coach stays active!", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(20.dp),
+                            border = BorderStroke(
+                                1.dp,
+                                if (isSystemInDarkTheme()) Color.White.copy(alpha = 0.08f) else Color(0xFFFFE0B2)
+                            ),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isSystemInDarkTheme()) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f) else Color(0xFFFFF9F2)
+                            )
+                        ) {
                             Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                IconButton(
-                                    onClick = { viewModel.toggleHideAmounts() },
-                                    modifier = Modifier.size(24.dp)
+                                Box(
+                                    modifier = Modifier
+                                        .size(46.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xFFFFE0B2)),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(
-                                        imageVector = if (isHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                        contentDescription = "Toggle Balance Visibility",
-                                        tint = MaterialTheme.colorScheme.onPrimary,
-                                        modifier = Modifier.size(24.dp)
+                                    Text("📋", fontSize = 20.sp)
+                                }
+                                Spacer(modifier = Modifier.width(14.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (isId) "Belum Bayar Tagihan Buku?" else "Unpaid items or dues?",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = Color(0xFFE65100)
+                                    )
+                                    Text(
+                                        text = if (isId) "Jangan lupa cek & selesaikan cicilan atau pinjaman kamu hari ini." else "Never forget your dues. Check details on the bills screen.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
-                                Icon(
-                                    Icons.Default.AccountBalanceWallet,
-                                    contentDescription = "Wallet",
-                                    tint = MaterialTheme.colorScheme.onPrimary
-                                )
                             }
                         }
-                        
-                        Spacer(modifier = Modifier.height(15.dp))
-                        
-                        Text(
-                            text = if (isHidden) "Rp ••••••" else viewModel.formatRupiah(totalBalance),
-                            style = MaterialTheme.typography.headlineLarge,
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                        
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
+                    }
+                }
+
+                // Shortcuts (Fitur Unggulan) Jago/GoPay styled grids
+                item {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.12f))
-                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = if (isId) "${wallets.size} Akun Terhubung" else "${wallets.size} Connected accounts",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                fontWeight = FontWeight.SemiBold
+                                text = if (isId) "Fitur Pilihan & Navigasi" else "Shortcuts & Navigation",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 16.sp
+                                ),
+                                color = MaterialTheme.colorScheme.onBackground
                             )
-                            Text(
-                                text = if (isId) "Lihat Rincian →" else "View Details →",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                fontWeight = FontWeight.Bold
-                            )
+                        }
+
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // Shortcut 1: Riwayat Transaksi (Tab 2)
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(76.dp)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(
+                                            if (isSystemInDarkTheme()) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f) else Color(0xFFF9FAFB)
+                                        )
+                                        .border(
+                                            1.dp,
+                                            if (isSystemInDarkTheme()) Color.White.copy(alpha = 0.06f) else Color(0xFFEEEEEE),
+                                            RoundedCornerShape(16.dp)
+                                        )
+                                        .clickable { onNavigateToTab(2) }
+                                        .padding(12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxSize(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.ReceiptLong,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(
+                                                text = if (isId) "Transaksi" else "Transactions",
+                                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = if (isId) "Buku Kas" else "Ledger",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Shortcut 2: Analisis (Tab 3)
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(76.dp)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(
+                                            if (isSystemInDarkTheme()) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f) else Color(0xFFF9FAFB)
+                                        )
+                                        .border(
+                                            1.dp,
+                                            if (isSystemInDarkTheme()) Color.White.copy(alpha = 0.06f) else Color(0xFFEEEEEE),
+                                            RoundedCornerShape(16.dp)
+                                        )
+                                        .clickable { onNavigateToTab(3) }
+                                        .padding(12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxSize(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.PieChart,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(
+                                                text = if (isId) "Analisis Kas" else "Analytics",
+                                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = if (isId) "Arus Keuangan" else "Flow Analysis",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // Shortcut 3: Utang & Tagihan (Tab 4)
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(76.dp)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(
+                                            if (isSystemInDarkTheme()) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f) else Color(0xFFF9FAFB)
+                                        )
+                                        .border(
+                                            1.dp,
+                                            if (isSystemInDarkTheme()) Color.White.copy(alpha = 0.06f) else Color(0xFFEEEEEE),
+                                            RoundedCornerShape(16.dp)
+                                        )
+                                        .clickable { onNavigateToTab(4) }
+                                        .padding(12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxSize(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Payments,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(
+                                                text = if (isId) "Tagihan" else "Bills & Debts",
+                                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = if (isId) "Utang Piutang" else "Debts Ledger",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Shortcut 4: Unduh Laporan PDF
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(76.dp)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(
+                                            if (isSystemInDarkTheme()) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f) else Color(0xFFF9FAFB)
+                                        )
+                                        .border(
+                                            1.dp,
+                                            if (isSystemInDarkTheme()) Color.White.copy(alpha = 0.06f) else Color(0xFFEEEEEE),
+                                            RoundedCornerShape(16.dp)
+                                        )
+                                        .clickable {
+                                            try {
+                                                pdfLauncher.launch(if (isId) "Laporan_Keuangan_DuitKu" else "Financial_Report_DuitKu")
+                                            } catch (e: Exception) {
+                                                Toast.makeText(context, "Error launching file picker", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                        .padding(12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxSize(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.PictureAsPdf,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(
+                                                text = if (isId) "Unduh PDF" else "Export PDF",
+                                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = if (isId) "Laporan" else "Report",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
+
+                // Category & Tips Dialogs moved to screen level below LazyColumn
             }
 
-            // 2. Income and Expense Summary Cards (Row of 2)
+            // 2. Income and Expense Summary Cards (Row of 2 or Unified Card)
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Income Card
+                if (isFresh) {
+                    val unifiedShape = RoundedCornerShape(24.dp)
                     ElevatedCard(
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                                unifiedShape
+                            ),
+                        shape = unifiedShape,
                         colors = CardDefaults.elevatedCardColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer
+                            containerColor = MaterialTheme.colorScheme.surface
                         )
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(28.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFFE8F5E9)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        Icons.Default.ArrowDownward,
-                                        contentDescription = "Income",
-                                        tint = Color(0xFF2E7D32),
-                                        modifier = Modifier.size(16.dp)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 18.dp, horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Left side: Income
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(horizontal = 8.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFFE8F5E9)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            Icons.Default.ArrowDownward,
+                                            contentDescription = "Income",
+                                            tint = Color(0xFF2E7D32),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        if (isId) "Pemasukan" else "Income",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF1B5E20)
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    if (isId) "Pemasukan" else "Income",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    if (isHidden) "Rp ••••••" else viewModel.formatRupiah(monthlyIncome),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFF2E7D32)
+                                )
+                                Text(
+                                    if (isId) "Bulan ini" else "This month",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFF1B5E20).copy(alpha = 0.7f)
                                 )
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                if (isHidden) "Rp ••••••" else viewModel.formatRupiah(monthlyIncome),
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF2E7D32)
+
+                            // Vertical divider
+                            Box(
+                                modifier = Modifier
+                                    .width(1.dp)
+                                    .height(60.dp)
+                                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
                             )
-                            Text(
-                                if (isId) "Bulan ini" else "This month",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+
+                            // Right side: Expense
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(horizontal = 8.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFFFFEBEE)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            Icons.Default.ArrowUpward,
+                                            contentDescription = "Expense",
+                                            tint = Color(0xFFC62828),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        if (isId) "Pengeluaran" else "Expense",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFB71C1C)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    if (isHidden) "Rp ••••••" else viewModel.formatRupiah(monthlyExpense),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFFC62828)
+                                )
+                                Text(
+                                    if (isId) "Bulan ini" else "This month",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFFB71C1C).copy(alpha = 0.7f)
+                                )
+                            }
                         }
                     }
-
-                    // Expense Card
-                    ElevatedCard(
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.elevatedCardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(28.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFFFFEBEE)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        Icons.Default.ArrowUpward,
-                                        contentDescription = "Expense",
-                                        tint = Color(0xFFC62828),
-                                        modifier = Modifier.size(16.dp)
+                        // Income Card
+                        val incomeShape = RoundedCornerShape(24.dp)
+                        ElevatedCard(
+                            modifier = Modifier
+                                .weight(1f)
+                                .then(
+                                    if (isFresh) {
+                                        Modifier.border(
+                                            BorderStroke(1.5.dp, Color(0xFF2E7D32).copy(alpha = 0.25f)),
+                                            incomeShape
+                                        )
+                                    } else {
+                                        Modifier
+                                    }
+                                ),
+                            shape = incomeShape,
+                            colors = CardDefaults.elevatedCardColors(
+                                containerColor = if (isFresh) Color(0xFFE8F5E9).copy(alpha = 0.5f) else MaterialTheme.colorScheme.secondaryContainer
+                            )
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFFE8F5E9)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            Icons.Default.ArrowDownward,
+                                            contentDescription = "Income",
+                                            tint = Color(0xFF2E7D32),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        if (isId) "Pemasukan" else "Income",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isFresh) Color(0xFF1B5E20) else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    if (isId) "Pengeluaran" else "Expense",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    if (isHidden) "Rp ••••••" else viewModel.formatRupiah(monthlyIncome),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFF2E7D32)
+                                )
+                                Text(
+                                    if (isId) "Bulan ini" else "This month",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (isFresh) Color(0xFF1B5E20).copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                if (isHidden) "Rp ••••••" else viewModel.formatRupiah(monthlyExpense),
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFC62828)
+                        }
+
+                        // Expense Card
+                        val expenseShape = RoundedCornerShape(24.dp)
+                        ElevatedCard(
+                            modifier = Modifier
+                                .weight(1f)
+                                .then(
+                                    if (isFresh) {
+                                        Modifier.border(
+                                            BorderStroke(1.5.dp, Color(0xFFC62828).copy(alpha = 0.25f)),
+                                            expenseShape
+                                        )
+                                    } else {
+                                        Modifier
+                                    }
+                                ),
+                            shape = expenseShape,
+                            colors = CardDefaults.elevatedCardColors(
+                                containerColor = if (isFresh) Color(0xFFFFEBEE).copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant
                             )
-                            Text(
-                                if (isId) "Bulan ini" else "This month",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFFFFEBEE)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            Icons.Default.ArrowUpward,
+                                            contentDescription = "Expense",
+                                            tint = Color(0xFFC62828),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        if (isId) "Pengeluaran" else "Expense",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isFresh) Color(0xFFB71C1C) else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    if (isHidden) "Rp ••••••" else viewModel.formatRupiah(monthlyExpense),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFFC62828)
+                                )
+                                Text(
+                                    if (isId) "Bulan ini" else "This month",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (isFresh) Color(0xFFB71C1C).copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
@@ -342,23 +1138,25 @@ fun DashboardScreen(
             }
         }
 
-        // Floating Action Button
-        FloatingActionButton(
-            onClick = { showAddDialog = true },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(24.dp)
-                .testTag("add_transaction_fab"),
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
+        // Floating Action Button (Only show if not on FRESH theme)
+        if (!isFresh) {
+            FloatingActionButton(
+                onClick = { showAddDialog = true },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(24.dp)
+                    .testTag("add_transaction_fab"),
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Add")
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(if (isId) "Transaksi Baru" else "New Transaction", fontWeight = FontWeight.Bold)
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add")
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(if (isId) "Transaksi Baru" else "New Transaction", fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -369,6 +1167,315 @@ fun DashboardScreen(
             wallets = wallets,
             categories = categories,
             onDismiss = { showAddDialog = false }
+        )
+    }
+
+    if (showQRISDialog) {
+        Dialog(
+            onDismissRequest = { showQRISDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            val dialogWidth = if (LocalConfiguration.current.screenWidthDp < 600) (LocalConfiguration.current.screenWidthDp * 0.94).dp else 520.dp
+            Card(
+                modifier = Modifier
+                    .width(dialogWidth)
+                    .padding(16.dp),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (isId) "Pindai QRIS Merchant" else "QRIS Merchant Payment",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black)
+                        )
+                        IconButton(onClick = { showQRISDialog = false }) {
+                            Icon(Icons.Default.Close, contentDescription = "Close")
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.Black),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val strokeWidth = 3.dp.toPx()
+                            val lineLength = 24.dp.toPx()
+                            val margin = 30.dp.toPx()
+                            val qrisColor = Color(0xFF673AB7)
+                            drawLine(qrisColor, androidx.compose.ui.geometry.Offset(margin, margin), androidx.compose.ui.geometry.Offset(margin + lineLength, margin), strokeWidth)
+                            drawLine(qrisColor, androidx.compose.ui.geometry.Offset(margin, margin), androidx.compose.ui.geometry.Offset(margin, margin + lineLength), strokeWidth)
+                            drawLine(qrisColor, androidx.compose.ui.geometry.Offset(size.width - margin, margin), androidx.compose.ui.geometry.Offset(size.width - margin - lineLength, margin), strokeWidth)
+                            drawLine(qrisColor, androidx.compose.ui.geometry.Offset(size.width - margin, margin), androidx.compose.ui.geometry.Offset(size.width - margin, margin + lineLength), strokeWidth)
+                            drawLine(qrisColor, androidx.compose.ui.geometry.Offset(margin, size.height - margin), androidx.compose.ui.geometry.Offset(margin + lineLength, size.height - margin), strokeWidth)
+                            drawLine(qrisColor, androidx.compose.ui.geometry.Offset(margin, size.height - margin), androidx.compose.ui.geometry.Offset(margin, size.height - margin - lineLength), strokeWidth)
+                            drawLine(qrisColor, androidx.compose.ui.geometry.Offset(size.width - margin, size.height - margin), androidx.compose.ui.geometry.Offset(size.width - margin - lineLength, size.height - margin), strokeWidth)
+                            drawLine(qrisColor, androidx.compose.ui.geometry.Offset(size.width - margin, size.height - margin), androidx.compose.ui.geometry.Offset(size.width - margin, size.height - margin - lineLength), strokeWidth)
+                        }
+
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(Icons.Default.QrCodeScanner, contentDescription = null, tint = Color.White, modifier = Modifier.size(40.dp))
+                            Text(
+                                text = if (isId) "Menggunakan Kamera Simulator" else "Using Camera Simulator",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+
+                    var selectedMerchantIndex by remember { mutableStateOf(0) }
+                    val merchants = listOf("Gojek Ride", "Kopi Kenangan", "Indomaret")
+                    Text(
+                        text = if (isId) "Pilih Merchant Terdekat:" else "Select Near Merchant:",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        modifier = Modifier.align(Alignment.Start)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        merchants.forEachIndexed { idx, item ->
+                            val isSelected = selectedMerchantIndex == idx
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(
+                                        if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                    )
+                                    .clickable { selectedMerchantIndex = idx }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = item,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold,
+                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                )
+                            }
+                        }
+                    }
+
+                    var qrisAmountText by remember { mutableStateOf("15000") }
+                    OutlinedTextField(
+                        value = qrisAmountText,
+                        onValueChange = { qrisAmountText = it.filter { ch -> ch.isDigit() } },
+                        label = { Text(if (isId) "Jumlah Pengeluaran (Rp)" else "Expense Amount (Rp)") },
+                        leadingIcon = { Text("Rp", fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 12.dp)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (wallets.isEmpty()) {
+                        Text(
+                            text = if (isId) "Harap buat dompet terlebih dahulu!" else "Please construct a wallet first!",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            val amountVal = qrisAmountText.toDoubleOrNull() ?: 0.0
+                            if (amountVal > 0 && wallets.isNotEmpty()) {
+                                val foodCat = categories.firstOrNull { 
+                                    it.name.lowercase().contains("makan") || 
+                                    it.name.lowercase().contains("food") || 
+                                    it.name.lowercase().contains("jajan") 
+                                } ?: categories.firstOrNull()
+                                
+                                viewModel.addTransaction(
+                                    amount = amountVal,
+                                    type = "EXPENSE",
+                                    walletId = wallets.firstOrNull()?.id ?: 1,
+                                    categoryId = foodCat?.id ?: 1,
+                                    note = "QRIS: ${merchants[selectedMerchantIndex]}",
+                                    date = System.currentTimeMillis(),
+                                    targetWalletId = null
+                                )
+                                Toast.makeText(context, if (isId) "Pembayaran QRIS Berhasil!" else "QRIS Payment Completed!", Toast.LENGTH_SHORT).show()
+                                showQRISDialog = false
+                            }
+                        },
+                        enabled = wallets.isNotEmpty() && qrisAmountText.isNotEmpty(),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (isId) "Konfirmasi Bayar QRIS" else "Confirm QRIS Payment")
+                    }
+                }
+            }
+        }
+    }
+
+    if (showSavingsSimDialog) {
+        Dialog(
+            onDismissRequest = { showSavingsSimDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            val dialogWidth = if (LocalConfiguration.current.screenWidthDp < 600) (LocalConfiguration.current.screenWidthDp * 0.94).dp else 520.dp
+            Card(
+                modifier = Modifier
+                    .width(dialogWidth)
+                    .padding(16.dp),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (isId) "Simulasi Anggaran Cerdas" else "Smart Budget Simulation",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black)
+                        )
+                        IconButton(onClick = { showSavingsSimDialog = false }) {
+                            Icon(Icons.Default.Close, contentDescription = "Close")
+                        }
+                    }
+
+                    Text(
+                        text = if (isId) 
+                            "Gunakan kalkulator saku cerdas ini untuk memproyeksikan target tabungan bulanan Anda berdasarkan formula budgeting 50/30/20!" 
+                            else "Use this budgeting projector to simulate your monthly savings goals based on the balanced 50/30/20 formula!",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    var monthlyIncomeInput by remember { mutableStateOf("5000000") }
+                    OutlinedTextField(
+                        value = monthlyIncomeInput,
+                        onValueChange = { monthlyIncomeInput = it.filter { ch -> ch.isDigit() } },
+                        label = { Text(if (isId) "Estimasi Pendapatan Bulanan (Rp)" else "Monthly Income Estimate (Rp)") },
+                        leadingIcon = { Text("Rp", fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 12.dp)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    val incomeAmount = monthlyIncomeInput.toDoubleOrNull() ?: 0.0
+                    val needs = incomeAmount * 0.5
+                    val wants = incomeAmount * 0.3
+                    val savings = incomeAmount * 0.2
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = if (isId) "Hasil Formula Jago 50/30/20:" else "Projected 50/30/20 Allocation:",
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                            )
+                            
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(if (isId) "Kebutuhan Pokok (50%)" else "Needs & Dues (50%)", style = MaterialTheme.typography.bodySmall)
+                                Text(viewModel.formatRupiah(needs), style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(if (isId) "Keinginan & Jajan (30%)" else "Wants & Lifestyle (30%)", style = MaterialTheme.typography.bodySmall)
+                                Text(viewModel.formatRupiah(wants), style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(if (isId) "Masa Depan & Tabungan (20%)" else "Invest & Savings (20%)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                                Text(viewModel.formatRupiah(savings), style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Black), color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+
+                    Button(
+                        onClick = { showSavingsSimDialog = false },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (isId) "Terapkan Rencana Ini" else "Apply Plan Principles")
+                    }
+                }
+            }
+        }
+    }
+
+    if (showDashboardCategoryDialog) {
+        CategoryManagementDialog(
+            viewModel = viewModel,
+            onDismiss = { showDashboardCategoryDialog = false }
+        )
+    }
+
+    if (showTipsDialog) {
+        val tipsId = listOf(
+            "Formula 50/30/20: Taruh 50% untuk Kebutuhan Pokok, 30% Keinginan, dan 20% Tabungan/Utang.",
+            "Hemat jajan kopi harian luar! Membuat sendiri di rumah/kantor menghemat puluhan ribu sehari.",
+            "Aset terbaik adalah pencatatan keuangan! Rutin catat sekecil apapun pengeluaran Anda di DuitKu.",
+            "Membagi kantong (misal Kantong Belanja vs Kantong Tabungan) menjaga saldo Anda tidak gampang boncos.",
+            "Disiplin menabung di awal gajian, amankan juga dana darurat terlebih dahulu sebelum konsumtif berlebih."
+        )
+        val tipsEn = listOf(
+            "The 50/30/20 Rule: Set 50% for Needs, 30% for Wants, and 20% for Savings.",
+            "Avoid expensive daily takeout coffee! Making your own drink saves massive wallet pocket cash.",
+            "Tracking builds security! Consistent financial logging in DuitKu secures early detection of leaks.",
+            "Segregate your holdings! Having separate pockets for groceries and savings halts excessive spending.",
+            "Pay yourself first! Transfer money to your savings pocket immediately upon getting paid to beat temptation."
+        )
+        val tipsToUse = if (isId) tipsId else tipsEn
+        val randomTip = remember(showTipsDialog) { tipsToUse.random() }
+
+        AlertDialog(
+            onDismissRequest = { showTipsDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.Lightbulb,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Text(if (isId) "Tips Dompet Cerdas" else "Smart Saving Tips")
+                }
+            },
+            text = {
+                Text(
+                    text = randomTip,
+                    style = MaterialTheme.typography.bodyMedium,
+                    lineHeight = 22.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showTipsDialog = false }) {
+                    Text(if (isId) "Keren, Mengerti!" else "Got it!")
+                }
+            }
         )
     }
 

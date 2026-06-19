@@ -5,6 +5,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -43,6 +44,8 @@ fun TransactionsScreen(
     val wallets by viewModel.wallets.collectAsState()
     val appLang by viewModel.appLanguage.collectAsState()
     val isId = appLang == "id"
+    val uiStyle by viewModel.uiStyle.collectAsState()
+    val isFresh = uiStyle == "FRESH"
 
     // Filter & Sort State
     var searchQuery by remember { mutableStateOf("") }
@@ -251,31 +254,27 @@ fun TransactionsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp),
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(16.dp),
                 singleLine = true
             )
 
-            // Scrollable filter rows
-            Column(
+            var showTypeMenu by remember { mutableStateOf(false) }
+            var showPresetMenu by remember { mutableStateOf(false) }
+            var showSortMenu by remember { mutableStateOf(false) }
+
+            // Condensed scrollable single filter row
+            LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp)
+                    .padding(vertical = 4.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Preset & Type Filters Row
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    var showTypeMenu by remember { mutableStateOf(false) }
-                    var showPresetMenu by remember { mutableStateOf(false) }
-                    var showSortMenu by remember { mutableStateOf(false) }
-
-                    // Date range dropdown
-                    Box(modifier = Modifier.weight(1f)) {
-                        InputChip(
+                // Pin 1: Date Filter
+                item {
+                    Box {
+                        FilterChip(
                             selected = selectedDatePreset != "ALL_TIME",
                             onClick = { showPresetMenu = true },
                             label = {
@@ -283,18 +282,16 @@ fun TransactionsScreen(
                                     when (selectedDatePreset) {
                                         "TODAY" -> if (isId) "Hari Ini" else "Today"
                                         "LAST_7" -> if (isId) "7 Hari" else "7 Days"
-                                        "THIS_MONTH" -> if (isId) "Bulan Ini" else "Month"
+                                        "THIS_MONTH" -> if (isId) "Bulan Ini" else "This Month"
                                         else -> if (isId) "Semua Tanggal" else "All Dates"
                                     }
                                 )
                             },
-                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                            modifier = Modifier.fillMaxWidth()
+                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp)) }
                         )
                         DropdownMenu(
                             expanded = showPresetMenu,
-                            onDismissRequest = { showPresetMenu = false },
-                            modifier = Modifier.widthIn(min = 150.dp, max = 240.dp)
+                            onDismissRequest = { showPresetMenu = false }
                         ) {
                             DropdownMenuItem(text = { Text(if (isId) "Semua Tanggal" else "All Dates") }, onClick = { selectedDatePreset = "ALL_TIME"; showPresetMenu = false })
                             DropdownMenuItem(text = { Text(if (isId) "Hari Ini" else "Today") }, onClick = { selectedDatePreset = "TODAY"; showPresetMenu = false })
@@ -302,10 +299,12 @@ fun TransactionsScreen(
                             DropdownMenuItem(text = { Text(if (isId) "Bulan Ini" else "This Month") }, onClick = { selectedDatePreset = "THIS_MONTH"; showPresetMenu = false })
                         }
                     }
+                }
 
-                    // Operation Type dropdown
-                    Box(modifier = Modifier.weight(1f)) {
-                        InputChip(
+                // Pin 2: Type Filter
+                item {
+                    Box {
+                        FilterChip(
                             selected = selectedTypeFilter != "ALL",
                             onClick = { showTypeMenu = true },
                             label = {
@@ -313,18 +312,16 @@ fun TransactionsScreen(
                                     when (selectedTypeFilter) {
                                         "EXPENSE" -> if (isId) "Pengeluaran" else "Expenses"
                                         "INCOME" -> if (isId) "Pemasukan" else "Incomes"
-                                        "TRANSFER" -> if (isId) "Transfer Uang" else "Transfers"
+                                        "TRANSFER" -> if (isId) "Transfer" else "Transfers"
                                         else -> if (isId) "Semua Jenis" else "All Types"
                                     }
                                 )
                             },
-                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                            modifier = Modifier.fillMaxWidth()
+                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp)) }
                         )
                         DropdownMenu(
                             expanded = showTypeMenu,
-                            onDismissRequest = { showTypeMenu = false },
-                            modifier = Modifier.widthIn(min = 150.dp, max = 240.dp)
+                            onDismissRequest = { showTypeMenu = false }
                         ) {
                             DropdownMenuItem(text = { Text(if (isId) "Semua Jenis" else "All Types") }, onClick = { selectedTypeFilter = "ALL"; showTypeMenu = false })
                             DropdownMenuItem(text = { Text(if (isId) "Pengeluaran" else "Expenses") }, onClick = { selectedTypeFilter = "EXPENSE"; showTypeMenu = false })
@@ -332,11 +329,13 @@ fun TransactionsScreen(
                             DropdownMenuItem(text = { Text(if (isId) "Transfer Uang" else "Transfers") }, onClick = { selectedTypeFilter = "TRANSFER"; showTypeMenu = false })
                         }
                     }
+                }
 
-                    // Sort dropdown
-                    Box(modifier = Modifier.weight(1f)) {
-                        InputChip(
-                            selected = true,
+                // Pin 3: Sort Filter
+                item {
+                    Box {
+                        FilterChip(
+                            selected = sortBy != "DATE_DESC",
                             onClick = { showSortMenu = true },
                             label = {
                                 Text(
@@ -348,13 +347,11 @@ fun TransactionsScreen(
                                     }
                                 )
                             },
-                            trailingIcon = { Icon(Icons.Default.Sort, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                            modifier = Modifier.fillMaxWidth()
+                            trailingIcon = { Icon(Icons.Default.Sort, contentDescription = null, modifier = Modifier.size(16.dp)) }
                         )
                         DropdownMenu(
                             expanded = showSortMenu,
-                            onDismissRequest = { showSortMenu = false },
-                            modifier = Modifier.widthIn(min = 150.dp, max = 240.dp)
+                            onDismissRequest = { showSortMenu = false }
                         ) {
                             DropdownMenuItem(text = { Text(if (isId) "Tanggal Terbaru" else "Newest Date") }, onClick = { sortBy = "DATE_DESC"; showSortMenu = false })
                             DropdownMenuItem(text = { Text(if (isId) "Tanggal Terlama" else "Oldest Date") }, onClick = { sortBy = "DATE_ASC"; showSortMenu = false })
@@ -364,13 +361,32 @@ fun TransactionsScreen(
                     }
                 }
 
-                // Category Chips filter row
-                ScrollableCategoryRow(
-                    categories = categories,
-                    selectedCategoryId = selectedCategoryFilter,
-                    isId = isId,
-                    onSelect = { selectedCategoryFilter = it }
-                )
+                // Simple spacer divider line
+                item {
+                    Spacer(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(24.dp)
+                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+                    )
+                }
+
+                // Pin 4: Category Selectors
+                item {
+                    FilterChip(
+                        selected = selectedCategoryFilter == null,
+                        onClick = { selectedCategoryFilter = null },
+                        label = { Text(if (isId) "Semua Kategori" else "All Categories") }
+                    )
+                }
+
+                items(categories, key = { it.id }) { category ->
+                    FilterChip(
+                        selected = selectedCategoryFilter == category.id,
+                        onClick = { selectedCategoryFilter = category.id },
+                        label = { Text(category.name) }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -434,7 +450,17 @@ fun TransactionsScreen(
                                     } else {
                                         selectedDetailTransaction = txn
                                     }
-                                },
+                                }
+                                .then(
+                                    if (isFresh) {
+                                        Modifier.border(
+                                            BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
+                                            cardShape
+                                        )
+                                    } else {
+                                        Modifier
+                                    }
+                                ),
                             shape = cardShape,
                             colors = CardDefaults.elevatedCardColors(
                                 containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
@@ -489,7 +515,7 @@ fun TransactionsScreen(
                                     Box(
                                         modifier = Modifier
                                             .size(36.dp)
-                                            .clip(CircleShape)
+                                            .clip(if (isFresh) RoundedCornerShape(10.dp) else CircleShape)
                                             .background(iconBg),
                                         contentAlignment = Alignment.Center
                                     ) {

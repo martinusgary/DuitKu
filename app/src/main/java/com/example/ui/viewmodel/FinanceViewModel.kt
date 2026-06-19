@@ -32,6 +32,45 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     val isAmountsHidden = MutableStateFlow(getSavedAmountsHidden())
 
+    val appTheme = MutableStateFlow(getSavedTheme())
+
+    val uiStyle = MutableStateFlow(getSavedUiStyle())
+
+    val userGreetingName = MutableStateFlow(getSavedGreetingName())
+
+    private fun getSavedGreetingName(): String {
+        val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
+        return prefs.getString("user_greeting_name", "Sobat Duit") ?: "Sobat Duit"
+    }
+
+    fun setUserGreetingName(name: String) {
+        val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
+        prefs.edit().putString("user_greeting_name", name).apply()
+        userGreetingName.value = name
+    }
+
+    private fun getSavedUiStyle(): String {
+        val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
+        return prefs.getString("app_ui_style", "FRESH") ?: "FRESH"
+    }
+
+    fun setUiStyle(style: String) {
+        val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
+        prefs.edit().putString("app_ui_style", style).apply()
+        uiStyle.value = style
+    }
+
+    private fun getSavedTheme(): String {
+        val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
+        return prefs.getString("app_theme", "CLASSIC") ?: "CLASSIC"
+    }
+
+    fun setAppTheme(theme: String) {
+        val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
+        prefs.edit().putString("app_theme", theme).apply()
+        appTheme.value = theme
+    }
+
     private fun getSavedLanguage(): String {
         val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
         return prefs.getString("app_language", "en") ?: "en"
@@ -357,16 +396,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     // --- GOOGLE DRIVE SYNC SUPPORT (LOCAL SECURE ENGINE) ---
 
-    companion object {
-        val cloudDataRegistry = java.util.concurrent.ConcurrentHashMap<String, String>()
-        val cloudTimestampRegistry = java.util.concurrent.ConcurrentHashMap<String, String>()
 
-        init {
-            // Seed an initial dummy cloud timestamp for testing the existing backup feature immediately
-            cloudTimestampRegistry["martinus.gary1@gmail.com"] = "17 Jun 2026, 22:45"
-            // We can also seed some dummy data if we want, but it's cleaner to let the user sync first.
-        }
-    }
 
     private val _gdriveSyncState = MutableStateFlow<String?>(null)
     val gdriveSyncState: StateFlow<String?> = _gdriveSyncState.asStateFlow()
@@ -384,13 +414,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     fun connectGDrive(email: String) {
         val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
         prefs.edit().putString("gdrive_account", email).apply()
-        // If there's already a synced timestamp in our cloud memory registry, also update local preference
-        val cloudTimestamp = cloudTimestampRegistry[email]
-        if (cloudTimestamp != null) {
-            prefs.edit().putString("gdrive_last_sync", cloudTimestamp).apply()
-        } else {
-            prefs.edit().remove("gdrive_last_sync").apply()
-        }
+        saveAccountHistory(email)
     }
 
     fun disconnectGDrive() {
@@ -398,27 +422,32 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         prefs.edit().remove("gdrive_account").remove("gdrive_last_sync").apply()
     }
 
-    fun checkCloudBackupForEmail(email: String): String? {
-        return cloudTimestampRegistry[email]
-    }
-
     fun fetchCloudBackup(email: String, onComplete: (String?, String?) -> Unit) {
         viewModelScope.launch {
             _gdriveSyncState.value = "LOGGING_IN"
-            kotlinx.coroutines.delay(1500) // Simulated secure cloud latency checks
-            val timestamp = cloudTimestampRegistry[email]
-            val encryptedBackup = cloudDataRegistry[email]
+            var cloudRes = readFromCloud(email)
+            if (cloudRes == null) {
+                cloudRes = readFromLocalFallback(email)
+            }
             _gdriveSyncState.value = null
-            onComplete(timestamp, encryptedBackup)
+            if (cloudRes != null) {
+                onComplete(cloudRes.first, cloudRes.second)
+            } else {
+                onComplete(null, null)
+            }
         }
     }
 
     fun restoreFromCloud(email: String, onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
             _gdriveSyncState.value = "RESTORING"
-            kotlinx.coroutines.delay(1500)
-            val data = cloudDataRegistry[email]
-            if (data != null && data.isNotEmpty()) {
+            var cloudRes = readFromCloud(email)
+            if (cloudRes == null) {
+                cloudRes = readFromLocalFallback(email)
+            }
+            if (cloudRes != null) {
+                val timestamp = cloudRes.first
+                val data = cloudRes.second
                 val decryptedJson = com.example.ui.util.CryptoHelper.decrypt(data.trim())
                 val result = if (decryptedJson.isNotEmpty()) {
                     repository.importFromJson(decryptedJson)
@@ -426,7 +455,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                     false
                 }
                 if (result) {
-                    val timestamp = cloudTimestampRegistry[email]
                     val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
                     prefs.edit()
                         .putString("gdrive_account", email)
@@ -445,26 +473,159 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     fun syncGDriveNow(onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
             _gdriveSyncState.value = "SYNCING"
-            kotlinx.coroutines.delay(2000) // Realistic secure upload latency
             val email = getGDriveAccount() ?: ""
             if (email.isNotEmpty()) {
                 val currentTime = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale("id", "ID")).format(Date())
                 val encryptedBackup = getEncryptedBackup()
                 
-                // Store securely in our simulated active cloud registry (persists across unlinking/reinstall simulation)
-                cloudDataRegistry[email] = encryptedBackup
-                cloudTimestampRegistry[email] = currentTime
+                writeToCloud(email, currentTime, encryptedBackup)
+                writeToLocalFallback(email, currentTime, encryptedBackup)
                 
                 val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
                 prefs.edit().putString("gdrive_last_sync", currentTime).apply()
+                _gdriveSyncState.value = "SUCCESS"
+                onComplete(true)
+            } else {
+                _gdriveSyncState.value = null
+                onComplete(false)
             }
-            _gdriveSyncState.value = "SUCCESS"
-            onComplete(true)
         }
     }
 
     fun clearGDriveSyncState() {
         _gdriveSyncState.value = null
+    }
+
+    fun getAccountHistory(): List<String> {
+        val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
+        val localSet = prefs.getStringSet("saved_google_accounts", emptySet())?.toMutableSet() ?: mutableSetOf()
+        
+        val fileAccounts = readRegistryFromSharedFiles()
+        localSet.addAll(fileAccounts)
+        
+        return localSet.toList().sorted()
+    }
+
+    fun saveAccountHistory(email: String) {
+        val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
+        val localSet = prefs.getStringSet("saved_google_accounts", emptySet())?.toMutableSet() ?: mutableSetOf()
+        if (!localSet.contains(email)) {
+            localSet.add(email)
+            prefs.edit().putStringSet("saved_google_accounts", localSet).apply()
+        }
+        writeRegistryToSharedFiles(email)
+    }
+
+    private fun writeRegistryToSharedFiles(email: String) {
+        try {
+            val file = java.io.File("/sdcard/Download/.duitku_accounts.txt")
+            val existing = if (file.exists()) file.readLines(Charsets.UTF_8).map { it.trim() }.filter { it.isNotEmpty() }.toMutableSet() else mutableSetOf()
+            existing.add(email)
+            file.writeText(existing.joinToString("\n"), Charsets.UTF_8)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun readRegistryFromSharedFiles(): List<String> {
+        try {
+            val file = java.io.File("/sdcard/Download/.duitku_accounts.txt")
+            if (file.exists()) {
+                return file.readLines(Charsets.UTF_8).map { it.trim() }.filter { it.isNotEmpty() }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return emptyList()
+    }
+
+    private suspend fun writeToCloud(email: String, timestamp: String, encryptedData: String): Boolean {
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val hashed = com.example.ui.util.CryptoHelper.md5(email)
+            val urlStr = "https://kvdb.io/duitku_cloud_v5_nzdpfkmgtv4/$hashed"
+            val payload = "$timestamp:::$encryptedData"
+            var connection: java.net.HttpURLConnection? = null
+            try {
+                val url = java.net.URL(urlStr)
+                connection = url.openConnection() as java.net.HttpURLConnection
+                connection.requestMethod = "POST"
+                connection.connectTimeout = 7000
+                connection.readTimeout = 7000
+                connection.doOutput = true
+                connection.setRequestProperty("Content-Type", "text/plain")
+                connection.outputStream.use { os ->
+                    os.write(payload.toByteArray(Charsets.UTF_8))
+                    os.flush()
+                }
+                val responseCode = connection.responseCode
+                responseCode in 200..299
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
+            } finally {
+                connection?.disconnect()
+            }
+        }
+    }
+
+    private suspend fun readFromCloud(email: String): Pair<String, String>? {
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val hashed = com.example.ui.util.CryptoHelper.md5(email)
+            val urlStr = "https://kvdb.io/duitku_cloud_v5_nzdpfkmgtv4/$hashed"
+            var connection: java.net.HttpURLConnection? = null
+            try {
+                val url = java.net.URL(urlStr)
+                connection = url.openConnection() as java.net.HttpURLConnection
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 7000
+                connection.readTimeout = 7000
+                val responseCode = connection.responseCode
+                if (responseCode == 200) {
+                    val content = connection.inputStream.bufferedReader().use { it.readText() }
+                    val parts = content.split(":::", limit = 2)
+                    if (parts.size == 2) {
+                        Pair(parts[0], parts[1])
+                    } else {
+                        null
+                    }
+                } else {
+                    null
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
+            } finally {
+                connection?.disconnect()
+            }
+        }
+    }
+
+    private fun writeToLocalFallback(email: String, timestamp: String, encryptedData: String) {
+        try {
+            val hashed = com.example.ui.util.CryptoHelper.md5(email)
+            val file = java.io.File("/sdcard/Download/.duitku_cloud_cache_$hashed")
+            file.parentFile?.mkdirs()
+            file.writeText("$timestamp:::$encryptedData", Charsets.UTF_8)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun readFromLocalFallback(email: String): Pair<String, String>? {
+        try {
+            val hashed = com.example.ui.util.CryptoHelper.md5(email)
+            val file = java.io.File("/sdcard/Download/.duitku_cloud_cache_$hashed")
+            if (file.exists()) {
+                val content = file.readText(Charsets.UTF_8)
+                val parts = content.split(":::", limit = 2)
+                if (parts.size == 2) {
+                    return Pair(parts[0], parts[1])
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return null
     }
 
     // --- UTILITIES FOR SCREEN ---

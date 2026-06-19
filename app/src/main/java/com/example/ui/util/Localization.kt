@@ -44,6 +44,20 @@ object Localization {
         "lang_en" to "English (US)",
         "lang_id" to "Bahasa Indonesia",
         
+        "theme_card_title" to "Application Theme",
+        "theme_card_subtitle" to "Personalize DuitKu with unique character themes",
+        "theme_classic" to "Classic Purple",
+        "theme_dynamic" to "Material You (Dynamic Color)",
+        "theme_mint" to "Fresh Mint",
+        "theme_ocean" to "Royal Ocean",
+        "theme_sunset" to "Sunset Glow",
+        "theme_sakura" to "Sakura Dream",
+        
+        "style_card_title" to "Visual Interface Style",
+        "style_card_subtitle" to "Switch between a fresh modern wallet style or traditional design",
+        "style_fresh" to "Fresh Digital Wallet (Character & Playful)",
+        "style_classic" to "Material You Classic (Standard Clean)",
+        
         // Login Screen
         "login_welcome" to "Welcome Back,",
         "login_desc" to "Please enter your numeric application PIN to access your personal dashboard.",
@@ -92,6 +106,20 @@ object Localization {
         "lang_card_subtitle" to "Pilih bahasa profesional antarmuka Anda",
         "lang_en" to "English (US)",
         "lang_id" to "Bahasa Indonesia",
+        
+        "theme_card_title" to "Tema Aplikasi",
+        "theme_card_subtitle" to "Ubah tampilan DuitKu sesuai jati diri dan karakter Anda",
+        "theme_classic" to "Ungu Klasik",
+        "theme_dynamic" to "Material You (Warna Dinamis)",
+        "theme_mint" to "Fresh Mint",
+        "theme_ocean" to "Royal Ocean",
+        "theme_sunset" to "Sunset Glow",
+        "theme_sakura" to "Sakura Pink",
+        
+        "style_card_title" to "Gaya Antarmuka Visual",
+        "style_card_subtitle" to "Pilih gaya dompet digital kontemporer atau desain tradisional",
+        "style_fresh" to "Dompet Digital Fresh (Berkarakter & Playful)",
+        "style_classic" to "Material You Klasik (Standar Bersih)",
         
         // Login Screen
         "login_welcome" to "Selamat Datang Kembali,",

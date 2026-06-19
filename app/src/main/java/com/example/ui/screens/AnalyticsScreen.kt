@@ -5,6 +5,8 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,6 +41,8 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
     val wallets by viewModel.wallets.collectAsState()
     val appLang by viewModel.appLanguage.collectAsState()
     val isId = appLang == "id"
+    val uiStyle by viewModel.uiStyle.collectAsState()
+    val isFresh = uiStyle == "FRESH"
 
     var selectedTransactionForDetail by remember { mutableStateOf<Transaction?>(null) }
 
@@ -81,9 +85,17 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
 
             // 1. Cashflow Overview Card
             item {
+                val cashflowShape = RoundedCornerShape(24.dp)
                 ElevatedCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(
+                            if (isFresh) Modifier.border(
+                                BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                                cashflowShape
+                            ) else Modifier
+                        ),
+                    shape = cashflowShape,
                     colors = CardDefaults.elevatedCardColors(
                         containerColor = MaterialTheme.colorScheme.surface
                     )
@@ -221,9 +233,17 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
                     }
                 }
 
+                val trendsShape = RoundedCornerShape(24.dp)
                 ElevatedCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(
+                            if (isFresh) Modifier.border(
+                                BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                                trendsShape
+                            ) else Modifier
+                        ),
+                    shape = trendsShape,
                     colors = CardDefaults.elevatedCardColors(
                         containerColor = MaterialTheme.colorScheme.surface
                     )

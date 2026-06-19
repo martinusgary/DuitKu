@@ -3,6 +3,10 @@ package com.example.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.draw.alpha
+import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -190,15 +194,27 @@ fun WalletGridCard(
         else -> Icons.Default.Payments // CASH
     }
 
+    val uiStyle by viewModel.uiStyle.collectAsState()
+    val isFresh = uiStyle == "FRESH"
     val cardShape = RoundedCornerShape(24.dp)
     Card(
         modifier = modifier
             .fillMaxWidth()
             .height(130.dp)
             .clip(cardShape)
-            .clickable { onClick() },
+            .clickable { onClick() }
+            .then(
+                if (isFresh) {
+                    Modifier.border(
+                        BorderStroke(1.5.dp, Color.White.copy(alpha = 0.22f)),
+                        cardShape
+                    )
+                } else {
+                    Modifier
+                }
+            ),
         shape = cardShape,
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isFresh) 4.dp else 2.dp)
     ) {
         Box(
             modifier = Modifier
@@ -206,6 +222,20 @@ fun WalletGridCard(
                 .background(gradientBrush)
                 .padding(16.dp)
         ) {
+            // Background canvas digital decoration circle
+            if (isFresh) {
+                Canvas(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .alpha(0.12f)
+                ) {
+                    drawCircle(
+                        color = Color.White,
+                        radius = size.width * 0.42f,
+                        center = androidx.compose.ui.geometry.Offset(size.width * 0.92f, size.height * 0.15f)
+                    )
+                }
+            }
             Column(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.SpaceBetween

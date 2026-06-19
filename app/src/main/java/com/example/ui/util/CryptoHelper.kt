@@ -35,4 +35,14 @@ object CryptoHelper {
             ""
         }
     }
+
+    fun md5(input: String): String {
+        return try {
+            val md = java.security.MessageDigest.getInstance("MD5")
+            val digest = md.digest(input.lowercase().trim().toByteArray(Charsets.UTF_8))
+            digest.joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            input.hashCode().toString()
+        }
+    }
 }
