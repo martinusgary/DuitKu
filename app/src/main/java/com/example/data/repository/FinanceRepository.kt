@@ -65,21 +65,25 @@ class FinanceRepository(private val financeDao: FinanceDao) {
 
     private suspend fun adjustWalletBalance(tx: Transaction, isReversal: Boolean) {
         val amount = tx.amount
+        val fee = tx.adminFee
         when (tx.type) {
             "INCOME" -> {
-                val balanceDiff = if (isReversal) -amount else amount
+                val netIncome = (amount - fee).coerceAtLeast(0.0)
+                val balanceDiff = if (isReversal) -netIncome else netIncome
                 adjustWalletBalanceInternal(tx.walletId, balanceDiff)
             }
             "EXPENSE" -> {
-                val balanceDiff = if (isReversal) amount else -amount
+                val totalExpense = amount + fee
+                val balanceDiff = if (isReversal) totalExpense else -totalExpense
                 adjustWalletBalanceInternal(tx.walletId, balanceDiff)
             }
             "TRANSFER" -> {
-                // Source Wallet (decrease on transfer, increase on reversal)
-                val sourceDiff = if (isReversal) amount else -amount
+                // Source Wallet (decrease on transfer: amount + fee, increase on reversal)
+                val totalSourceDeduction = amount + fee
+                val sourceDiff = if (isReversal) totalSourceDeduction else -totalSourceDeduction
                 adjustWalletBalanceInternal(tx.walletId, sourceDiff)
 
-                // Target Wallet (increase on transfer, decrease on reversal)
+                // Target Wallet (increase on transfer: amount only without fee, decrease on reversal)
                 if (tx.targetWalletId != null) {
                     val targetDiff = if (isReversal) -amount else amount
                     adjustWalletBalanceInternal(tx.targetWalletId, targetDiff)

@@ -1,0 +1,34 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Document Page Outline -->
+    <path
+        android:pathData="M13,3H8C6.8954,3 6,3.8954 6,5V19C6,20.1046 6.8954,21 8,21H16C17.1046,21 18,20.1046 18,19V8M13,3L18,8M13,3V8H18"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <!-- PDF Letter P -->
+    <path
+        android:pathData="M8.5,11V15M8.5,11H10C10.8284,11 11,11.8284 11,12C11,12.1716 10.8284,13 10,13H8.5"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <!-- PDF Letter D -->
+    <path
+        android:pathData="M12.5,11V15M12.5,11H13.5C14.3284,11 14.5,12 14.5,13C14.5,14 14.3284,15 13.5,15H12.5"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <!-- PDF Letter F -->
+    <path
+        android:pathData="M16,11V15M16,11H17.5M16,13H17"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

@@ -1,0 +1,20 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Curved arrow -->
+    <path
+        android:pathData="M3,12A9,9 0 1,0 6.64,5.64L3,9M3,4V9H8"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <!-- Dollar / Rupiah symbol dot in center -->
+    <path
+        android:pathData="M12,9V15M10.5,10.5H13.5M10.5,13.5H13.5"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

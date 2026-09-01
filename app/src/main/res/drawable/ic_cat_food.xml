@@ -1,0 +1,20 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Fork -->
+    <path
+        android:pathData="M18,3V21M15,3V7C15,8.1046 15.8954,9 17,9H19C20.1046,9 21,8.1046 21,7V3"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <!-- Spoon/Knife -->
+    <path
+        android:pathData="M6,3V21M6,3C4.3431,3 3,5.2386 3,8C3,10.7614 4.3431,13 6,13C7.6569,13 9,10.7614 9,8C9,5.2386 7.6569,3 6,3Z"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

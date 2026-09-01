@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import androidx.compose.ui.res.painterResource
+import com.example.R
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -288,7 +290,7 @@ fun DebtsTabContent(
         ) {
             Text(if (isId) "Daftar Hutang & Piutang Aktif" else "Active Debt & Loan List", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Button(onClick = onAddClick) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                Icon(painterResource(id = R.drawable.ic_add_custom), contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(if (isId) "Tambah Catatan" else "Add Note")
             }
@@ -302,7 +304,7 @@ fun DebtsTabContent(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.CompareArrows, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f))
+                    Icon(painterResource(id = R.drawable.ic_debts_custom), contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f))
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(if (isId) "Belum ada catatan hutang/piutang." else "No debt/loan records found.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -857,7 +859,7 @@ fun BillsTabContent(
         ) {
             Text(if (isId) "Daftar Tagihan Rutin" else "Recurring Bills List", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Button(onClick = onAddClick) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                Icon(painterResource(id = R.drawable.ic_add_custom), contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(if (isId) "Tambah Tagihan" else "Add Bill")
             }
@@ -871,7 +873,7 @@ fun BillsTabContent(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.Receipt, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f))
+                    Icon(painterResource(id = R.drawable.ic_receipt_custom), contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f))
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(if (isId) "Belum ada tagihan rutin yang terdaftar." else "No recurring bills registered yet.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }

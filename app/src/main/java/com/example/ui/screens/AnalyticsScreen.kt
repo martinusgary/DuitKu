@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import androidx.compose.ui.res.painterResource
+import com.example.R
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -254,7 +256,7 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Icon(
-                                Icons.Default.PictureAsPdf,
+                                painter = painterResource(id = R.drawable.ic_pdf_custom),
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.size(24.dp)
@@ -383,7 +385,7 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp)
                         ) {
-                            Icon(Icons.Default.PictureAsPdf, contentDescription = null)
+                            Icon(painterResource(id = R.drawable.ic_pdf_custom), contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(if (isId) "Unduh Laporan Mutasi PDF" else "Download Statement PDF Report", fontWeight = FontWeight.Bold)
                         }

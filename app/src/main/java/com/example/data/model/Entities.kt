@@ -31,7 +31,8 @@ data class Transaction(
     val categoryId: Int,
     val type: String, // "INCOME", "EXPENSE", "TRANSFER"
     val note: String,
-    val targetWalletId: Int? = null // only for TRANSFER
+    val targetWalletId: Int? = null, // only for TRANSFER
+    val adminFee: Double = 0.0
 )
 
 @Entity(tableName = "debts")

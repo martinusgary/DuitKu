@@ -1,0 +1,34 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Gift box base -->
+    <path
+        android:pathData="M4,10H20V20C20,20.5523 19.5523,21 19,21H5C4.4477,21 4,20.5523 4,20V10Z"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <!-- Gift box lid -->
+    <path
+        android:pathData="M3,6H21V10H3V6Z"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <!-- Center ribbon -->
+    <path
+        android:pathData="M12,6V21"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <!-- Bow -->
+    <path
+        android:pathData="M12,6C10.5,6 9,4 10.5,3C12,2 12,6 12,6ZM12,6C13.5,6 15,4 13.5,3C12,2 12,6 12,6Z"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

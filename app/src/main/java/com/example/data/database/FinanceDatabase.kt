@@ -15,7 +15,7 @@ import com.example.data.model.*
         Debt::class,
         Bill::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class FinanceDatabase : RoomDatabase() {

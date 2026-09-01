@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import androidx.compose.ui.res.painterResource
+import com.example.R
 import android.content.Context
 import android.net.Uri
 import android.widget.Toast
@@ -264,7 +266,7 @@ fun SettingsScreen(
                             }
 
                             Icon(
-                                imageVector = Icons.Default.KeyboardArrowRight,
+                                painter = painterResource(id = R.drawable.ic_arrow_forward_custom),
                                 contentDescription = "Edit Profile & Backup",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(24.dp)
@@ -322,7 +324,7 @@ fun SettingsScreen(
                                     )
                                 }
                                 Icon(
-                                    imageVector = Icons.Default.KeyboardArrowRight,
+                                    painter = painterResource(id = R.drawable.ic_arrow_forward_custom),
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                     modifier = Modifier.size(20.dp)
@@ -371,7 +373,7 @@ fun SettingsScreen(
                                     )
                                 }
                                 Icon(
-                                    imageVector = Icons.Default.KeyboardArrowRight,
+                                    painter = painterResource(id = R.drawable.ic_arrow_forward_custom),
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                     modifier = Modifier.size(20.dp)

@@ -178,8 +178,14 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     val monthlyExpenseSum: Flow<Double> = transactions.map { list ->
-        list.filter { it.type == "EXPENSE" && isCurrentMonth(it.date) }
-            .sumOf { it.amount }
+        list.filter { isCurrentMonth(it.date) }
+            .sumOf {
+                when (it.type) {
+                    "EXPENSE" -> it.amount + it.adminFee
+                    "TRANSFER" -> it.adminFee
+                    else -> 0.0
+                }
+            }
     }
 
     // --- TRANSACTION OPERATIONS ---
@@ -191,7 +197,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         categoryId: Int,
         note: String,
         date: Long,
-        targetWalletId: Int? = null
+        targetWalletId: Int? = null,
+        adminFee: Double = 0.0
     ) {
         viewModelScope.launch {
             val tx = Transaction(
@@ -201,7 +208,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 categoryId = categoryId,
                 type = type,
                 note = note,
-                targetWalletId = targetWalletId
+                targetWalletId = targetWalletId,
+                adminFee = adminFee
             )
             repository.insertTransaction(tx)
         }

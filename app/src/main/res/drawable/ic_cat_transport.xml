@@ -1,0 +1,20 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Car body -->
+    <path
+        android:pathData="M5,17H19M5,17C3.8954,17 3,16.1046 3,15V13C3,11.8954 3.8954,11 5,11L6.76,6.307C7.0988,5.4035 7.9625,4.8 8.927,4.8H15.073C16.0375,4.8 16.9012,5.4035 17.24,6.307L19,11C20.1046,11 21,11.8954 21,13V15C21,16.1046 20.1046,17 19,17M5,17V19.5M19,17V19.5"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <!-- Wheels -->
+    <path
+        android:pathData="M7,14H7.01M17,14H17.01"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import androidx.compose.ui.res.painterResource
+import com.example.R
+import com.example.ui.components.CategoryVisuals
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -25,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.data.model.Category
 import com.example.data.model.Transaction
 import com.example.data.model.Wallet
@@ -243,11 +247,11 @@ fun TransactionsScreen(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
                 label = { Text(if (isId) "Cari catatan transaksi..." else "Search transactions note...") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                leadingIcon = { Icon(painterResource(id = R.drawable.ic_search_custom), contentDescription = null) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
                         IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Clear")
+                            Icon(painterResource(id = R.drawable.ic_close_custom), contentDescription = "Clear")
                         }
                     }
                 },
@@ -287,6 +291,7 @@ fun TransactionsScreen(
                                     }
                                 )
                             },
+                            leadingIcon = { Icon(painterResource(id = R.drawable.ic_calendar_custom), contentDescription = null, modifier = Modifier.size(16.dp)) },
                             trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp)) }
                         )
                         DropdownMenu(
@@ -401,8 +406,8 @@ fun TransactionsScreen(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
-                            Icons.Default.ReceiptLong,
-                            null,
+                            painter = painterResource(id = R.drawable.ic_receipt_custom),
+                            contentDescription = null,
                             modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f)
                         )
@@ -495,35 +500,24 @@ fun TransactionsScreen(
                                     modifier = Modifier.weight(1f),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    // Typology design elements
-                                    val iconBg = when (txn.type) {
-                                        "INCOME" -> Color(0xFFE8F5E9)
-                                        "EXPENSE" -> Color(0xFFFFEBEE)
-                                        else -> Color(0xFFE3F2FD)
-                                    }
-                                    val iconColor = when (txn.type) {
-                                        "INCOME" -> Color(0xFF2E7D32)
-                                        "EXPENSE" -> Color(0xFFC62828)
-                                        else -> Color(0xFF1565C0)
-                                    }
-                                    val iconToUse = when (txn.type) {
-                                        "INCOME" -> Icons.Default.Add
-                                        "EXPENSE" -> Icons.Default.Remove
-                                        else -> Icons.Default.CompareArrows
-                                    }
+                                    val visualInfo = CategoryVisuals.getVisualInfo(
+                                        categoryName = categoryOfTx?.name,
+                                        transactionType = txn.type,
+                                        note = txn.note
+                                    )
 
                                     Box(
                                         modifier = Modifier
-                                            .size(36.dp)
-                                            .clip(if (isFresh) RoundedCornerShape(10.dp) else CircleShape)
-                                            .background(iconBg),
+                                            .size(40.dp)
+                                            .clip(if (isFresh) RoundedCornerShape(12.dp) else RoundedCornerShape(10.dp))
+                                            .background(visualInfo.backgroundColor),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
-                                            iconToUse,
-                                            contentDescription = null,
-                                            tint = iconColor,
-                                            modifier = Modifier.size(18.dp)
+                                            painter = painterResource(id = visualInfo.iconRes),
+                                            contentDescription = categoryOfTx?.name ?: txn.type,
+                                            tint = visualInfo.iconColor,
+                                            modifier = Modifier.size(20.dp)
                                         )
                                     }
 
@@ -554,19 +548,34 @@ fun TransactionsScreen(
                                             )
                                         }
                                         Row(
-                                            verticalAlignment = Alignment.CenterVertically
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                                         ) {
                                             Text(
                                                 text = viewModel.formatDate(txn.date),
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
                                             )
-                                            Spacer(modifier = Modifier.width(6.dp))
                                             Text(
                                                 text = "• ${walletOfTx?.name ?: (if (isId) "Dompet" else "Wallet")}",
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
                                             )
+                                            if (txn.adminFee > 0.0) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f),
+                                                    modifier = Modifier.padding(start = 2.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "+Admin ${viewModel.formatRupiah(txn.adminFee)}",
+                                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -789,6 +798,18 @@ fun TransactionsScreen(
                             TransactionRowItemDetail(label = if (isId) "Ke Dompet" else "To Wallet", value = targetWalletOfTx.name)
                         } else {
                             TransactionRowItemDetail(label = if (isId) "Dompet" else "Wallet", value = walletOfTx?.name ?: "Unknown")
+                        }
+
+                        if (txn.adminFee > 0.0) {
+                            TransactionRowItemDetail(
+                                label = if (isId) "Biaya Admin" else "Admin Fee",
+                                value = viewModel.formatRupiah(txn.adminFee)
+                            )
+                            val totalDeducted = txn.amount + txn.adminFee
+                            TransactionRowItemDetail(
+                                label = if (isId) "Total Dipotong Dari Dompet" else "Total Deducted From Wallet",
+                                value = viewModel.formatRupiah(totalDeducted)
+                            )
                         }
 
                         Spacer(

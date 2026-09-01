@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -38,6 +39,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import com.example.ui.screens.*
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.FinanceViewModel
+import androidx.compose.ui.res.painterResource
 
 class MainActivity : androidx.fragment.app.FragmentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
@@ -57,9 +59,28 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                 var isAuthenticated by remember { mutableStateOf(!isRegistered) }
 
                 var selectedTab by remember { mutableStateOf(0) }
+                val tabBackStack = remember { mutableStateListOf<Int>() }
                 var showBackupDialog by remember { mutableStateOf(false) }
                 var showCategoryDialog by remember { mutableStateOf(false) }
                 var isTransactionsBulkMode by remember { mutableStateOf(false) }
+
+                fun navigateToTab(tabIndex: Int) {
+                    if (selectedTab != tabIndex) {
+                        tabBackStack.add(selectedTab)
+                        selectedTab = tabIndex
+                    }
+                }
+
+                fun handleBackNavigation() {
+                    if (isTransactionsBulkMode) {
+                        isTransactionsBulkMode = false
+                    } else if (tabBackStack.isNotEmpty()) {
+                        val prevTab = tabBackStack.removeAt(tabBackStack.lastIndex)
+                        selectedTab = prevTab
+                    } else if (selectedTab != 0) {
+                        selectedTab = 0
+                    }
+                }
 
                 val appLang by viewModel.appLanguage.collectAsState()
                 val isId = appLang == "id"
@@ -86,24 +107,28 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                             }
                         )
                     } else {
-                val uiStyle by viewModel.uiStyle.collectAsState()
-                val isFresh = uiStyle == "FRESH"
+                        val uiStyle by viewModel.uiStyle.collectAsState()
+                        val isFresh = uiStyle == "FRESH"
 
-                Scaffold(
-                    modifier = Modifier.fillMaxSize(),
-                    topBar = {
-                        TopAppBar(
-                            navigationIcon = {
-                                if (isFresh && selectedTab != 0) {
-                                    IconButton(onClick = { selectedTab = 0 }) {
-                                        Icon(
-                                            imageVector = Icons.Default.ArrowBack,
-                                            contentDescription = "Back to Dashboard",
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                }
-                            },
+                        BackHandler(enabled = isTransactionsBulkMode || tabBackStack.isNotEmpty() || selectedTab != 0) {
+                            handleBackNavigation()
+                        }
+
+                        Scaffold(
+                            modifier = Modifier.fillMaxSize(),
+                            topBar = {
+                                TopAppBar(
+                                    navigationIcon = {
+                                        if (selectedTab != 0) {
+                                            IconButton(onClick = { handleBackNavigation() }) {
+                                                Icon(
+                                                    painter = painterResource(id = R.drawable.ic_arrow_back_custom),
+                                                    contentDescription = "Back",
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        }
+                                    },
                             title = {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
@@ -119,7 +144,7 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.AccountBalanceWallet,
+                                            painter = painterResource(id = R.drawable.ic_wallet_custom),
                                             contentDescription = null,
                                             tint = if (isFresh) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
                                             modifier = Modifier.size(20.dp)
@@ -185,7 +210,7 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                                             text = { Text(if (isId) "Pengaturan & Keamanan" else "Settings & Security") },
                                             onClick = {
                                                 showMenu = false
-                                                selectedTab = 5
+                                                navigateToTab(5)
                                             }
                                         )
                                     }
@@ -226,8 +251,8 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                             ) {
                                 NavigationBarItem(
                                     selected = selectedTab == 0,
-                                    onClick = { selectedTab = 0 },
-                                    icon = { Icon(Icons.Default.Home, contentDescription = "Dashboard") },
+                                    onClick = { navigateToTab(0) },
+                                    icon = { Icon(painterResource(id = R.drawable.ic_home_custom), contentDescription = "Dashboard", modifier = Modifier.size(24.dp)) },
                                     label = {
                                         Text(
                                             text = if (isId) "Dasbor" else "Dashboard",
@@ -239,8 +264,8 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                                 )
                                 NavigationBarItem(
                                     selected = selectedTab == 1,
-                                    onClick = { selectedTab = 1 },
-                                    icon = { Icon(Icons.Default.AccountBalanceWallet, contentDescription = "Wallets") },
+                                    onClick = { navigateToTab(1) },
+                                    icon = { Icon(painterResource(id = R.drawable.ic_wallet_custom), contentDescription = "Wallets", modifier = Modifier.size(24.dp)) },
                                     label = {
                                         Text(
                                             text = if (isId) "Dompet" else "Wallets",
@@ -252,8 +277,8 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                                 )
                                 NavigationBarItem(
                                     selected = selectedTab == 2,
-                                    onClick = { selectedTab = 2 },
-                                    icon = { Icon(Icons.Default.ReceiptLong, contentDescription = "Transactions") },
+                                    onClick = { navigateToTab(2) },
+                                    icon = { Icon(painterResource(id = R.drawable.ic_receipt_custom), contentDescription = "Transactions", modifier = Modifier.size(24.dp)) },
                                     label = {
                                         Text(
                                             text = if (isId) "Transaksi" else "Transactions",
@@ -265,8 +290,8 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                                 )
                                 NavigationBarItem(
                                     selected = selectedTab == 3,
-                                    onClick = { selectedTab = 3 },
-                                    icon = { Icon(Icons.Default.PieChart, contentDescription = "Analytics") },
+                                    onClick = { navigateToTab(3) },
+                                    icon = { Icon(painterResource(id = R.drawable.ic_analytics_custom), contentDescription = "Analytics", modifier = Modifier.size(24.dp)) },
                                     label = {
                                         Text(
                                             text = if (isId) "Analisis" else "Analytics",
@@ -278,24 +303,11 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                                 )
                                 NavigationBarItem(
                                     selected = selectedTab == 4,
-                                    onClick = { selectedTab = 4 },
-                                    icon = { Icon(Icons.Default.PriceChange, contentDescription = "Debts/Bills") },
+                                    onClick = { navigateToTab(4) },
+                                    icon = { Icon(painterResource(id = R.drawable.ic_debts_custom), contentDescription = "Debts/Bills", modifier = Modifier.size(24.dp)) },
                                     label = {
                                         Text(
                                             text = if (isId) "Utang/Tagihan" else "Debts/Bills",
-                                            style = labelStyle,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                )
-                                NavigationBarItem(
-                                    selected = selectedTab == 5,
-                                    onClick = { selectedTab = 5 },
-                                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                                    label = {
-                                        Text(
-                                            text = if (isId) "Pengaturan" else "Settings",
                                             style = labelStyle,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
@@ -332,7 +344,7 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                                     when (tabState) {
                                         0 -> DashboardScreen(
                                             viewModel = viewModel,
-                                            onNavigateToTab = { selectedTab = it }
+                                            onNavigateToTab = { navigateToTab(it) }
                                         )
                                         1 -> WalletsScreen(viewModel = viewModel)
                                         2 -> TransactionsScreen(

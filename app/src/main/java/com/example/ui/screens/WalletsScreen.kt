@@ -33,6 +33,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.example.data.model.Wallet
 import com.example.ui.viewmodel.FinanceViewModel
+import androidx.compose.ui.res.painterResource
+import com.example.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,7 +58,7 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
-                        Icons.Default.AccountBalanceWallet,
+                        painter = painterResource(id = R.drawable.ic_wallet_custom),
                         contentDescription = null,
                         modifier = Modifier.size(64.dp),
                         tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f)
@@ -74,7 +76,7 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(onClick = { showAddWalletDialog = true }) {
-                        Icon(Icons.Default.Add, contentDescription = null)
+                        Icon(painterResource(id = R.drawable.ic_add_custom), contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(if (isId) "Tambah Dompet Baru" else "Add New Wallet")
                     }
@@ -126,7 +128,7 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
                 containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                 contentColor = MaterialTheme.colorScheme.onTertiaryContainer
             ) {
-                Icon(Icons.Default.Add, contentDescription = if (isId) "Tambah Dompet" else "Add Wallet")
+                Icon(painterResource(id = R.drawable.ic_add_custom), contentDescription = if (isId) "Tambah Dompet" else "Add Wallet")
             }
         }
     }
@@ -187,11 +189,11 @@ fun WalletGridCard(
         )
     }
 
-    val iconVector = when (wallet.icon) {
-        "bank" -> Icons.Default.AccountBalance
-        "wallet" -> Icons.Default.CreditCard
-        "savings" -> Icons.Default.Savings
-        else -> Icons.Default.Payments // CASH
+    val iconPainter = when (wallet.icon) {
+        "bank" -> painterResource(id = R.drawable.ic_wallet_type_bank)
+        "wallet" -> painterResource(id = R.drawable.ic_wallet_type_wallet)
+        "savings" -> painterResource(id = R.drawable.ic_wallet_type_savings)
+        else -> painterResource(id = R.drawable.ic_wallet_type_cash) // CASH
     }
 
     val uiStyle by viewModel.uiStyle.collectAsState()
@@ -253,7 +255,7 @@ fun WalletGridCard(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            iconVector,
+                            iconPainter,
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.size(18.dp)
@@ -372,16 +374,16 @@ fun AddWalletDialog(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             val icons = listOf(
-                                Triple("cash", Icons.Default.Payments, if (isId) "Tunai" else "Cash"),
-                                Triple("bank", Icons.Default.AccountBalance, "Bank"),
-                                Triple("wallet", Icons.Default.CreditCard, "E-Money"),
-                                Triple("savings", Icons.Default.Savings, if (isId) "Tabungan" else "Savings")
+                                Triple("cash", painterResource(id = R.drawable.ic_wallet_type_cash), if (isId) "Tunai" else "Cash"),
+                                Triple("bank", painterResource(id = R.drawable.ic_wallet_type_bank), "Bank"),
+                                Triple("wallet", painterResource(id = R.drawable.ic_wallet_type_wallet), "E-Money"),
+                                Triple("savings", painterResource(id = R.drawable.ic_wallet_type_savings), if (isId) "Tabungan" else "Savings")
                             )
 
-                            icons.forEach { (key, icon, label) ->
+                            icons.forEach { (key, painter, label) ->
                                 val isSelected = selectedIcon == key
                                 OutlinedIconContainerButton(
-                                    icon = icon,
+                                    painter = painter,
                                     label = label,
                                     isSelected = isSelected,
                                     onClick = { selectedIcon = key },
@@ -425,7 +427,7 @@ fun AddWalletDialog(
 
 @Composable
 fun OutlinedIconContainerButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    painter: androidx.compose.ui.graphics.painter.Painter,
     label: String,
     isSelected: Boolean,
     onClick: () -> Unit,
@@ -451,7 +453,7 @@ fun OutlinedIconContainerButton(
             verticalArrangement = Arrangement.Center
         ) {
             Icon(
-                icon,
+                painter = painter,
                 contentDescription = label,
                 tint = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
             )
