@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.Manifest
 import androidx.compose.ui.res.painterResource
 import com.example.R
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -2216,6 +2217,108 @@ fun AddTransactionDialog(
     var note by remember { mutableStateOf("") }
     var scannedReceipts by remember { mutableStateOf<List<GeminiClient.ScanResult>>(initialScannedReceipts) }
 
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var isScanningInsideDialog by remember { mutableStateOf(false) }
+    var tempPhotoUriInsideDialog by remember { mutableStateOf<Uri?>(null) }
+
+    val dialogCameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+            val uri = tempPhotoUriInsideDialog
+            if (uri != null) {
+                isScanningInsideDialog = true
+                coroutineScope.launch {
+                    try {
+                        val results = GeminiClient.scanMultipleReceipts(context, listOf(uri))
+                        if (results.isNotEmpty()) {
+                            if (results.size == 1) {
+                                val single = results.first()
+                                if (single.amount > 0.0) amountStr = single.amount.toInt().toString()
+                                if (single.note.isNotBlank()) note = single.note
+                                if (single.type == "INCOME" || single.type == "EXPENSE") {
+                                    selectedType = single.type
+                                }
+                            } else {
+                                scannedReceipts = results
+                            }
+                            Toast.makeText(context, if (isId) "Pendeteksian struk selesai!" else "Receipt detection completed!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, if (isId) "Gagal mendeteksi rincian dari struk." else "No details detected from the receipt.", Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (e: Exception) {
+                        Toast.makeText(context, (if (isId) "Gagal memindai struk: " else "Failed to scan receipt: ") + (e.message ?: "Unknown error"), Toast.LENGTH_LONG).show()
+                    } finally {
+                        isScanningInsideDialog = false
+                    }
+                }
+            }
+        }
+    }
+
+    val dialogRequestPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            val uri = try {
+                val tempFile = File.createTempFile("receipt_cam_", ".jpg", context.cacheDir).apply {
+                    createNewFile()
+                    deleteOnExit()
+                }
+                FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    tempFile
+                )
+            } catch (e: Exception) {
+                null
+            }
+            if (uri != null) {
+                tempPhotoUriInsideDialog = uri
+                try {
+                    dialogCameraLauncher.launch(uri)
+                } catch (e: Exception) {
+                    Toast.makeText(context, (if (isId) "Gagal membuka kamera: " else "Failed to open camera: ") + (e.message ?: ""), Toast.LENGTH_SHORT).show()
+                }
+            }
+        } else {
+            Toast.makeText(context, if (isId) "Izin kamera diperlukan untuk mengambil foto struk" else "Camera permission is required to take receipt photos", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val dialogPhotoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            isScanningInsideDialog = true
+            coroutineScope.launch {
+                try {
+                    val results = GeminiClient.scanMultipleReceipts(context, uris)
+                    if (results.isNotEmpty()) {
+                        if (results.size == 1) {
+                            val single = results.first()
+                            if (single.amount > 0.0) amountStr = single.amount.toInt().toString()
+                            if (single.note.isNotBlank()) note = single.note
+                            if (single.type == "INCOME" || single.type == "EXPENSE") {
+                                selectedType = single.type
+                            }
+                        } else {
+                            scannedReceipts = results
+                        }
+                        Toast.makeText(context, if (isId) "Pendeteksian struk selesai!" else "Receipt detection completed!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, if (isId) "Gagal mendeteksi rincian dari struk." else "No details detected from the receipts.", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    Toast.makeText(context, (if (isId) "Gagal memindai struk: " else "Failed to scan receipts: ") + (e.message ?: "Unknown error"), Toast.LENGTH_LONG).show()
+                } finally {
+                    isScanningInsideDialog = false
+                }
+            }
+        }
+    }
+
     // Group categories
     val incomeCategoryList = remember(categories) { categories.filter { it.type == "INCOME" } }
     val expenseCategoryList = remember(categories) { categories.filter { it.type == "EXPENSE" } }
@@ -2299,8 +2402,103 @@ fun AddTransactionDialog(
                     }
                 }
 
-                // Scan Receipt Feature with Gemini AI has been moved to the dashboard layout.
-                // It populates the scannedReceipts state when initiated.
+                // Quick Scan Receipt Section (Camera & Gallery)
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DocumentScanner,
+                                    contentDescription = "Scan Struk",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = if (isId) "Pindai Struk / Upload Gambar" else "Scan Receipt / Upload Image",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            if (isScanningInsideDialog) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            }
+                        }
+                        Text(
+                            text = if (isId) 
+                                "Otomatis isi nominal, catatan, dan tipe dari foto struk belanja dengan AI Gemini." 
+                            else 
+                                "Auto-populate amount, notes, and category from receipt photo via Gemini AI.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    dialogRequestPermissionLauncher.launch(Manifest.permission.CAMERA)
+                                },
+                                enabled = !isScanningInsideDialog,
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CameraAlt,
+                                    contentDescription = "Kamera",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (isId) "Kamera" else "Camera",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    dialogPhotoPickerLauncher.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                },
+                                enabled = !isScanningInsideDialog,
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PhotoLibrary,
+                                    contentDescription = "Galeri",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (isId) "Galeri Foto" else "Gallery",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
 
                 if (scannedReceipts.isNotEmpty()) {
                     Text(

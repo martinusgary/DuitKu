@@ -16,6 +16,20 @@ import java.util.*
 
 object PdfExporter {
 
+    private data class FormattedTxRow(
+        val index: Int,
+        val dateStr: String,
+        val timeStr: String,
+        val categoryName: String,
+        val walletInfo: String,
+        val noteLines: List<String>,
+        val adminFeeText: String?,
+        val amountStr: String,
+        val amountColor: Int,
+        val balanceStr: String,
+        val rowHeight: Float
+    )
+
     fun generateMonthlyPdfReport(
         context: Context,
         outputStream: OutputStream,
@@ -27,337 +41,544 @@ object PdfExporter {
         viewModel: FinanceViewModel
     ) {
         val pdfDocument = PdfDocument()
-        val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // A4 Size: 595 x 842 pt
-
-        // Filter transactions for specified month and year
-        val filteredTx = transactions.filter { tx ->
-            val cal = Calendar.getInstance()
-            cal.timeInMillis = tx.date
-            cal.get(Calendar.MONTH) == month && cal.get(Calendar.YEAR) == year
-        }.sortedBy { it.date }
-
-        val totalIncome = filteredTx.filter { it.type == "INCOME" }.sumOf { (it.amount - it.adminFee).coerceAtLeast(0.0) }
-        val totalExpense = filteredTx.filter { it.type == "EXPENSE" }.sumOf { it.amount + it.adminFee }
-        val netSavings = totalIncome - totalExpense
+        val pageWidth = 595
+        val pageHeight = 842
+        val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, 1).create()
 
         val appLanguage = viewModel.appLanguage.value
         val isIndonesian = appLanguage == "id"
+        val userName = viewModel.userGreetingName.value.ifBlank { "Sobat Duit" }
+
+        // 1. Calculate Period Boundaries
+        val startCal = Calendar.getInstance().apply {
+            set(Calendar.YEAR, year)
+            set(Calendar.MONTH, month)
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val startOfMonthMs = startCal.timeInMillis
+
+        val endCal = Calendar.getInstance().apply {
+            set(Calendar.YEAR, year)
+            set(Calendar.MONTH, month)
+            set(Calendar.DAY_OF_MONTH, getActualMaximum(Calendar.DAY_OF_MONTH))
+            set(Calendar.HOUR_OF_DAY, 23)
+            set(Calendar.MINUTE, 59)
+            set(Calendar.SECOND, 59)
+            set(Calendar.MILLISECOND, 999)
+        }
+        val endOfMonthMs = endCal.timeInMillis
+        val lastDayOfMonth = endCal.get(Calendar.DAY_OF_MONTH)
+
+        // Filter transactions for this month
+        val monthlyTx = transactions.filter { tx ->
+            tx.date in startOfMonthMs..endOfMonthMs
+        }.sortedBy { it.date }
+
+        // 2. Calculate Exact Saldo Awal (Initial Balance)
+        // Total Current Balance in all wallets right now:
+        val currentTotalBalance = wallets.sumOf { it.balance }
+
+        // Net change of all transactions that occurred from startOfMonthMs until now:
+        var netChangeSinceStart = 0.0
+        for (tx in transactions) {
+            if (tx.date >= startOfMonthMs) {
+                when (tx.type) {
+                    "INCOME" -> netChangeSinceStart += (tx.amount - tx.adminFee).coerceAtLeast(0.0)
+                    "EXPENSE" -> netChangeSinceStart -= (tx.amount + tx.adminFee)
+                    "TRANSFER" -> netChangeSinceStart -= tx.adminFee
+                }
+            }
+        }
+
+        // Saldo Awal at the start of requested month:
+        val calculatedInitialBalance = (currentTotalBalance - netChangeSinceStart).coerceAtLeast(0.0)
+
+        // Total Income & Expense for this month
+        val totalIncome = monthlyTx.filter { it.type == "INCOME" }.sumOf { (it.amount - it.adminFee).coerceAtLeast(0.0) }
+        val totalExpense = monthlyTx.filter { it.type == "EXPENSE" }.sumOf { it.amount + it.adminFee }
+        val totalAdminFees = monthlyTx.sumOf { it.adminFee }
+        val finalClosingBalance = calculatedInitialBalance + totalIncome - totalExpense - monthlyTx.filter { it.type == "TRANSFER" }.sumOf { it.adminFee }
 
         val monthName = getMonthName(month, isIndonesian)
-        val periodString = "$monthName $year"
+        val periodDisplay = "01 $monthName $year - ${"%02d".format(lastDayOfMonth)} $monthName $year"
 
-        // Localized text strings
-        val titleStr = if (isIndonesian) "DUITKU - LAPORAN MUTASI BULANAN" else "DUITKU - MONTHLY TRANSACTION MUTATION REPORT"
-        val subtitleStr = if (isIndonesian) "Laporan Ringkasan Keuangan Personal & Mutasi Aliran Dana" else "Personal Financial Summary & Cash Flow Mutation Report"
-        val periodLbl = if (isIndonesian) "Periode Laporan" else "Report Period"
-        val printedLbl = if (isIndonesian) "Dicetak Pada" else "Printed On"
-        val pageLbl = if (isIndonesian) "Halaman" else "Page"
-        
-        val totalIncomeLbl = if (isIndonesian) "TOTAL PEMASUKAN" else "TOTAL INCOME"
-        val totalExpenseLbl = if (isIndonesian) "TOTAL PENGELUARAN" else "TOTAL EXPENSE"
-        val netSavingsLbl = if (isIndonesian) "SELISIH (NET)" else "NET DIFFERENCE"
-        
-        val tableTitleLbl = if (isIndonesian) "RINCIAN MUTASI TRANSAKSI" else "TRANSACTION MUTATION DETAILS"
-        
-        val colDateLbl = if (isIndonesian) "Tanggal" else "Date"
-        val colWalletLbl = if (isIndonesian) "Akun/Dompet" else "Account/Wallet"
-        val colCategoryLbl = if (isIndonesian) "Kategori" else "Category"
-        val colNoteLbl = if (isIndonesian) "Keterangan" else "Description"
-        val colAmountLbl = if (isIndonesian) "Jumlah & Admin" else "Amount & Fee"
-        
-        val emptyMessage = if (isIndonesian) "Tidak ada riwayat mutasi transaksi di periode ini." else "No transaction mutation history found in this period."
-        val footerDisclaimer1 = if (isIndonesian) {
-            "App Disclaimer: Seluruh perhitungan di atas disimpan secara lokal di perangkat Anda melalui database internal DuitKu."
-        } else {
-            "App Disclaimer: All calculations above are stored locally on your device in the DuitKu internal database."
-        }
-        val footerDisclaimer2 = if (isIndonesian) {
-            "Silakan simpan fail PDF ini sebagai rujukan mutasi rekening atau cetak fisik dokumen bila diperlukan."
-        } else {
-            "Please save this PDF file as a reference for account mutations or print the document physically if needed."
-        }
+        // Localized Labels
+        val stmtTitle = "e-Statement"
+        val appBranding = "DUITKU FINANCIAL"
+        val branchLabel = if (isIndonesian) "Akun / Dompet" else "Account / Wallet"
+        val branchVal = if (wallets.size == 1) wallets.first().name else if (isIndonesian) "Semua Dompet (${wallets.size})" else "All Wallets (${wallets.size})"
+        val nameLabel = if (isIndonesian) "Nama / Name" else "Name"
+        val periodLabel = if (isIndonesian) "Periode / Period" else "Period"
+        val printedLabel = if (isIndonesian) "Dicetak pada / Issued on" else "Issued on"
+        val currencyLabel = if (isIndonesian) "Mata Uang / Currency" else "Currency"
+        val pageLabel = if (isIndonesian) "Halaman" else "Page"
+        val ofLabel = if (isIndonesian) "dari" else "of"
 
-        // Paints
-        val paintTitle = Paint().apply {
-            color = Color.parseColor("#1E3A8A") // Deep primary blue
-            textSize = 14f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
+        val summaryTitle = if (isIndonesian) "Ringkasan Mutasi Rekening" else "Account Mutation Summary"
+        val initialBalanceLbl = if (isIndonesian) "Saldo Awal / Initial Balance" else "Initial Balance"
+        val incomingTxLbl = if (isIndonesian) "Dana Masuk / Incoming Transactions" else "Incoming Transactions"
+        val outgoingTxLbl = if (isIndonesian) "Dana Keluar / Outgoing Transactions" else "Outgoing Transactions"
+        val closingBalanceLbl = if (isIndonesian) "Saldo Akhir / Closing Balance" else "Closing Balance"
 
-        val paintSubtitle = Paint().apply {
-            color = Color.parseColor("#475569") // Slate regular
-            textSize = 9f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            isAntiAlias = true
-        }
+        val colNoLbl = "No"
+        val colDateLbl = if (isIndonesian) "Tanggal\nDate" else "Date"
+        val colDescLbl = if (isIndonesian) "Keterangan\nRemarks" else "Remarks"
+        val colNominalLbl = if (isIndonesian) "Nominal (IDR)\nAmount (IDR)" else "Amount (IDR)"
+        val colSaldoLbl = if (isIndonesian) "Saldo (IDR)\nBalance (IDR)" else "Balance (IDR)"
 
-        val paintHeaderLabel = Paint().apply {
-            color = Color.parseColor("#1E293B")
-            textSize = 9f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-
-        val paintBody = Paint().apply {
-            color = Color.parseColor("#334155")
-            textSize = 8.5f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            isAntiAlias = true
-        }
-
-        val paintAdminSubtext = Paint().apply {
-            color = Color.parseColor("#64748B") // Slate secondary
-            textSize = 7.5f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.ITALIC)
-            isAntiAlias = true
-        }
-
-        val paintGreen = Paint().apply {
-            color = Color.parseColor("#15803D") // Forest Green
-            textSize = 8.5f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-
-        val paintRed = Paint().apply {
-            color = Color.parseColor("#B91C1C") // Crimson Red
-            textSize = 8.5f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-
-        val paintBlue = Paint().apply {
-            color = Color.parseColor("#2563EB") // Blue for transfer
-            textSize = 8.5f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-
-        val paintLine = Paint().apply {
-            color = Color.parseColor("#CBD5E1") // Slate light border
-            style = Paint.Style.STROKE
-            strokeWidth = 0.8f
-            isAntiAlias = true
-        }
-
-        val paintGreyBg = Paint().apply {
-            color = Color.parseColor("#F1F5F9") // Light table header / summary background
+        // Paint setup
+        val paintTopBanner = Paint().apply {
+            color = Color.parseColor("#0284C7") // Primary Bank Cerulean Blue
             style = Paint.Style.FILL
             isAntiAlias = true
         }
 
-        // Initialize First Page
-        var currentPageNumber = 1
-        var page = pdfDocument.startPage(pageInfo)
-        var canvas = page.canvas
-
-        // Coordinate tracker
-        var yPos = 50f
-
-        // Draw header of report
-        fun drawPageHeader(can: Canvas, pageNum: Int) {
-            can.drawText(titleStr, 40f, 50f, paintTitle)
-            can.drawText(subtitleStr, 40f, 65f, paintSubtitle)
-            can.drawLine(40f, 75f, 555f, 75f, paintLine)
-
-            val locale = if (isIndonesian) Locale("id", "ID") else Locale.US
-            val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", locale)
-            can.drawText("$periodLbl: $periodString", 40f, 95f, paintHeaderLabel)
-            can.drawText("$printedLbl: ${sdf.format(Date())}", 40f, 110f, paintSubtitle)
-            
-            val pageStr = "$pageLbl $pageNum"
-            val textWidth = paintSubtitle.measureText(pageStr)
-            can.drawText(pageStr, 555f - textWidth, 95f, paintSubtitle)
+        val paintTopBannerTitle = Paint().apply {
+            color = Color.WHITE
+            textSize = 18f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
         }
 
-        drawPageHeader(canvas, currentPageNumber)
-        yPos = 130f
-
-        // Summary Cards
-        val boxWidth = 160f
-        val gap = 15f
-        val boxHeight = 55f
-
-        // Box 1: Pemasukan
-        canvas.drawRect(40f, yPos, 40f + boxWidth, yPos + boxHeight, paintGreyBg)
-        canvas.drawRect(40f, yPos, 40f + boxWidth, yPos + boxHeight, paintLine)
-        canvas.drawText(totalIncomeLbl, 48f, yPos + 18f, paintSubtitle)
-        canvas.drawText(viewModel.formatRupiah(totalIncome), 48f, yPos + 40f, paintGreen)
-
-        // Box 2: Pengeluaran
-        val b2X = 40f + boxWidth + gap
-        canvas.drawRect(b2X, yPos, b2X + boxWidth, yPos + boxHeight, paintGreyBg)
-        canvas.drawRect(b2X, yPos, b2X + boxWidth, yPos + boxHeight, paintLine)
-        canvas.drawText(totalExpenseLbl, b2X + 8f, yPos + 18f, paintSubtitle)
-        canvas.drawText(viewModel.formatRupiah(totalExpense), b2X + 8f, yPos + 40f, paintRed)
-
-        // Box 3: Selisih (Surplus/Defisit)
-        val b3X = b2X + boxWidth + gap
-        canvas.drawRect(b3X, yPos, b3X + boxWidth, yPos + boxHeight, paintGreyBg)
-        canvas.drawRect(b3X, yPos, b3X + boxWidth, yPos + boxHeight, paintLine)
-        canvas.drawText(netSavingsLbl, b3X + 8f, yPos + 18f, paintSubtitle)
-        val finalPaint = if (netSavings >= 0) paintGreen else paintRed
-        canvas.drawText(viewModel.formatRupiah(netSavings), b3X + 8f, yPos + 40f, finalPaint)
-
-        yPos += boxHeight + 30f
-
-        // Transaction List Table Title
-        canvas.drawText(tableTitleLbl, 40f, yPos, paintHeaderLabel)
-        yPos += 12f
-
-        // Table Column X coordinates (A4 width 595, margins: 40f to 555f = 515f width)
-        val colX_tanggal = 40f     // width 55f (40 .. 95)
-        val colX_dompet = 95f      // width 70f (95 .. 165)
-        val colX_kategori = 165f   // width 110f (165 .. 275) - made wider for full category names
-        val colX_keterangan = 275f // width 165f (275 .. 440) - wide and wraps multi-line cleanly
-        val colX_jumlah = 555f     // right aligned endpoint at 555f (440 .. 555)
-
-        val widthDompet = 65f
-        val widthKategori = 105f
-        val widthKeterangan = 160f
-
-        fun drawTableHeaderRow(can: Canvas, y: Float) {
-            can.drawRect(40f, y, 555f, y + 22f, paintGreyBg)
-            can.drawRect(40f, y, 555f, y + 22f, paintLine)
-            
-            can.drawText(colDateLbl, colX_tanggal + 4f, y + 15f, paintHeaderLabel)
-            can.drawText(colWalletLbl, colX_dompet + 4f, y + 15f, paintHeaderLabel)
-            can.drawText(colCategoryLbl, colX_kategori + 4f, y + 15f, paintHeaderLabel)
-            can.drawText(colNoteLbl, colX_keterangan + 4f, y + 15f, paintHeaderLabel)
-            
-            val rightAlignPaint = Paint(paintHeaderLabel).apply { textAlign = Paint.Align.RIGHT }
-            can.drawText(colAmountLbl, colX_jumlah - 4f, y + 15f, rightAlignPaint)
+        val paintTopBannerSub = Paint().apply {
+            color = Color.parseColor("#E0F2FE")
+            textSize = 9f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            isAntiAlias = true
         }
 
-        drawTableHeaderRow(canvas, yPos)
-        yPos += 22f
-
-        val sdfDate = SimpleDateFormat("dd/MM/yyyy", if (isIndonesian) Locale("id", "ID") else Locale.US)
-
-        if (filteredTx.isEmpty()) {
-            canvas.drawRect(40f, yPos, 555f, yPos + 44f, paintLine)
-            val noTxPaint = Paint(paintSubtitle).apply { textAlign = Paint.Align.CENTER }
-            canvas.drawText(emptyMessage, 595f / 2f, yPos + 26f, noTxPaint)
-            yPos += 44f
-        } else {
-            for (tx in filteredTx) {
-                // Collect Names
-                val walletName = wallets.firstOrNull { it.id == tx.walletId }?.name ?: "Dompet ${tx.walletId}"
-                val targetWalletName = tx.targetWalletId?.let { tId -> wallets.firstOrNull { it.id == tId }?.name ?: "Dompet $tId" }
-                val catName = if (tx.type == "TRANSFER") {
-                    if (isIndonesian) "Transfer Saldo" else "Fund Transfer"
-                } else {
-                    categories.firstOrNull { it.id == tx.categoryId }?.name ?: "Lain-lain"
-                }
-                val dateStr = sdfDate.format(Date(tx.date))
-                
-                // Description note
-                val noteText = when {
-                    tx.type == "TRANSFER" && targetWalletName != null -> {
-                        val base = if (isIndonesian) "Transfer ke $targetWalletName" else "Transfer to $targetWalletName"
-                        if (tx.note.isNotBlank()) "$base (${tx.note})" else base
-                    }
-                    tx.note.isNotBlank() -> tx.note
-                    else -> "-"
-                }
-
-                // Wrap text for columns that might have longer content
-                val walletLines = splitTextIntoLines(walletName, widthDompet, paintBody)
-                val categoryLines = splitTextIntoLines(catName, widthKategori, paintBody)
-                val noteLines = splitTextIntoLines(noteText, widthKeterangan, paintBody)
-
-                val hasAdminFee = tx.adminFee > 0.0
-                val amountLinesCount = if (hasAdminFee) 2 else 1
-
-                val maxLines = maxOf(walletLines.size, categoryLines.size, noteLines.size, amountLinesCount)
-                val dynamicRowHeight = maxOf(24f, 10f + maxLines * 12f)
-
-                // Pagination check
-                if (yPos + dynamicRowHeight > 760f) {
-                    pdfDocument.finishPage(page)
-                    currentPageNumber++
-                    page = pdfDocument.startPage(pageInfo)
-                    canvas = page.canvas
-                    drawPageHeader(canvas, currentPageNumber)
-                    yPos = 130f
-                    drawTableHeaderRow(canvas, yPos)
-                    yPos += 22f
-                }
-
-                // Draw row outline (bottom line)
-                canvas.drawLine(40f, yPos + dynamicRowHeight, 555f, yPos + dynamicRowHeight, paintLine)
-
-                // 1. Draw Date
-                canvas.drawText(dateStr, colX_tanggal + 4f, yPos + 14f, paintBody)
-
-                // 2. Draw Wallet Name lines
-                walletLines.forEachIndexed { idx, line ->
-                    canvas.drawText(line, colX_dompet + 4f, yPos + 14f + (idx * 11f), paintBody)
-                }
-
-                // 3. Draw Category Name lines (full text)
-                categoryLines.forEachIndexed { idx, line ->
-                    canvas.drawText(line, colX_kategori + 4f, yPos + 14f + (idx * 11f), paintBody)
-                }
-
-                // 4. Draw Full Description Note lines (full text wrapped)
-                noteLines.forEachIndexed { idx, line ->
-                    canvas.drawText(line, colX_keterangan + 4f, yPos + 14f + (idx * 11f), paintBody)
-                }
-
-                // 5. Draw Amount & Transparent Admin Fee
-                val (amtSign, valuePaint) = when (tx.type) {
-                    "INCOME" -> "+ " to paintGreen
-                    "TRANSFER" -> "⇄ " to paintBlue
-                    else -> "- " to paintRed
-                }
-                val amtStr = amtSign + viewModel.formatRupiah(tx.amount)
-
-                val valRightPaint = Paint(valuePaint).apply { textAlign = Paint.Align.RIGHT }
-                canvas.drawText(amtStr, colX_jumlah - 4f, yPos + 14f, valRightPaint)
-
-                // Draw Admin Fee Subtext if applicable
-                if (hasAdminFee) {
-                    val feeStr = if (isIndonesian) {
-                        "(Admin: +${viewModel.formatRupiah(tx.adminFee)})"
-                    } else {
-                        "(Fee: +${viewModel.formatRupiah(tx.adminFee)})"
-                    }
-                    val feeRightPaint = Paint(paintAdminSubtext).apply { textAlign = Paint.Align.RIGHT }
-                    canvas.drawText(feeStr, colX_jumlah - 4f, yPos + 25f, feeRightPaint)
-                }
-
-                yPos += dynamicRowHeight
-            }
+        val paintMetaKey = Paint().apply {
+            color = Color.parseColor("#334155")
+            textSize = 8f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
         }
 
-        // Draw fine print footer on last page
-        if (yPos > 720f) {
-            pdfDocument.finishPage(page)
-            currentPageNumber++
-            page = pdfDocument.startPage(pageInfo)
-            canvas = page.canvas
-            drawPageHeader(canvas, currentPageNumber)
-            yPos = 130f
+        val paintMetaVal = Paint().apply {
+            color = Color.parseColor("#0F172A")
+            textSize = 8f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            isAntiAlias = true
         }
 
-        yPos += 25f
-        canvas.drawLine(40f, yPos, 555f, yPos, paintLine)
-        yPos += 15f
+        val paintSummaryTitle = Paint().apply {
+            color = Color.parseColor("#0F172A")
+            textSize = 10f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
 
-        val paintFooterText = Paint().apply {
-            color = Color.parseColor("#64748B")
+        val paintSummaryKey = Paint().apply {
+            color = Color.parseColor("#475569")
+            textSize = 8.5f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            isAntiAlias = true
+        }
+
+        val paintSummaryVal = Paint().apply {
+            color = Color.parseColor("#0F172A")
+            textSize = 8.5f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+
+        val paintIncomeVal = Paint().apply {
+            color = Color.parseColor("#16A34A") // Bright Green
+            textSize = 8.5f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+
+        val paintExpenseVal = Paint().apply {
+            color = Color.parseColor("#DC2626") // Deep Red
+            textSize = 8.5f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+
+        val paintClosingVal = Paint().apply {
+            color = Color.parseColor("#0284C7") // Deep Blue
+            textSize = 9f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+
+        val paintTableHeaderBg = Paint().apply {
+            color = Color.parseColor("#F0F9FF") // Light Blue Header tint
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+
+        val paintBorder = Paint().apply {
+            color = Color.parseColor("#BAE6FD") // Light border
+            style = Paint.Style.STROKE
+            strokeWidth = 0.7f
+            isAntiAlias = true
+        }
+
+        val paintRowLine = Paint().apply {
+            color = Color.parseColor("#E2E8F0") // Row divider line
+            style = Paint.Style.STROKE
+            strokeWidth = 0.5f
+            isAntiAlias = true
+        }
+
+        val paintTableHeaderText = Paint().apply {
+            color = Color.parseColor("#0369A1")
             textSize = 7.5f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+
+        val paintBodyRegular = Paint().apply {
+            color = Color.parseColor("#1E293B")
+            textSize = 7.8f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            isAntiAlias = true
+        }
+
+        val paintBodyBold = Paint().apply {
+            color = Color.parseColor("#0F172A")
+            textSize = 7.8f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+
+        val paintBodySub = Paint().apply {
+            color = Color.parseColor("#64748B")
+            textSize = 7f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            isAntiAlias = true
+        }
+
+        val paintAdminSub = Paint().apply {
+            color = Color.parseColor("#D97706") // Amber warning/fee
+            textSize = 6.8f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.ITALIC)
             isAntiAlias = true
         }
-        canvas.drawText(footerDisclaimer1, 40f, yPos, paintFooterText)
-        canvas.drawText(footerDisclaimer2, 40f, yPos + 11f, paintFooterText)
 
-        pdfDocument.finishPage(page)
+        // Table Column X Positions (Width = 595 - 60 = 535 pt, from 30f to 565f)
+        val colX_No = 30f         // width 20f (30..50)
+        val colX_Date = 50f       // width 65f (50..115)
+        val colX_Desc = 115f      // width 230f (115..345)
+        val colX_Amount = 455f    // right aligned at 455f (345..455)
+        val colX_Balance = 565f   // right aligned at 565f (455..565)
 
-        // Write to outputStream
+        val widthDesc = 220f
+
+        // Precompute Running Balances and Formatted Rows
+        val sdfDate = SimpleDateFormat("dd MMM yyyy", if (isIndonesian) Locale("id", "ID") else Locale.US)
+        val sdfTime = SimpleDateFormat("HH:mm:ss", if (isIndonesian) Locale("id", "ID") else Locale.US)
+
+        var currentRunningBalance = calculatedInitialBalance
+        val formattedRows = mutableListOf<FormattedTxRow>()
+
+        for ((idx, tx) in monthlyTx.withIndex()) {
+            val walletName = wallets.firstOrNull { it.id == tx.walletId }?.name ?: "Dompet ${tx.walletId}"
+            val targetWalletName = tx.targetWalletId?.let { tId -> wallets.firstOrNull { it.id == tId }?.name ?: "Dompet $tId" }
+            val catName = if (tx.type == "TRANSFER") {
+                if (isIndonesian) "Transfer Saldo Antar Dompet" else "Fund Transfer"
+            } else {
+                categories.firstOrNull { it.id == tx.categoryId }?.name ?: "Lain-lain"
+            }
+
+            val dateStr = sdfDate.format(Date(tx.date))
+            val timeStr = "${sdfTime.format(Date(tx.date))} WIB"
+
+            val noteText = when {
+                tx.type == "TRANSFER" && targetWalletName != null -> {
+                    val base = if (isIndonesian) "Transfer: $walletName -> $targetWalletName" else "Transfer: $walletName -> $targetWalletName"
+                    if (tx.note.isNotBlank()) "$base (${tx.note})" else base
+                }
+                tx.note.isNotBlank() -> tx.note
+                else -> "-"
+            }
+
+            val noteLines = splitTextIntoLines(noteText, widthDesc, paintBodyRegular)
+
+            val adminFeeText = if (tx.adminFee > 0.0) {
+                if (isIndonesian) "Biaya Admin: +${viewModel.formatRupiah(tx.adminFee)}" else "Admin Fee: +${viewModel.formatRupiah(tx.adminFee)}"
+            } else null
+
+            // Amount calculation & Running Balance Adjustment
+            val (amtStr, amtColor) = when (tx.type) {
+                "INCOME" -> {
+                    currentRunningBalance += (tx.amount - tx.adminFee).coerceAtLeast(0.0)
+                    "+${viewModel.formatRupiah(tx.amount)}" to Color.parseColor("#16A34A")
+                }
+                "EXPENSE" -> {
+                    currentRunningBalance -= (tx.amount + tx.adminFee)
+                    "-${viewModel.formatRupiah(tx.amount)}" to Color.parseColor("#DC2626")
+                }
+                else -> {
+                    currentRunningBalance -= tx.adminFee
+                    "⇄ ${viewModel.formatRupiah(tx.amount)}" to Color.parseColor("#0284C7")
+                }
+            }
+
+            val balanceStr = viewModel.formatRupiah(currentRunningBalance)
+
+            // Calculate dynamic row height
+            val descLinesCount = 1 + 1 + noteLines.size + (if (adminFeeText != null) 1 else 0) // Category + Wallet + Notes + AdminFee
+            val rowHeight = maxOf(28f, 8f + (descLinesCount * 9.5f))
+
+            formattedRows.add(
+                FormattedTxRow(
+                    index = idx + 1,
+                    dateStr = dateStr,
+                    timeStr = timeStr,
+                    categoryName = catName,
+                    walletInfo = if (tx.type == "TRANSFER") "Ref: Transaksi Dompet" else "Akun: $walletName",
+                    noteLines = noteLines,
+                    adminFeeText = adminFeeText,
+                    amountStr = amtStr,
+                    amountColor = amtColor,
+                    balanceStr = balanceStr,
+                    rowHeight = rowHeight
+                )
+            )
+        }
+
+        // 3. Multi-page Pagination Estimation
+        // Page 1 header & summary card takes up to Y = 215f.
+        // Table starts at Y = 220f. Table header is 24f. Max Y on Page 1 = 780f. Available space on Page 1 = 536f.
+        // On Page 2+, top header is 45f, table starts at 55f (header 24f), available space = 700f.
+        val pagesRows = mutableListOf<MutableList<FormattedTxRow>>()
+        var curPageList = mutableListOf<FormattedTxRow>()
+        var curPageY = 245f
+        var isFirstPage = true
+
+        if (formattedRows.isEmpty()) {
+            pagesRows.add(mutableListOf())
+        } else {
+            for (row in formattedRows) {
+                val maxY = if (isFirstPage) 780f else 800f
+                if (curPageY + row.rowHeight > maxY && curPageList.isNotEmpty()) {
+                    pagesRows.add(curPageList)
+                    curPageList = mutableListOf()
+                    isFirstPage = false
+                    curPageY = 80f
+                }
+                curPageList.add(row)
+                curPageY += row.rowHeight
+            }
+            if (curPageList.isNotEmpty()) {
+                pagesRows.add(curPageList)
+            }
+        }
+
+        val totalPages = pagesRows.size
+
+        // 4. Render Pages
+        val nowSdf = SimpleDateFormat("dd MMM yyyy HH:mm:ss", if (isIndonesian) Locale("id", "ID") else Locale.US)
+        val printedTimeStr = nowSdf.format(Date())
+
+        for ((pIdx, pageRows) in pagesRows.withIndex()) {
+            val pageNum = pIdx + 1
+            val pdfPage = pdfDocument.startPage(pageInfo)
+            val canvas = pdfPage.canvas
+
+            var y = 0f
+
+            if (pageNum == 1) {
+                // Top Header Banner
+                canvas.drawRect(0f, 0f, 595f, 48f, paintTopBanner)
+                canvas.drawText(stmtTitle, 30f, 28f, paintTopBannerTitle)
+                canvas.drawText(appBranding, 30f, 40f, paintTopBannerSub)
+
+                val mLogoPaint = Paint(paintTopBannerTitle).apply {
+                    textSize = 11f
+                    textAlign = Paint.Align.RIGHT
+                }
+                canvas.drawText("DUITKU MOBILE", 565f, 30f, mLogoPaint)
+
+                // Customer & Period Info Grid
+                y = 65f
+                val colLeftX = 30f
+                val colLeftValX = 90f
+                val colRightX = 340f
+                val colRightValX = 430f
+
+                // Row 1
+                canvas.drawText(nameLabel, colLeftX, y, paintMetaKey)
+                canvas.drawText(": $userName", colLeftValX, y, paintMetaVal)
+
+                canvas.drawText(periodLabel, colRightX, y, paintMetaKey)
+                canvas.drawText(": $periodDisplay", colRightValX, y, paintMetaVal)
+
+                val pageStr = "$pageNum $ofLabel $totalPages"
+                val pRightPaint = Paint(paintMetaVal).apply { textAlign = Paint.Align.RIGHT }
+                canvas.drawText("$pageLabel: $pageStr", 565f, y, pRightPaint)
+
+                // Row 2
+                y += 13f
+                canvas.drawText(branchLabel, colLeftX, y, paintMetaKey)
+                canvas.drawText(": $branchVal", colLeftValX, y, paintMetaVal)
+
+                canvas.drawText(printedLabel, colRightX, y, paintMetaKey)
+                canvas.drawText(": $printedTimeStr", colRightValX, y, paintMetaVal)
+
+                // Row 3
+                y += 13f
+                canvas.drawText(currencyLabel, colLeftX, y, paintMetaKey)
+                canvas.drawText(": IDR (Rupiah)", colLeftValX, y, paintMetaVal)
+
+                // Divider
+                y += 10f
+                canvas.drawLine(30f, y, 565f, y, paintRowLine)
+
+                // Summary Box Section
+                y += 14f
+                canvas.drawText(summaryTitle, 30f, y, paintSummaryTitle)
+
+                // Draw Summary Table Box
+                y += 6f
+                val sBoxTop = y
+                val sBoxHeight = 44f
+                val sBoxWidth = 535f
+                val colSumWidth = sBoxWidth / 4f
+
+                canvas.drawRect(30f, sBoxTop, 30f + sBoxWidth, sBoxTop + sBoxHeight, paintTableHeaderBg)
+                canvas.drawRect(30f, sBoxTop, 30f + sBoxWidth, sBoxTop + sBoxHeight, paintBorder)
+
+                // Draw 4 Summary Columns
+                val sCols = listOf(
+                    Triple(initialBalanceLbl, viewModel.formatRupiah(calculatedInitialBalance), paintSummaryVal),
+                    Triple(incomingTxLbl, "+${viewModel.formatRupiah(totalIncome)}", paintIncomeVal),
+                    Triple(outgoingTxLbl, "-${viewModel.formatRupiah(totalExpense)}", paintExpenseVal),
+                    Triple(closingBalanceLbl, viewModel.formatRupiah(finalClosingBalance), paintClosingVal)
+                )
+
+                for ((cIdx, sCol) in sCols.withIndex()) {
+                    val cx = 30f + (cIdx * colSumWidth)
+                    if (cIdx > 0) {
+                        canvas.drawLine(cx, sBoxTop, cx, sBoxTop + sBoxHeight, paintBorder)
+                    }
+                    canvas.drawText(sCol.first, cx + 8f, sBoxTop + 14f, paintSummaryKey)
+                    canvas.drawText(sCol.second, cx + 8f, sBoxTop + 32f, sCol.third)
+                }
+
+                y = sBoxTop + sBoxHeight + 16f
+            } else {
+                // Subsequent page mini header
+                canvas.drawRect(0f, 0f, 595f, 25f, paintTopBanner)
+                canvas.drawText("$stmtTitle - $periodDisplay", 30f, 16f, Paint(paintTopBannerTitle).apply { textSize = 10f })
+
+                val pageStr = "$pageLabel $pageNum $ofLabel $totalPages"
+                val pRightPaint = Paint(paintTopBannerSub).apply { textAlign = Paint.Align.RIGHT; textSize = 9f }
+                canvas.drawText(pageStr, 565f, 16f, pRightPaint)
+                y = 40f
+            }
+
+            // Draw Table Header Row
+            val headerH = 22f
+            canvas.drawRect(30f, y, 565f, y + headerH, paintTableHeaderBg)
+            canvas.drawRect(30f, y, 565f, y + headerH, paintBorder)
+
+            canvas.drawText(colNoLbl, colX_No + 4f, y + 14f, paintTableHeaderText)
+            canvas.drawText(colDateLbl.replace("\n", " / "), colX_Date + 4f, y + 14f, paintTableHeaderText)
+            canvas.drawText(colDescLbl.replace("\n", " / "), colX_Desc + 4f, y + 14f, paintTableHeaderText)
+
+            val rightHeaderPaint = Paint(paintTableHeaderText).apply { textAlign = Paint.Align.RIGHT }
+            canvas.drawText(colNominalLbl.replace("\n", " / "), colX_Amount - 6f, y + 14f, rightHeaderPaint)
+            canvas.drawText(colSaldoLbl.replace("\n", " / "), colX_Balance - 6f, y + 14f, rightHeaderPaint)
+
+            y += headerH
+
+            // Draw Table Rows
+            if (pageRows.isEmpty()) {
+                canvas.drawRect(30f, y, 565f, y + 40f, paintBorder)
+                val emptyPaint = Paint(paintBodySub).apply { textAlign = Paint.Align.CENTER; textSize = 8.5f }
+                val msg = if (isIndonesian) "Tidak ada transaksi pada periode bulan ini." else "No transaction mutations recorded for this period."
+                canvas.drawText(msg, 595f / 2f, y + 24f, emptyPaint)
+                y += 40f
+            } else {
+                for (row in pageRows) {
+                    val rTop = y
+                    val rBottom = y + row.rowHeight
+
+                    // Bottom line
+                    canvas.drawLine(30f, rBottom, 565f, rBottom, paintRowLine)
+
+                    // 1. No
+                    canvas.drawText(row.index.toString(), colX_No + 4f, rTop + 13f, paintBodyRegular)
+
+                    // 2. Date & Time
+                    canvas.drawText(row.dateStr, colX_Date + 4f, rTop + 13f, paintBodyBold)
+                    canvas.drawText(row.timeStr, colX_Date + 4f, rTop + 22f, paintBodySub)
+
+                    // 3. Remarks (Category, Wallet, Note lines, Admin fee)
+                    var descY = rTop + 13f
+                    canvas.drawText(row.categoryName, colX_Desc + 4f, descY, paintBodyBold)
+                    descY += 9.5f
+                    canvas.drawText(row.walletInfo, colX_Desc + 4f, descY, paintBodySub)
+
+                    for (nl in row.noteLines) {
+                        descY += 9.5f
+                        canvas.drawText(nl, colX_Desc + 4f, descY, paintBodyRegular)
+                    }
+
+                    if (row.adminFeeText != null) {
+                        descY += 9.5f
+                        canvas.drawText(row.adminFeeText, colX_Desc + 4f, descY, paintAdminSub)
+                    }
+
+                    // 4. Amount
+                    val amtPaint = Paint(paintBodyBold).apply {
+                        color = row.amountColor
+                        textAlign = Paint.Align.RIGHT
+                    }
+                    canvas.drawText(row.amountStr, colX_Amount - 6f, rTop + 13f, amtPaint)
+
+                    // 5. Saldo (Progressive Running Balance)
+                    val balPaint = Paint(paintBodyBold).apply {
+                        color = Color.parseColor("#0284C7")
+                        textAlign = Paint.Align.RIGHT
+                    }
+                    canvas.drawText(row.balanceStr, colX_Balance - 6f, rTop + 13f, balPaint)
+
+                    y = rBottom
+                }
+            }
+
+            // Footer on last page
+            if (pageNum == totalPages) {
+                y += 18f
+                if (y > 790f) {
+                    // Small fallback offset
+                    y = 790f
+                }
+                canvas.drawLine(30f, y, 565f, y, paintRowLine)
+                y += 10f
+
+                val paintFooter = Paint().apply {
+                    color = Color.parseColor("#64748B")
+                    textSize = 6.8f
+                    isAntiAlias = true
+                }
+                val disc1 = if (isIndonesian) {
+                    "PT DuitKu Financial Application • Dokumen mutasi ini dibuat otomatis secara lokal dan sah sebagai catatan pembukuan pribadi."
+                } else {
+                    "DuitKu Financial Application • This mutation statement is automatically generated locally for personal accounting reference."
+                }
+                val disc2 = if (isIndonesian) {
+                    "Informasi Saldo Awal, Dana Masuk, Dana Keluar, dan Saldo Akhir dihitung berdasarkan kalkulasi buku besar riwayat transaksi aplikasi."
+                } else {
+                    "Initial Balance, Incoming, Outgoing, and Closing Balances are calculated based on the application's transaction ledger."
+                }
+                canvas.drawText(disc1, 30f, y, paintFooter)
+                canvas.drawText(disc2, 30f, y + 9f, paintFooter)
+            }
+
+            pdfDocument.finishPage(pdfPage)
+        }
+
+        // Write out PDF document
         try {
             pdfDocument.writeTo(outputStream)
         } finally {
@@ -368,7 +589,7 @@ object PdfExporter {
     private fun splitTextIntoLines(text: String, maxWidth: Float, paint: Paint): List<String> {
         val trimmed = text.trim()
         if (trimmed.isEmpty() || trimmed == "-") return listOf("-")
-        
+
         if (paint.measureText(trimmed) <= maxWidth) {
             return listOf(trimmed)
         }
@@ -386,7 +607,6 @@ object PdfExporter {
                     lines.add(currentLine.toString())
                     currentLine = StringBuilder()
                 }
-                // If the single word itself exceeds maxWidth, split word characters
                 if (paint.measureText(word) > maxWidth) {
                     var subWord = ""
                     for (ch in word) {
