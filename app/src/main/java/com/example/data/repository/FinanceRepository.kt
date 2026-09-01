@@ -180,21 +180,184 @@ class FinanceRepository(private val financeDao: FinanceDao) {
 
     suspend fun importFromJson(jsonStr: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            val backup = backupAdapter.fromJson(jsonStr) ?: return@withContext false
-            
-            // Clear current data first
+            val cleanJson = jsonStr.trim()
+            if (cleanJson.isEmpty()) return@withContext false
+
+            var parsedWallets: List<Wallet> = emptyList()
+            var parsedCategories: List<Category> = emptyList()
+            var parsedTransactions: List<Transaction> = emptyList()
+            var parsedDebts: List<Debt> = emptyList()
+            var parsedBills: List<Bill> = emptyList()
+
+            // 1. Try Moshi adapter first
+            try {
+                val backup = backupAdapter.fromJson(cleanJson)
+                if (backup != null) {
+                    parsedWallets = backup.wallets
+                    parsedCategories = backup.categories
+                    parsedTransactions = backup.transactions
+                    parsedDebts = backup.debts
+                    parsedBills = backup.bills
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            // 2. If Moshi returned empty or threw, parse via org.json.JSONObject as fallback
+            if (parsedWallets.isEmpty() && parsedCategories.isEmpty() && parsedTransactions.isEmpty()) {
+                try {
+                    val root = org.json.JSONObject(cleanJson)
+                    
+                    if (root.has("wallets")) {
+                        val arr = root.getJSONArray("wallets")
+                        val list = mutableListOf<Wallet>()
+                        for (i in 0 until arr.length()) {
+                            val obj = arr.getJSONObject(i)
+                            list.add(
+                                Wallet(
+                                    id = obj.optInt("id", 0),
+                                    name = obj.optString("name", "Dompet"),
+                                    balance = obj.optDouble("balance", 0.0),
+                                    icon = obj.optString("icon", "wallet")
+                                )
+                            )
+                        }
+                        parsedWallets = list
+                    }
+
+                    if (root.has("categories")) {
+                        val arr = root.getJSONArray("categories")
+                        val list = mutableListOf<Category>()
+                        for (i in 0 until arr.length()) {
+                            val obj = arr.getJSONObject(i)
+                            list.add(
+                                Category(
+                                    id = obj.optInt("id", 0),
+                                    name = obj.optString("name", "Lain-lain"),
+                                    type = obj.optString("type", "EXPENSE")
+                                )
+                            )
+                        }
+                        parsedCategories = list
+                    }
+
+                    if (root.has("transactions")) {
+                        val arr = root.getJSONArray("transactions")
+                        val list = mutableListOf<Transaction>()
+                        for (i in 0 until arr.length()) {
+                            val obj = arr.getJSONObject(i)
+                            list.add(
+                                Transaction(
+                                    id = obj.optInt("id", 0),
+                                    amount = obj.optDouble("amount", 0.0),
+                                    date = obj.optLong("date", System.currentTimeMillis()),
+                                    walletId = obj.optInt("walletId", 1),
+                                    categoryId = obj.optInt("categoryId", 1),
+                                    type = obj.optString("type", "EXPENSE"),
+                                    note = obj.optString("note", ""),
+                                    targetWalletId = if (obj.has("targetWalletId") && !obj.isNull("targetWalletId")) obj.getInt("targetWalletId") else null,
+                                    adminFee = obj.optDouble("adminFee", 0.0)
+                                )
+                            )
+                        }
+                        parsedTransactions = list
+                    }
+
+                    if (root.has("debts")) {
+                        val arr = root.getJSONArray("debts")
+                        val list = mutableListOf<Debt>()
+                        for (i in 0 until arr.length()) {
+                            val obj = arr.getJSONObject(i)
+                            list.add(
+                                Debt(
+                                    id = obj.optInt("id", 0),
+                                    personName = obj.optString("personName", ""),
+                                    totalAmount = obj.optDouble("totalAmount", 0.0),
+                                    remainingAmount = obj.optDouble("remainingAmount", 0.0),
+                                    dueDate = obj.optLong("dueDate", System.currentTimeMillis()),
+                                    type = obj.optString("type", "HUTANG"),
+                                    notes = obj.optString("notes", "")
+                                )
+                            )
+                        }
+                        parsedDebts = list
+                    }
+
+                    if (root.has("bills")) {
+                        val arr = root.getJSONArray("bills")
+                        val list = mutableListOf<Bill>()
+                        for (i in 0 until arr.length()) {
+                            val obj = arr.getJSONObject(i)
+                            list.add(
+                                Bill(
+                                    id = obj.optInt("id", 0),
+                                    name = obj.optString("name", ""),
+                                    amount = obj.optDouble("amount", 0.0),
+                                    dueDateValue = obj.optString("dueDateValue", ""),
+                                    status = obj.optString("status", "BELUM_DIBAYAR")
+                                )
+                            )
+                        }
+                        parsedBills = list
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
+            // Ensure we parsed at least something meaningful or non-empty valid JSON structure
+            if (parsedWallets.isEmpty() && parsedCategories.isEmpty() && parsedTransactions.isEmpty() && parsedDebts.isEmpty() && parsedBills.isEmpty()) {
+                // Return false only if absolutely no data could be extracted
+                return@withContext false
+            }
+
+            // If parsed wallets are empty but transactions exist, auto-create a default wallet
+            val finalWallets = if (parsedWallets.isEmpty() && parsedTransactions.isNotEmpty()) {
+                val distinctWalletIds = parsedTransactions.map { it.walletId }.distinct()
+                distinctWalletIds.map { wId ->
+                    Wallet(id = wId, name = "Dompet $wId", balance = 0.0, icon = "wallet")
+                }
+            } else {
+                parsedWallets
+            }
+
+            // Verify wallet balances: if a wallet has 0 balance but transactions exist, calculate net balance
+            val calculatedWallets = finalWallets.map { w ->
+                if (w.balance == 0.0 && parsedTransactions.isNotEmpty()) {
+                    var net = 0.0
+                    for (t in parsedTransactions) {
+                        if (t.walletId == w.id) {
+                            when (t.type) {
+                                "INCOME" -> net += (t.amount - t.adminFee).coerceAtLeast(0.0)
+                                "EXPENSE" -> net -= (t.amount + t.adminFee)
+                                "TRANSFER" -> net -= (t.amount + t.adminFee)
+                            }
+                        }
+                        if (t.targetWalletId == w.id && t.type == "TRANSFER") {
+                            net += t.amount
+                        }
+                    }
+                    if (net > 0.0) w.copy(balance = net) else w
+                } else {
+                    w
+                }
+            }
+
+            // Perform atomic database replacement
             financeDao.clearAllWallets()
             financeDao.clearAllCategories()
             financeDao.clearAllTransactions()
             financeDao.clearAllDebts()
             financeDao.clearAllBills()
 
-            // Insert restored values
-            for (w in backup.wallets) financeDao.insertWallet(w)
-            for (c in backup.categories) financeDao.insertCategory(c)
-            for (t in backup.transactions) financeDao.insertTransaction(t)
-            for (d in backup.debts) financeDao.insertDebt(d)
-            for (b in backup.bills) financeDao.insertBill(b)
+            for (w in calculatedWallets) financeDao.insertWallet(w)
+            for (c in parsedCategories) financeDao.insertCategory(c)
+            for (t in parsedTransactions) financeDao.insertTransaction(t)
+            for (d in parsedDebts) financeDao.insertDebt(d)
+            for (b in parsedBills) financeDao.insertBill(b)
+
+            // If default categories are now missing, ensure base categories are restored
+            prepDefaultDataIfNeeded()
 
             true
         } catch (e: Exception) {

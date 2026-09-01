@@ -23,3 +23,20 @@
 -dontwarn org.conscrypt.**
 -dontwarn org.openjsse.**
 
+# Keep Moshi, Models, and Reflection data classes
+-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
+-keep class com.example.data.model.** { *; }
+-keepclassmembers class com.example.data.model.** { *; }
+-keep class com.squareup.moshi.** { *; }
+-keepclassmembers class com.squareup.moshi.** { *; }
+-dontwarn com.squareup.moshi.**
+
+# Keep Room database, entities, and DAOs
+-keep class androidx.room.** { *; }
+-keep class com.example.data.database.** { *; }
+-keep class com.example.data.dao.** { *; }
+
+# Keep UpdateChecker models and utilities
+-keep class com.example.ui.util.** { *; }
+-keepclassmembers class com.example.ui.util.** { *; }
+

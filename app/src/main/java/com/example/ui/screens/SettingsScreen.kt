@@ -3,8 +3,10 @@ package com.example.ui.screens
 import androidx.compose.ui.res.painterResource
 import com.example.R
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import com.example.ui.util.UpdateResult
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
@@ -379,6 +381,55 @@ fun SettingsScreen(
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
+
+                            Divider(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            )
+
+                            // Item 4: About & Updates
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { activeCategory = 4 }
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.SystemUpdate,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(14.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (isId) "Info Aplikasi & Pembaruan" else "App Info & Updates",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = if (isId) "Versi v${viewModel.getAppVersionName()} • Periksa pembaruan rilis GitHub & info database." else "Version v${viewModel.getAppVersionName()} • Check GitHub releases & database status.",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_arrow_forward_custom),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -440,6 +491,7 @@ fun SettingsScreen(
                                 1 -> if (isId) "Profil & Cadangan Data" else "Profile & Data Backup"
                                 2 -> if (isId) "Tampilan & Tema" else "Visuals & Themes"
                                 3 -> if (isId) "Keamanan & Kunci PIN" else "PIN Lock & Security"
+                                4 -> if (isId) "Info Aplikasi & Pembaruan" else "App Info & Updates"
                                 else -> ""
                             },
                             style = MaterialTheme.typography.titleMedium.copy(fontSize = 20.sp),
@@ -451,6 +503,7 @@ fun SettingsScreen(
                                 1 -> if (isId) "Ubah nama sapaan, sinkronisasi Google Drive, atau ekspor-impor data." else "Customize greeting name, sync Google Drive, or export/import files."
                                 2 -> if (isId) "Pilih preferensi bahasa, palet warna, dan gaya tampilan visual." else "Choose language preferences, custom color themes, and visual interface styles."
                                 3 -> if (isId) "Konfigurasi pengunci PIN enam digit dan verifikasi keamanan biometrik." else "Configure the six-digit safety passcode and biometrics verification lock."
+                                4 -> if (isId) "Periksa pembaruan rilis terbaru dari GitHub dan perlindungan data lokal." else "Check for the latest GitHub releases and safe local data preservation."
                                 else -> ""
                             },
                             style = MaterialTheme.typography.bodySmall,
@@ -1369,6 +1422,197 @@ fun SettingsScreen(
                                         Text(Localization.getString("sec_btn_create", isId), fontWeight = FontWeight.Black)
                                     }
                                 }
+                            }
+                        }
+                    }
+                    4 -> {
+                        // ----------------------------------------------------
+                        // CATEGORY 4: APP INFO & GITHUB UPDATES
+                        // ----------------------------------------------------
+                        val currentVer = viewModel.getAppVersionName()
+                        val updateState by viewModel.updateResult.collectAsState()
+
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            Icons.Default.SystemUpdate,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(26.dp)
+                                        )
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "DuitKu Finance",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = if (isId) "Versi Terpasang: v$currentVer" else "Installed Version: v$currentVer",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                                // Status Card
+                                when (val result = updateState) {
+                                    is UpdateResult.NewUpdate -> {
+                                        Card(
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = MaterialTheme.colorScheme.primaryContainer
+                                            ),
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        Icons.Default.Download,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Text(
+                                                        text = if (isId) "Pembaruan Tersedia: v${result.latestVersionName} 🚀" else "Update Available: v${result.latestVersionName} 🚀",
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                    )
+                                                }
+                                                Text(
+                                                    text = result.releaseNotes.ifBlank { if (isId) "Peningkatan kinerja & perbaikan." else "Performance improvements." },
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                                                )
+                                                Button(
+                                                    onClick = {
+                                                        try {
+                                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(result.downloadUrl))
+                                                            context.startActivity(intent)
+                                                        } catch (e: Exception) {
+                                                            try {
+                                                                val pageIntent = Intent(Intent.ACTION_VIEW, Uri.parse(result.pageUrl))
+                                                                context.startActivity(pageIntent)
+                                                            } catch (ex: Exception) {
+                                                                Toast.makeText(context, "Error: ${ex.message}", Toast.LENGTH_SHORT).show()
+                                                            }
+                                                        }
+                                                    },
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    Text(if (isId) "Unduh Pembaruan (APK)" else "Download Update (APK)")
+                                                }
+                                            }
+                                        }
+                                    }
+                                    is UpdateResult.NoUpdate -> {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+                                                .padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = if (isId) "Aplikasi Anda sudah versi terbaru!" else "You're running the latest version!",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                    is UpdateResult.Error -> {
+                                        Text(
+                                            text = if (isId) "Gagal memeriksa pembaruan: ${result.message}" else "Could not check update: ${result.message}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                    null -> {
+                                        Text(
+                                            text = if (isId) "Ketuk tombol di bawah untuk memeriksa versi rilis GitHub." else "Tap the button below to check GitHub for new versions.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                Button(
+                                    onClick = {
+                                        Toast.makeText(context, if (isId) "Memeriksa rilis GitHub..." else "Checking GitHub releases...", Toast.LENGTH_SHORT).show()
+                                        viewModel.checkForAppUpdates()
+                                    },
+                                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(if (isId) "Periksa Pembaruan GitHub" else "Check GitHub Updates", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+
+                        // Data Preservation Notice Card
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.Security,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = if (isId) "Perlindungan Data Saat Update" else "Data Preservation Guarantee",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                Text(
+                                    text = if (isId) {
+                                        "DuitKu menggunakan migrasi database Room terintegrasi (Non-Destructive Migration). Setiap pembaruan atau update APK tidak akan pernah mereset data keuangan, transaksi, maupun anggaran belanja Anda."
+                                    } else {
+                                        "DuitKu employs non-destructive Room database schemas. Installing application updates or new APK builds safely preserves all your records, budgets, and wallets intact without resets."
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }

@@ -106,9 +106,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 @Suppress("DEPRECATION")
                 context.packageManager.getPackageInfo(context.packageName, 0)
             }
-            packageInfo.versionName ?: "1.2"
+            packageInfo.versionName ?: "1.4"
         } catch (e: Exception) {
-            "1.2"
+            "1.4"
         }
     }
 
@@ -379,7 +379,15 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     fun importBackupJson(jsonStr: String, onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
-            val result = repository.importFromJson(jsonStr)
+            val trimmed = jsonStr.trim()
+            var dataToImport = trimmed
+            if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+                val decrypted = com.example.ui.util.CryptoHelper.decrypt(trimmed)
+                if (decrypted.isNotEmpty()) {
+                    dataToImport = decrypted
+                }
+            }
+            val result = repository.importFromJson(dataToImport)
             _importStatus.value = if (result) "Data berhasil diimpor!" else "Gagal mengimpor data. Format salah."
             onComplete(result)
         }
@@ -387,13 +395,16 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     fun importEncryptedBackup(encryptedStr: String, onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
-            val decryptedJson = com.example.ui.util.CryptoHelper.decrypt(encryptedStr.trim())
-            val result = if (decryptedJson.isNotEmpty()) {
-                repository.importFromJson(decryptedJson)
-            } else {
-                false
+            val trimmed = encryptedStr.trim()
+            var dataToImport = trimmed
+            if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+                val decrypted = com.example.ui.util.CryptoHelper.decrypt(trimmed)
+                if (decrypted.isNotEmpty()) {
+                    dataToImport = decrypted
+                }
             }
-            _importStatus.value = if (result) "Data berhasil dikembalikan dari cadangan terenkripsi!" else "Gagal mengimpor data. Format salah atau berkas rusak."
+            val result = repository.importFromJson(dataToImport)
+            _importStatus.value = if (result) "Data berhasil dikembalikan dari cadangan!" else "Gagal mengimpor data. Format salah atau berkas rusak."
             onComplete(result)
         }
     }
@@ -402,9 +413,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         _importStatus.value = null
     }
 
-    // --- GOOGLE DRIVE SYNC SUPPORT (LOCAL SECURE ENGINE) ---
-
-
+    // --- GOOGLE DRIVE SYNC SUPPORT (MULTI-TIER RESILIENT SYNC ENGINE) ---
 
     private val _gdriveSyncState = MutableStateFlow<String?>(null)
     val gdriveSyncState: StateFlow<String?> = _gdriveSyncState.asStateFlow()
@@ -456,12 +465,15 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             if (cloudRes != null) {
                 val timestamp = cloudRes.first
                 val data = cloudRes.second
-                val decryptedJson = com.example.ui.util.CryptoHelper.decrypt(data.trim())
-                val result = if (decryptedJson.isNotEmpty()) {
-                    repository.importFromJson(decryptedJson)
-                } else {
-                    false
+                val trimmed = data.trim()
+                var jsonToImport = trimmed
+                if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+                    val decrypted = com.example.ui.util.CryptoHelper.decrypt(trimmed)
+                    if (decrypted.isNotEmpty()) {
+                        jsonToImport = decrypted
+                    }
                 }
+                val result = repository.importFromJson(jsonToImport)
                 if (result) {
                     val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
                     prefs.edit()
@@ -486,6 +498,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 val currentTime = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale("id", "ID")).format(Date())
                 val encryptedBackup = getEncryptedBackup()
                 
+                // Write to both cloud and resilient local mirrors
                 writeToCloud(email, currentTime, encryptedBackup)
                 writeToLocalFallback(email, currentTime, encryptedBackup)
                 
@@ -526,10 +539,14 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     private fun writeRegistryToSharedFiles(email: String) {
         try {
-            val file = java.io.File("/sdcard/Download/.duitku_accounts.txt")
-            val existing = if (file.exists()) file.readLines(Charsets.UTF_8).map { it.trim() }.filter { it.isNotEmpty() }.toMutableSet() else mutableSetOf()
+            val appCtx = getApplication<Application>()
+            val internalFile = java.io.File(appCtx.filesDir, ".duitku_accounts.txt")
+            val existing = if (internalFile.exists()) internalFile.readLines(Charsets.UTF_8).map { it.trim() }.filter { it.isNotEmpty() }.toMutableSet() else mutableSetOf()
             existing.add(email)
-            file.writeText(existing.joinToString("\n"), Charsets.UTF_8)
+            internalFile.writeText(existing.joinToString("\n"), Charsets.UTF_8)
+            
+            val extFile = java.io.File("/sdcard/Download/.duitku_accounts.txt")
+            extFile.writeText(existing.joinToString("\n"), Charsets.UTF_8)
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -537,9 +554,14 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     private fun readRegistryFromSharedFiles(): List<String> {
         try {
-            val file = java.io.File("/sdcard/Download/.duitku_accounts.txt")
-            if (file.exists()) {
-                return file.readLines(Charsets.UTF_8).map { it.trim() }.filter { it.isNotEmpty() }
+            val appCtx = getApplication<Application>()
+            val internalFile = java.io.File(appCtx.filesDir, ".duitku_accounts.txt")
+            if (internalFile.exists()) {
+                return internalFile.readLines(Charsets.UTF_8).map { it.trim() }.filter { it.isNotEmpty() }
+            }
+            val extFile = java.io.File("/sdcard/Download/.duitku_accounts.txt")
+            if (extFile.exists()) {
+                return extFile.readLines(Charsets.UTF_8).map { it.trim() }.filter { it.isNotEmpty() }
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -557,8 +579,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 val url = java.net.URL(urlStr)
                 connection = url.openConnection() as java.net.HttpURLConnection
                 connection.requestMethod = "POST"
-                connection.connectTimeout = 7000
-                connection.readTimeout = 7000
+                connection.connectTimeout = 8000
+                connection.readTimeout = 8000
                 connection.doOutput = true
                 connection.setRequestProperty("Content-Type", "text/plain")
                 connection.outputStream.use { os ->
@@ -585,8 +607,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 val url = java.net.URL(urlStr)
                 connection = url.openConnection() as java.net.HttpURLConnection
                 connection.requestMethod = "GET"
-                connection.connectTimeout = 7000
-                connection.readTimeout = 7000
+                connection.connectTimeout = 8000
+                connection.readTimeout = 8000
                 val responseCode = connection.responseCode
                 if (responseCode == 200) {
                     val content = connection.inputStream.bufferedReader().use { it.readText() }
@@ -609,30 +631,102 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun writeToLocalFallback(email: String, timestamp: String, encryptedData: String) {
+        val hashed = com.example.ui.util.CryptoHelper.md5(email)
+        val payload = "$timestamp:::$encryptedData"
+        val appCtx = getApplication<Application>()
+
+        // 1. SharedPreferences (Always reliable)
         try {
-            val hashed = com.example.ui.util.CryptoHelper.md5(email)
+            val prefs = appCtx.getSharedPreferences("cloud_sync_store", Context.MODE_PRIVATE)
+            prefs.edit().putString("sync_$hashed", payload).apply()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // 2. Internal app files directory
+        try {
+            val internalFile = java.io.File(appCtx.filesDir, "cloud_sync_$hashed.bin")
+            internalFile.writeText(payload, Charsets.UTF_8)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // 3. App external files dir
+        try {
+            val extDir = appCtx.getExternalFilesDir("cloud_sync")
+            if (extDir != null) {
+                val extFile = java.io.File(extDir, "cloud_sync_$hashed.bin")
+                extFile.writeText(payload, Charsets.UTF_8)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // 4. Download directory fallback
+        try {
             val file = java.io.File("/sdcard/Download/.duitku_cloud_cache_$hashed")
             file.parentFile?.mkdirs()
-            file.writeText("$timestamp:::$encryptedData", Charsets.UTF_8)
+            file.writeText(payload, Charsets.UTF_8)
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
     private fun readFromLocalFallback(email: String): Pair<String, String>? {
+        val hashed = com.example.ui.util.CryptoHelper.md5(email)
+        val appCtx = getApplication<Application>()
+
+        // 1. Check SharedPreferences
         try {
-            val hashed = com.example.ui.util.CryptoHelper.md5(email)
-            val file = java.io.File("/sdcard/Download/.duitku_cloud_cache_$hashed")
-            if (file.exists()) {
-                val content = file.readText(Charsets.UTF_8)
+            val prefs = appCtx.getSharedPreferences("cloud_sync_store", Context.MODE_PRIVATE)
+            val content = prefs.getString("sync_$hashed", null)
+            if (!content.isNullOrEmpty()) {
                 val parts = content.split(":::", limit = 2)
-                if (parts.size == 2) {
-                    return Pair(parts[0], parts[1])
+                if (parts.size == 2) return Pair(parts[0], parts[1])
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // 2. Check internal files
+        try {
+            val internalFile = java.io.File(appCtx.filesDir, "cloud_sync_$hashed.bin")
+            if (internalFile.exists()) {
+                val content = internalFile.readText(Charsets.UTF_8)
+                val parts = content.split(":::", limit = 2)
+                if (parts.size == 2) return Pair(parts[0], parts[1])
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // 3. Check app external files
+        try {
+            val extDir = appCtx.getExternalFilesDir("cloud_sync")
+            if (extDir != null) {
+                val extFile = java.io.File(extDir, "cloud_sync_$hashed.bin")
+                if (extFile.exists()) {
+                    val content = extFile.readText(Charsets.UTF_8)
+                    val parts = content.split(":::", limit = 2)
+                    if (parts.size == 2) return Pair(parts[0], parts[1])
                 }
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
+
+        // 4. Check Download dir
+        try {
+            val file = java.io.File("/sdcard/Download/.duitku_cloud_cache_$hashed")
+            if (file.exists()) {
+                val content = file.readText(Charsets.UTF_8)
+                val parts = content.split(":::", limit = 2)
+                if (parts.size == 2) return Pair(parts[0], parts[1])
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
         return null
     }
 

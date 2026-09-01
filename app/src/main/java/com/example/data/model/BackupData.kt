@@ -4,9 +4,9 @@ import com.squareup.moshi.JsonClass
 
 @JsonClass(generateAdapter = true)
 data class BackupData(
-    val wallets: List<Wallet>,
-    val categories: List<Category>,
-    val transactions: List<Transaction>,
-    val debts: List<Debt>,
-    val bills: List<Bill>
+    val wallets: List<Wallet> = emptyList(),
+    val categories: List<Category> = emptyList(),
+    val transactions: List<Transaction> = emptyList(),
+    val debts: List<Debt> = emptyList(),
+    val bills: List<Bill> = emptyList()
 )

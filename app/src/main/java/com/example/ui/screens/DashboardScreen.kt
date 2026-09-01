@@ -77,8 +77,10 @@ fun DashboardScreen(
     val currentTheme by viewModel.appTheme.collectAsState()
     val isFresh = currentStyle == "FRESH"
     val userGreetingName by viewModel.userGreetingName.collectAsState()
+    val updateResult by viewModel.updateResult.collectAsState()
 
     var showAddDialog by remember { mutableStateOf(false) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
     var initialScannedReceiptsForDialog by remember { mutableStateOf<List<GeminiClient.ScanResult>>(emptyList()) }
     var showScanOptionsDialog by remember { mutableStateOf(false) }
     var isScanningReceipt by remember { mutableStateOf(false) }
@@ -173,9 +175,6 @@ fun DashboardScreen(
     var showSavingsSimDialog by remember { mutableStateOf(false) }
     var showTipsDialog by remember { mutableStateOf(false) }
     var showDashboardCategoryDialog by remember { mutableStateOf(false) }
- 
-    val updateResult by viewModel.updateResult.collectAsState()
-    var showUpdateDialog by remember { mutableStateOf(false) }
 
     val pdfLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/pdf")
@@ -295,6 +294,64 @@ fun DashboardScreen(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                        }
+                    }
+                }
+            }
+
+            // 0.5. GitHub Update Banner (if available)
+            val currentUpdate = updateResult
+            if (currentUpdate is UpdateResult.NewUpdate) {
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showUpdateDialog = true },
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        ),
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.SystemUpdate,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = if (isId) "Pembaruan Aplikasi Tersedia! 🚀" else "New App Update Available! 🚀",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    text = if (isId) "Versi ${currentUpdate.latestVersionName} telah rilis di GitHub. Ketuk untuk mengunduh." else "Version ${currentUpdate.latestVersionName} is available on GitHub. Tap to update.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                                )
+                            }
+                            FilledTonalButton(
+                                onClick = { showUpdateDialog = true },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Text(if (isId) "Lihat" else "View", style = MaterialTheme.typography.labelMedium)
+                            }
                         }
                     }
                 }
