@@ -136,7 +136,7 @@ fun SettingsScreen(
     ) { uri ->
         uri?.let {
             try {
-                var fileName = "duitku_backup.json"
+                var fileName = "duitku_backup"
                 context.contentResolver.query(it, null, null, null, null)?.use { cursor ->
                     val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
                     if (nameIndex != -1 && cursor.moveToFirst()) {
@@ -145,24 +145,32 @@ fun SettingsScreen(
                 }
 
                 context.contentResolver.openInputStream(it)?.use { inputStream ->
-                    val content = inputStream.bufferedReader().use { reader -> reader.readText() }
-                    val contentTrimmed = content.trim()
+                    val rawBytes = inputStream.readBytes()
                     
-                    if (contentTrimmed.startsWith("{") || contentTrimmed.startsWith("[")) {
-                        importJsonContent = contentTrimmed
+                    // 1. Try decrypting from raw bytes (handles raw cipher, GZIP, Base64, plain JSON)
+                    var decrypted = com.example.ui.util.CryptoHelper.decryptBytes(rawBytes)
+                    
+                    // 2. If empty, try decrypting from text representation
+                    if (decrypted.isEmpty()) {
+                        val text = String(rawBytes, Charsets.UTF_8).trim()
+                        decrypted = com.example.ui.util.CryptoHelper.decrypt(text)
+                    }
+
+                    if (decrypted.isNotEmpty()) {
+                        importJsonContent = decrypted
                         selectedFileName = fileName
-                        isEncryptedFile = false
-                        Toast.makeText(context, if (isId) "Berkas standard JSON berhasil dimuat!" else "Standard JSON file loaded successfully!", Toast.LENGTH_SHORT).show()
+                        isEncryptedFile = fileName.endsWith(".duitku") || !decrypted.startsWith("{")
+                        Toast.makeText(context, if (isId) "Berkas cadangan ($fileName) berhasil dibaca & siap dipulihkan!" else "Backup file ($fileName) loaded successfully!", Toast.LENGTH_SHORT).show()
                     } else {
-                        val decrypted = com.example.ui.util.CryptoHelper.decrypt(contentTrimmed)
-                        val decryptedTrimmed = decrypted.trim()
-                        if (decryptedTrimmed.startsWith("{") || decryptedTrimmed.startsWith("[")) {
-                            importJsonContent = contentTrimmed
+                        // Fallback: If it's plain text json or unencrypted string
+                        val text = String(rawBytes, Charsets.UTF_8).trim()
+                        if (text.startsWith("{") || text.startsWith("[")) {
+                            importJsonContent = text
                             selectedFileName = fileName
-                            isEncryptedFile = true
-                            Toast.makeText(context, if (isId) "Berkas enkripsi (.duitku) berhasil didekripsi & dimuat!" else "Encrypted backup file (.duitku) successfully decrypted and loaded!", Toast.LENGTH_LONG).show()
+                            isEncryptedFile = false
+                            Toast.makeText(context, if (isId) "Berkas JSON ($fileName) berhasil dimuat!" else "JSON backup ($fileName) loaded!", Toast.LENGTH_SHORT).show()
                         } else {
-                            Toast.makeText(context, if (isId) "Struktur berkas tidak valid atau kunci dekripsi tidak sesuai!" else "Invalid file structure or decryption key mismatch!", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, if (isId) "Gagal membaca berkas cadangan. Pastikan berkas .duitku atau .json valid." else "Could not read backup file. Please ensure valid .duitku or .json file.", Toast.LENGTH_LONG).show()
                         }
                     }
                 }
@@ -838,7 +846,7 @@ fun SettingsScreen(
 
                                 OutlinedButton(
                                     onClick = {
-                                        importLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/plain", "*/*"))
+                                        importLauncher.launch(arrayOf("*/*"))
                                     },
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -853,7 +861,7 @@ fun SettingsScreen(
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = if (selectedFileName.isEmpty()) {
-                                            if (isId) "Pilih Berkas (.json/.duitku)" else "Select Backup file (.json/.duitku)"
+                                            if (isId) "Pilih Berkas (.duitku / .json)" else "Select Backup file (.duitku / .json)"
                                         } else {
                                             if (isId) "Ganti Berkas Terpilih" else "Change Selected File"
                                         },
@@ -882,9 +890,9 @@ fun SettingsScreen(
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
                                                 text = if (isId) {
-                                                    if (isEncryptedFile) "Siap Impor (Terenkripsi):" else "Ready Standard Backup:"
+                                                    if (isEncryptedFile) "Siap Dipulihkan (Berkas .duitku):" else "Siap Dipulihkan (Berkas JSON):"
                                                 } else {
-                                                    if (isEncryptedFile) "Ready: (Encrypted .duitku)" else "Ready: (Standard JSON)"
+                                                    if (isEncryptedFile) "Ready to restore (.duitku):" else "Ready to restore (.json):"
                                                 },
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.primary,
@@ -900,25 +908,13 @@ fun SettingsScreen(
 
                                     Button(
                                         onClick = {
-                                            if (isEncryptedFile) {
-                                                viewModel.importEncryptedBackup(importJsonContent) { success ->
-                                                    if (success) {
-                                                        selectedFileName = ""
-                                                        importJsonContent = ""
-                                                        Toast.makeText(context, if (isId) "Cadangan Terenkripsi Berhasil Dipulihkan!" else "Encrypted Backup successfully restored!", Toast.LENGTH_LONG).show()
-                                                    } else {
-                                                        Toast.makeText(context, if (isId) "Gagal mendekripsi atau memulihkan berkas!" else "Failed to decrypt/restore backup file!", Toast.LENGTH_LONG).show()
-                                                    }
-                                                }
-                                            } else {
-                                                viewModel.importBackupJson(importJsonContent) { success ->
-                                                    if (success) {
-                                                        selectedFileName = ""
-                                                        importJsonContent = ""
-                                                        Toast.makeText(context, if (isId) "Data berhasil dipulihkan!" else "Data successfully restored!", Toast.LENGTH_LONG).show()
-                                                    } else {
-                                                        Toast.makeText(context, if (isId) "Gagal memulihkan data. Periksa keselarasan berkas!" else "Failed to restore. Please check file compliance!", Toast.LENGTH_LONG).show()
-                                                    }
+                                            viewModel.importBackupJson(importJsonContent) { success ->
+                                                if (success) {
+                                                    selectedFileName = ""
+                                                    importJsonContent = ""
+                                                    Toast.makeText(context, if (isId) "Data keuangan berhasil dipulihkan secara penuh!" else "Financial data restored successfully!", Toast.LENGTH_LONG).show()
+                                                } else {
+                                                    Toast.makeText(context, if (isId) "Gagal memulihkan data. Format berkas tidak cocok." else "Failed to restore data. Incompatible format.", Toast.LENGTH_LONG).show()
                                                 }
                                             }
                                         },

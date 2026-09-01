@@ -7,6 +7,10 @@ import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 class FinanceRepository(private val financeDao: FinanceDao) {
 
@@ -32,67 +36,48 @@ class FinanceRepository(private val financeDao: FinanceDao) {
     }
 
     suspend fun insertTransaction(transaction: Transaction) = withContext(Dispatchers.IO) {
-        // Insert transaction
         financeDao.insertTransaction(transaction)
-        
-        // Update wallet balance based on transaction type
         adjustWalletBalance(transaction, isReversal = false)
     }
 
     suspend fun deleteTransaction(transaction: Transaction, refund: Boolean) = withContext(Dispatchers.IO) {
         if (refund) {
-            // Reverse wallet balance contribution first
             adjustWalletBalance(transaction, isReversal = true)
         }
-        
-        // Delete transaction
         financeDao.deleteTransaction(transaction)
     }
 
     suspend fun updateTransaction(newTransaction: Transaction) = withContext(Dispatchers.IO) {
         val oldTransaction = financeDao.getTransactionById(newTransaction.id)
         if (oldTransaction != null) {
-            // 1. Reverse the effect of the old transaction
             adjustWalletBalance(oldTransaction, isReversal = true)
         }
-        
-        // 2. Save the new transaction
         financeDao.updateTransaction(newTransaction)
-        
-        // 3. Apply the effect of the new transaction
         adjustWalletBalance(newTransaction, isReversal = false)
     }
 
-    private suspend fun adjustWalletBalance(tx: Transaction, isReversal: Boolean) {
-        val amount = tx.amount
-        val fee = tx.adminFee
-        when (tx.type) {
+    private suspend fun adjustWalletBalance(transaction: Transaction, isReversal: Boolean) {
+        val multiplier = if (isReversal) -1.0 else 1.0
+        val totalCost = transaction.amount + transaction.adminFee
+
+        when (transaction.type) {
             "INCOME" -> {
-                val netIncome = (amount - fee).coerceAtLeast(0.0)
-                val balanceDiff = if (isReversal) -netIncome else netIncome
-                adjustWalletBalanceInternal(tx.walletId, balanceDiff)
+                val netIncome = (transaction.amount - transaction.adminFee).coerceAtLeast(0.0)
+                adjustWalletBalanceInternal(transaction.walletId, netIncome * multiplier)
             }
             "EXPENSE" -> {
-                val totalExpense = amount + fee
-                val balanceDiff = if (isReversal) totalExpense else -totalExpense
-                adjustWalletBalanceInternal(tx.walletId, balanceDiff)
+                adjustWalletBalanceInternal(transaction.walletId, -totalCost * multiplier)
             }
             "TRANSFER" -> {
-                // Source Wallet (decrease on transfer: amount + fee, increase on reversal)
-                val totalSourceDeduction = amount + fee
-                val sourceDiff = if (isReversal) totalSourceDeduction else -totalSourceDeduction
-                adjustWalletBalanceInternal(tx.walletId, sourceDiff)
-
-                // Target Wallet (increase on transfer: amount only without fee, decrease on reversal)
-                if (tx.targetWalletId != null) {
-                    val targetDiff = if (isReversal) -amount else amount
-                    adjustWalletBalanceInternal(tx.targetWalletId, targetDiff)
+                adjustWalletBalanceInternal(transaction.walletId, -totalCost * multiplier)
+                transaction.targetWalletId?.let { targetId ->
+                    adjustWalletBalanceInternal(targetId, transaction.amount * multiplier)
                 }
             }
         }
     }
 
-    // --- GENERAL DATABASE MODIFICATIONS ---
+    // --- CRUD OPERATIONS ---
 
     suspend fun insertWallet(wallet: Wallet) = withContext(Dispatchers.IO) {
         financeDao.insertWallet(wallet)
@@ -183,122 +168,186 @@ class FinanceRepository(private val financeDao: FinanceDao) {
             val cleanJson = jsonStr.trim()
             if (cleanJson.isEmpty()) return@withContext false
 
-            var parsedWallets: List<Wallet> = emptyList()
-            var parsedCategories: List<Category> = emptyList()
-            var parsedTransactions: List<Transaction> = emptyList()
-            var parsedDebts: List<Debt> = emptyList()
-            var parsedBills: List<Bill> = emptyList()
+            var parsedWallets = mutableListOf<Wallet>()
+            var parsedCategories = mutableListOf<Category>()
+            var parsedTransactions = mutableListOf<Transaction>()
+            var parsedDebts = mutableListOf<Debt>()
+            var parsedBills = mutableListOf<Bill>()
 
             // 1. Try Moshi adapter first
             try {
                 val backup = backupAdapter.fromJson(cleanJson)
                 if (backup != null) {
-                    parsedWallets = backup.wallets
-                    parsedCategories = backup.categories
-                    parsedTransactions = backup.transactions
-                    parsedDebts = backup.debts
-                    parsedBills = backup.bills
+                    if (backup.wallets.isNotEmpty()) parsedWallets.addAll(backup.wallets)
+                    if (backup.categories.isNotEmpty()) parsedCategories.addAll(backup.categories)
+                    if (backup.transactions.isNotEmpty()) parsedTransactions.addAll(backup.transactions)
+                    if (backup.debts.isNotEmpty()) parsedDebts.addAll(backup.debts)
+                    if (backup.bills.isNotEmpty()) parsedBills.addAll(backup.bills)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
 
-            // 2. If Moshi returned empty or threw, parse via org.json.JSONObject as fallback
-            if (parsedWallets.isEmpty() && parsedCategories.isEmpty() && parsedTransactions.isEmpty()) {
+            // 2. If standard Moshi didn't populate completely or format differs, use robust JSON parser
+            if (parsedTransactions.isEmpty() && parsedWallets.isEmpty()) {
                 try {
-                    val root = org.json.JSONObject(cleanJson)
-                    
-                    if (root.has("wallets")) {
-                        val arr = root.getJSONArray("wallets")
-                        val list = mutableListOf<Wallet>()
-                        for (i in 0 until arr.length()) {
-                            val obj = arr.getJSONObject(i)
-                            list.add(
-                                Wallet(
-                                    id = obj.optInt("id", 0),
-                                    name = obj.optString("name", "Dompet"),
-                                    balance = obj.optDouble("balance", 0.0),
-                                    icon = obj.optString("icon", "wallet")
-                                )
-                            )
+                    if (cleanJson.startsWith("[")) {
+                        // Root is an array of objects
+                        val rootArray = JSONArray(cleanJson)
+                        parseArrayDirectly(rootArray, parsedWallets, parsedCategories, parsedTransactions, parsedDebts, parsedBills)
+                    } else {
+                        var root = JSONObject(cleanJson)
+                        // Check if nested in "data", "backup", "payload", "items"
+                        if (!root.has("transactions") && !root.has("wallets") && !root.has("categories")) {
+                            for (key in listOf("data", "backup", "payload", "items", "records", "result")) {
+                                if (root.has(key)) {
+                                    val candidate = root.optJSONObject(key)
+                                    if (candidate != null) {
+                                        root = candidate
+                                        break
+                                    }
+                                }
+                            }
                         }
-                        parsedWallets = list
-                    }
 
-                    if (root.has("categories")) {
-                        val arr = root.getJSONArray("categories")
-                        val list = mutableListOf<Category>()
-                        for (i in 0 until arr.length()) {
-                            val obj = arr.getJSONObject(i)
-                            list.add(
-                                Category(
-                                    id = obj.optInt("id", 0),
-                                    name = obj.optString("name", "Lain-lain"),
-                                    type = obj.optString("type", "EXPENSE")
-                                )
-                            )
+                        // Parse Wallets
+                        val walletKeys = listOf("wallets", "dompet", "accounts", "rekening", "walletList")
+                        for (wk in walletKeys) {
+                            if (root.has(wk)) {
+                                val arr = root.optJSONArray(wk)
+                                if (arr != null) {
+                                    for (i in 0 until arr.length()) {
+                                        val obj = arr.optJSONObject(i) ?: continue
+                                        parsedWallets.add(
+                                            Wallet(
+                                                id = parseFlexibleInt(obj, listOf("id", "wallet_id", "walletId"), 0),
+                                                name = parseFlexibleString(obj, listOf("name", "wallet_name", "nama", "title"), "Dompet"),
+                                                balance = parseFlexibleDouble(obj, listOf("balance", "saldo", "amount", "currentBalance"), 0.0),
+                                                icon = parseFlexibleString(obj, listOf("icon", "icon_name", "type"), "wallet")
+                                            )
+                                        )
+                                    }
+                                    break
+                                }
+                            }
                         }
-                        parsedCategories = list
-                    }
 
-                    if (root.has("transactions")) {
-                        val arr = root.getJSONArray("transactions")
-                        val list = mutableListOf<Transaction>()
-                        for (i in 0 until arr.length()) {
-                            val obj = arr.getJSONObject(i)
-                            list.add(
-                                Transaction(
-                                    id = obj.optInt("id", 0),
-                                    amount = obj.optDouble("amount", 0.0),
-                                    date = obj.optLong("date", System.currentTimeMillis()),
-                                    walletId = obj.optInt("walletId", 1),
-                                    categoryId = obj.optInt("categoryId", 1),
-                                    type = obj.optString("type", "EXPENSE"),
-                                    note = obj.optString("note", ""),
-                                    targetWalletId = if (obj.has("targetWalletId") && !obj.isNull("targetWalletId")) obj.getInt("targetWalletId") else null,
-                                    adminFee = obj.optDouble("adminFee", 0.0)
-                                )
-                            )
+                        // Parse Categories
+                        val catKeys = listOf("categories", "kategori", "categoryList")
+                        for (ck in catKeys) {
+                            if (root.has(ck)) {
+                                val arr = root.optJSONArray(ck)
+                                if (arr != null) {
+                                    for (i in 0 until arr.length()) {
+                                        val obj = arr.optJSONObject(i) ?: continue
+                                        val cTypeRaw = parseFlexibleString(obj, listOf("type", "category_type", "categoryType", "tipe"), "EXPENSE")
+                                        val normalizedType = if (cTypeRaw.contains("INCOME", ignoreCase = true) || cTypeRaw.contains("PEMASUKAN", ignoreCase = true)) "INCOME" else "EXPENSE"
+                                        parsedCategories.add(
+                                            Category(
+                                                id = parseFlexibleInt(obj, listOf("id", "category_id", "categoryId"), 0),
+                                                name = parseFlexibleString(obj, listOf("name", "category_name", "nama", "title"), "Lain-lain"),
+                                                type = normalizedType
+                                            )
+                                        )
+                                    }
+                                    break
+                                }
+                            }
                         }
-                        parsedTransactions = list
-                    }
 
-                    if (root.has("debts")) {
-                        val arr = root.getJSONArray("debts")
-                        val list = mutableListOf<Debt>()
-                        for (i in 0 until arr.length()) {
-                            val obj = arr.getJSONObject(i)
-                            list.add(
-                                Debt(
-                                    id = obj.optInt("id", 0),
-                                    personName = obj.optString("personName", ""),
-                                    totalAmount = obj.optDouble("totalAmount", 0.0),
-                                    remainingAmount = obj.optDouble("remainingAmount", 0.0),
-                                    dueDate = obj.optLong("dueDate", System.currentTimeMillis()),
-                                    type = obj.optString("type", "HUTANG"),
-                                    notes = obj.optString("notes", "")
-                                )
-                            )
-                        }
-                        parsedDebts = list
-                    }
+                        // Parse Transactions
+                        val txKeys = listOf("transactions", "transaksi", "records", "items", "history", "txList")
+                        for (tk in txKeys) {
+                            if (root.has(tk)) {
+                                val arr = root.optJSONArray(tk)
+                                if (arr != null) {
+                                    for (i in 0 until arr.length()) {
+                                        val obj = arr.optJSONObject(i) ?: continue
+                                        val rawType = parseFlexibleString(obj, listOf("type", "tx_type", "tipe", "transactionType"), "EXPENSE").uppercase(Locale.ROOT)
+                                        val normalizedType = when {
+                                            rawType.contains("INCOME") || rawType.contains("PEMASUKAN") || obj.optBoolean("isIncome", false) || obj.optBoolean("is_income", false) -> "INCOME"
+                                            rawType.contains("TRANSFER") || rawType.contains("PINDAH") -> "TRANSFER"
+                                            else -> "EXPENSE"
+                                        }
 
-                    if (root.has("bills")) {
-                        val arr = root.getJSONArray("bills")
-                        val list = mutableListOf<Bill>()
-                        for (i in 0 until arr.length()) {
-                            val obj = arr.getJSONObject(i)
-                            list.add(
-                                Bill(
-                                    id = obj.optInt("id", 0),
-                                    name = obj.optString("name", ""),
-                                    amount = obj.optDouble("amount", 0.0),
-                                    dueDateValue = obj.optString("dueDateValue", ""),
-                                    status = obj.optString("status", "BELUM_DIBAYAR")
-                                )
-                            )
+                                        val targetWId = if (obj.has("targetWalletId") && !obj.isNull("targetWalletId")) {
+                                            obj.optInt("targetWalletId")
+                                        } else if (obj.has("target_wallet_id") && !obj.isNull("target_wallet_id")) {
+                                            obj.optInt("target_wallet_id")
+                                        } else null
+
+                                        parsedTransactions.add(
+                                            Transaction(
+                                                id = parseFlexibleInt(obj, listOf("id", "tx_id", "transactionId"), 0),
+                                                amount = parseFlexibleDouble(obj, listOf("amount", "nominal", "total", "value"), 0.0),
+                                                date = parseFlexibleDate(obj, listOf("date", "timestamp", "tanggal", "created_at", "createdAt")),
+                                                walletId = parseFlexibleInt(obj, listOf("walletId", "wallet_id", "wallet", "dompet_id"), 1),
+                                                categoryId = parseFlexibleInt(obj, listOf("categoryId", "category_id", "category", "kategori_id"), 1),
+                                                type = normalizedType,
+                                                note = parseFlexibleString(obj, listOf("note", "notes", "keterangan", "catatan", "description", "title"), ""),
+                                                targetWalletId = targetWId,
+                                                adminFee = parseFlexibleDouble(obj, listOf("adminFee", "admin_fee", "fee", "biaya_admin"), 0.0)
+                                            )
+                                        )
+                                    }
+                                    break
+                                }
+                            }
                         }
-                        parsedBills = list
+
+                        // Parse Debts
+                        val debtKeys = listOf("debts", "hutang", "piutang", "debtList")
+                        for (dk in debtKeys) {
+                            if (root.has(dk)) {
+                                val arr = root.optJSONArray(dk)
+                                if (arr != null) {
+                                    for (i in 0 until arr.length()) {
+                                        val obj = arr.optJSONObject(i) ?: continue
+                                        val rawDType = parseFlexibleString(obj, listOf("type", "debt_type", "tipe"), "HUTANG").uppercase(Locale.ROOT)
+                                        val normalizedDType = if (rawDType.contains("PIUTANG") || rawDType.contains("LENT") || rawDType.contains("RECEIVABLE")) "PIUTANG" else "HUTANG"
+                                        val totalAmt = parseFlexibleDouble(obj, listOf("totalAmount", "total_amount", "amount", "nominal"), 0.0)
+                                        val remAmt = parseFlexibleDouble(obj, listOf("remainingAmount", "remaining_amount", "remaining", "sisa"), totalAmt)
+                                        parsedDebts.add(
+                                            Debt(
+                                                id = parseFlexibleInt(obj, listOf("id", "debt_id"), 0),
+                                                personName = parseFlexibleString(obj, listOf("personName", "person_name", "name", "nama", "contact"), ""),
+                                                totalAmount = totalAmt,
+                                                remainingAmount = remAmt,
+                                                dueDate = parseFlexibleDate(obj, listOf("dueDate", "due_date", "deadline", "jatuh_tempo")),
+                                                type = normalizedDType,
+                                                notes = parseFlexibleString(obj, listOf("notes", "note", "keterangan", "catatan"), "")
+                                            )
+                                        )
+                                    }
+                                    break
+                                }
+                            }
+                        }
+
+                        // Parse Bills
+                        val billKeys = listOf("bills", "tagihan", "billList")
+                        for (bk in billKeys) {
+                            if (root.has(bk)) {
+                                val arr = root.optJSONArray(bk)
+                                if (arr != null) {
+                                    for (i in 0 until arr.length()) {
+                                        val obj = arr.optJSONObject(i) ?: continue
+                                        val rawStatus = parseFlexibleString(obj, listOf("status", "payment_status"), "BELUM_DIBAYAR").uppercase(Locale.ROOT)
+                                        val normalizedStatus = if (rawStatus.contains("LUNAS") || rawStatus.contains("PAID")) "LUNAS" else "BELUM_DIBAYAR"
+                                        parsedBills.add(
+                                            Bill(
+                                                id = parseFlexibleInt(obj, listOf("id", "bill_id"), 0),
+                                                name = parseFlexibleString(obj, listOf("name", "bill_name", "nama", "title"), ""),
+                                                amount = parseFlexibleDouble(obj, listOf("amount", "nominal", "biaya"), 0.0),
+                                                dueDateValue = parseFlexibleString(obj, listOf("dueDateValue", "due_date_value", "dueDate", "due_date", "jadwal"), ""),
+                                                status = normalizedStatus
+                                            )
+                                        )
+                                    }
+                                    break
+                                }
+                            }
+                        }
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -307,21 +356,24 @@ class FinanceRepository(private val financeDao: FinanceDao) {
 
             // Ensure we parsed at least something meaningful or non-empty valid JSON structure
             if (parsedWallets.isEmpty() && parsedCategories.isEmpty() && parsedTransactions.isEmpty() && parsedDebts.isEmpty() && parsedBills.isEmpty()) {
-                // Return false only if absolutely no data could be extracted
                 return@withContext false
             }
 
-            // If parsed wallets are empty but transactions exist, auto-create a default wallet
+            // If parsed wallets are empty but transactions exist, auto-create wallets for IDs used in transactions
             val finalWallets = if (parsedWallets.isEmpty() && parsedTransactions.isNotEmpty()) {
-                val distinctWalletIds = parsedTransactions.map { it.walletId }.distinct()
+                val distinctWalletIds = (parsedTransactions.map { it.walletId } + parsedTransactions.mapNotNull { it.targetWalletId }).distinct()
                 distinctWalletIds.map { wId ->
-                    Wallet(id = wId, name = "Dompet $wId", balance = 0.0, icon = "wallet")
+                    Wallet(id = if (wId > 0) wId else 1, name = if (wId == 1) "Dompet Utama" else "Dompet $wId", balance = 0.0, icon = "wallet")
+                }.ifEmpty {
+                    listOf(Wallet(id = 1, name = "Dompet Utama", balance = 0.0, icon = "wallet"))
                 }
+            } else if (parsedWallets.isEmpty()) {
+                listOf(Wallet(id = 1, name = "Dompet Utama", balance = 0.0, icon = "wallet"))
             } else {
                 parsedWallets
             }
 
-            // Verify wallet balances: if a wallet has 0 balance but transactions exist, calculate net balance
+            // Verify wallet balances: if a wallet has 0 balance but transactions exist, calculate net balance from ledger
             val calculatedWallets = finalWallets.map { w ->
                 if (w.balance == 0.0 && parsedTransactions.isNotEmpty()) {
                     var net = 0.0
@@ -364,5 +416,127 @@ class FinanceRepository(private val financeDao: FinanceDao) {
             e.printStackTrace()
             false
         }
+    }
+
+    private fun parseArrayDirectly(
+        rootArray: JSONArray,
+        parsedWallets: MutableList<Wallet>,
+        parsedCategories: MutableList<Category>,
+        parsedTransactions: MutableList<Transaction>,
+        parsedDebts: MutableList<Debt>,
+        parsedBills: MutableList<Bill>
+    ) {
+        for (i in 0 until rootArray.length()) {
+            val obj = rootArray.optJSONObject(i) ?: continue
+            if (obj.has("amount") && (obj.has("walletId") || obj.has("wallet_id") || obj.has("categoryId") || obj.has("category_id") || obj.has("type"))) {
+                val rawType = parseFlexibleString(obj, listOf("type", "tx_type", "tipe"), "EXPENSE").uppercase(Locale.ROOT)
+                val normalizedType = when {
+                    rawType.contains("INCOME") || rawType.contains("PEMASUKAN") -> "INCOME"
+                    rawType.contains("TRANSFER") || rawType.contains("PINDAH") -> "TRANSFER"
+                    else -> "EXPENSE"
+                }
+                parsedTransactions.add(
+                    Transaction(
+                        id = parseFlexibleInt(obj, listOf("id", "tx_id"), 0),
+                        amount = parseFlexibleDouble(obj, listOf("amount", "nominal"), 0.0),
+                        date = parseFlexibleDate(obj, listOf("date", "timestamp", "tanggal")),
+                        walletId = parseFlexibleInt(obj, listOf("walletId", "wallet_id", "wallet"), 1),
+                        categoryId = parseFlexibleInt(obj, listOf("categoryId", "category_id", "category"), 1),
+                        type = normalizedType,
+                        note = parseFlexibleString(obj, listOf("note", "notes", "keterangan", "catatan", "description"), ""),
+                        targetWalletId = if (obj.has("targetWalletId")) obj.optInt("targetWalletId") else null,
+                        adminFee = parseFlexibleDouble(obj, listOf("adminFee", "admin_fee"), 0.0)
+                    )
+                )
+            } else if (obj.has("balance") || (obj.has("icon") && obj.has("name"))) {
+                parsedWallets.add(
+                    Wallet(
+                        id = parseFlexibleInt(obj, listOf("id", "wallet_id"), 0),
+                        name = parseFlexibleString(obj, listOf("name", "wallet_name", "nama"), "Dompet"),
+                        balance = parseFlexibleDouble(obj, listOf("balance", "saldo"), 0.0),
+                        icon = parseFlexibleString(obj, listOf("icon", "icon_name"), "wallet")
+                    )
+                )
+            }
+        }
+    }
+
+    private fun parseFlexibleInt(obj: JSONObject, keys: List<String>, default: Int): Int {
+        for (k in keys) {
+            if (obj.has(k)) {
+                val v = obj.opt(k)
+                if (v is Number) return v.toInt()
+                if (v is String) {
+                    val parsed = v.trim().toIntOrNull()
+                    if (parsed != null) return parsed
+                }
+            }
+        }
+        return default
+    }
+
+    private fun parseFlexibleDouble(obj: JSONObject, keys: List<String>, default: Double): Double {
+        for (k in keys) {
+            if (obj.has(k)) {
+                val v = obj.opt(k)
+                if (v is Number) return v.toDouble()
+                if (v is String) {
+                    val clean = v.replace("Rp", "", ignoreCase = true)
+                        .replace("IDR", "", ignoreCase = true)
+                        .replace("$", "")
+                        .replace(" ", "")
+                        .replace(".", "")
+                        .replace(",", ".")
+                        .trim()
+                    val parsed = clean.toDoubleOrNull()
+                    if (parsed != null) return parsed
+                }
+            }
+        }
+        return default
+    }
+
+    private fun parseFlexibleString(obj: JSONObject, keys: List<String>, default: String): String {
+        for (k in keys) {
+            if (obj.has(k)) {
+                val v = obj.optString(k, "")
+                if (v.isNotEmpty() && v != "null") return v
+            }
+        }
+        return default
+    }
+
+    private fun parseFlexibleDate(obj: JSONObject, keys: List<String>): Long {
+        for (k in keys) {
+            if (obj.has(k)) {
+                val v = obj.opt(k)
+                if (v is Number) {
+                    val l = v.toLong()
+                    // If in seconds instead of milliseconds
+                    return if (l < 10000000000L) l * 1000L else l
+                }
+                if (v is String && v.isNotEmpty()) {
+                    val l = v.toLongOrNull()
+                    if (l != null) return if (l < 10000000000L) l * 1000L else l
+                    // Try parsing date string formats
+                    val formats = listOf(
+                        "yyyy-MM-dd'T'HH:mm:ss",
+                        "yyyy-MM-dd HH:mm:ss",
+                        "yyyy-MM-dd",
+                        "dd/MM/yyyy HH:mm",
+                        "dd/MM/yyyy",
+                        "dd-MM-yyyy"
+                    )
+                    for (fmt in formats) {
+                        try {
+                            val sdf = SimpleDateFormat(fmt, Locale.getDefault())
+                            val d = sdf.parse(v)
+                            if (d != null) return d.time
+                        } catch (_: Exception) {}
+                    }
+                }
+            }
+        }
+        return System.currentTimeMillis()
     }
 }

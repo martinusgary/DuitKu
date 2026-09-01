@@ -59,14 +59,12 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                 var isAuthenticated by remember { mutableStateOf(!isRegistered) }
 
                 var selectedTab by remember { mutableStateOf(0) }
-                val tabBackStack = remember { mutableStateListOf<Int>() }
                 var showBackupDialog by remember { mutableStateOf(false) }
                 var showCategoryDialog by remember { mutableStateOf(false) }
                 var isTransactionsBulkMode by remember { mutableStateOf(false) }
 
                 fun navigateToTab(tabIndex: Int) {
                     if (selectedTab != tabIndex) {
-                        tabBackStack.add(selectedTab)
                         selectedTab = tabIndex
                     }
                 }
@@ -74,9 +72,6 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                 fun handleBackNavigation() {
                     if (isTransactionsBulkMode) {
                         isTransactionsBulkMode = false
-                    } else if (tabBackStack.isNotEmpty()) {
-                        val prevTab = tabBackStack.removeAt(tabBackStack.lastIndex)
-                        selectedTab = prevTab
                     } else if (selectedTab != 0) {
                         selectedTab = 0
                     }
@@ -110,7 +105,7 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                         val uiStyle by viewModel.uiStyle.collectAsState()
                         val isFresh = uiStyle == "FRESH"
 
-                        BackHandler(enabled = isTransactionsBulkMode || tabBackStack.isNotEmpty() || selectedTab != 0) {
+                        BackHandler(enabled = isTransactionsBulkMode || selectedTab != 0) {
                             handleBackNavigation()
                         }
 
