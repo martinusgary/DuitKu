@@ -44,7 +44,8 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
     val isId = appLang == "id"
     
     var showAddWalletDialog by remember { mutableStateOf(false) }
-    var selectedWalletToInteract by remember { mutableStateOf<Wallet?>(null) }
+    var selectedWalletForDetail by remember { mutableStateOf<Wallet?>(null) }
+    var selectedWalletForEdit by remember { mutableStateOf<Wallet?>(null) }
 
     Box(
         modifier = Modifier
@@ -96,7 +97,7 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
-                    text = if (isId) "Ketuk dompet untuk menghapusnya atau sesuaikan saldo." else "Tap a wallet to delete it or adjust its balance.",
+                    text = if (isId) "Ketuk dompet untuk melihat rincian saldo atau mengeditnya." else "Tap a wallet to view balance details or edit it.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -111,7 +112,7 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
                         WalletGridCard(
                             wallet = wallet,
                             viewModel = viewModel,
-                            onClick = { selectedWalletToInteract = wallet },
+                            onClick = { selectedWalletForDetail = wallet },
                             modifier = Modifier.animateItem()
                         )
                     }
@@ -140,27 +141,390 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
         )
     }
 
-    selectedWalletToInteract?.let { wallet ->
+    selectedWalletForDetail?.let { wallet ->
+        WalletDetailDialog(
+            wallet = wallet,
+            viewModel = viewModel,
+            onDismiss = { selectedWalletForDetail = null },
+            onEditRequest = {
+                selectedWalletForDetail = null
+                selectedWalletForEdit = wallet
+            }
+        )
+    }
+
+    selectedWalletForEdit?.let { wallet ->
+        EditWalletDialog(
+            wallet = wallet,
+            viewModel = viewModel,
+            onDismiss = { selectedWalletForEdit = null }
+        )
+    }
+}
+
+@Composable
+fun WalletDetailDialog(
+    wallet: Wallet,
+    viewModel: FinanceViewModel,
+    onDismiss: () -> Unit,
+    onEditRequest: () -> Unit
+) {
+    val appLang by viewModel.appLanguage.collectAsState()
+    val isId = appLang == "id"
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 500.dp
+
+    val iconPainter = when (wallet.icon) {
+        "bank" -> painterResource(id = R.drawable.ic_wallet_type_bank)
+        "wallet" -> painterResource(id = R.drawable.ic_wallet_type_wallet)
+        "savings" -> painterResource(id = R.drawable.ic_wallet_type_savings)
+        else -> painterResource(id = R.drawable.ic_wallet_type_cash)
+    }
+
+    val typeLabel = when (wallet.icon) {
+        "bank" -> "Bank"
+        "wallet" -> "E-Money"
+        "savings" -> if (isId) "Tabungan" else "Savings"
+        else -> if (isId) "Tunai / Cash" else "Cash"
+    }
+
+    val gradientBrush = when (wallet.icon) {
+        "bank" -> Brush.verticalGradient(listOf(Color(0xFF1E88E5), Color(0xFF1565C0)))
+        "wallet" -> Brush.verticalGradient(listOf(Color(0xFF8E24AA), Color(0xFF5E35B1)))
+        "savings" -> Brush.verticalGradient(listOf(Color(0xFF43A047), Color(0xFF2E7D32)))
+        else -> Brush.verticalGradient(listOf(Color(0xFFFFA000), Color(0xFFF57C00)))
+    }
+
+    if (showDeleteConfirm) {
         AlertDialog(
-            onDismissRequest = { selectedWalletToInteract = null },
+            onDismissRequest = { showDeleteConfirm = false },
             title = { Text(if (isId) "Hapus Dompet: ${wallet.name}?" else "Delete Wallet: ${wallet.name}?") },
-            text = { Text(if (isId) "Apakah Anda yakin ingin menghapus dompet ini? Menghapusnya tidak akan menghapus riwayat transaksi otomatis, tetapi tidak akan tersedia lagi sebagai pilihan." else "Are you sure you want to delete this wallet? Deleting it will not automatically delete transaction histories, but it will no longer be available as a choice.") },
+            text = { Text(if (isId) "Apakah Anda yakin ingin menghapus dompet ini? Riwayat transaksi lama tetap tersimpan." else "Are you sure you want to delete this wallet? Previous transaction records will remain.") },
             confirmButton = {
                 TextButton(
                     onClick = {
                         viewModel.deleteWallet(wallet)
-                        selectedWalletToInteract = null
+                        showDeleteConfirm = false
+                        onDismiss()
                     }
                 ) {
-                    Text(if (isId) "Hapus Dompet" else "Delete Wallet", color = MaterialTheme.colorScheme.error)
+                    Text(if (isId) "Ya, Hapus" else "Yes, Delete", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { selectedWalletToInteract = null }) {
+                TextButton(onClick = { showDeleteConfirm = false }) {
                     Text(if (isId) "Batal" else "Cancel")
                 }
             }
         )
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .width(dialogWidth)
+                .padding(12.dp),
+            shape = RoundedCornerShape(24.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (isId) "Informasi Dompet" else "Wallet Details",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
+                    }
+                }
+
+                // Visual Hero Card
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(130.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(gradientBrush)
+                            .padding(16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White.copy(alpha = 0.22f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        iconPainter,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Surface(
+                                    color = Color.White.copy(alpha = 0.2f),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text(
+                                        text = typeLabel,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+
+                            Column {
+                                Text(
+                                    text = wallet.name,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = viewModel.formatRupiah(wallet.balance),
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Balance summary description
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_wallet_custom),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Text(
+                            text = if (isId) 
+                                "Saldo aktif dapat digunakan langsung untuk pencatatan transaksi masuk, keluar, atau transfer."
+                            else 
+                                "Active balance is ready for tracking income, expense, and transfer transactions.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // Actions Footer
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Single Delete Button
+                    TextButton(
+                        onClick = { showDeleteConfirm = true },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_delete_custom),
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(if (isId) "Hapus" else "Delete")
+                    }
+
+                    // Edit Button
+                    Button(
+                        onClick = onEditRequest,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_edit_custom),
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(if (isId) "Edit Dompet" else "Edit Wallet")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun EditWalletDialog(
+    wallet: Wallet,
+    viewModel: FinanceViewModel,
+    onDismiss: () -> Unit
+) {
+    val appLang by viewModel.appLanguage.collectAsState()
+    val isId = appLang == "id"
+
+    var walletName by remember(wallet) { mutableStateOf(wallet.name) }
+    var balanceStr by remember(wallet) { 
+        mutableStateOf(if (wallet.balance % 1.0 == 0.0) wallet.balance.toLong().toString() else wallet.balance.toString()) 
+    }
+    var selectedIcon by remember(wallet) { mutableStateOf(wallet.icon) }
+
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val screenHeight = configuration.screenHeightDp
+    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 520.dp
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .width(dialogWidth)
+                .heightIn(max = (screenHeight * 0.85).dp)
+                .padding(12.dp),
+            shape = RoundedCornerShape(24.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = if (isId) "Edit Dompet / Akun" else "Edit Wallet / Account",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = walletName,
+                            onValueChange = { walletName = it },
+                            label = { Text(if (isId) "Nama Dompet / Akun" else "Wallet / Account Name") },
+                            placeholder = { Text(if (isId) "misal: Rekening Bank, Tunai, E-wallet" else "e.g. Bank Account, Cash, E-wallet") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+
+                        OutlinedTextField(
+                            value = balanceStr,
+                            onValueChange = { if (it.all { char -> char.isDigit() || char == '.' }) balanceStr = it },
+                            label = { Text(if (isId) "Saldo Dompet" else "Wallet Balance") },
+                            prefix = { Text("Rp ") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            placeholder = { Text("0") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+
+                        Text(if (isId) "Tipe / Ikon Dompet:" else "Wallet Type / Icon:", style = MaterialTheme.typography.labelMedium)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            val icons = listOf(
+                                Triple("cash", painterResource(id = R.drawable.ic_wallet_type_cash), if (isId) "Tunai" else "Cash"),
+                                Triple("bank", painterResource(id = R.drawable.ic_wallet_type_bank), "Bank"),
+                                Triple("wallet", painterResource(id = R.drawable.ic_wallet_type_wallet), "E-Money"),
+                                Triple("savings", painterResource(id = R.drawable.ic_wallet_type_savings), if (isId) "Tabungan" else "Savings")
+                            )
+
+                            icons.forEach { (key, painter, label) ->
+                                val isSelected = selectedIcon == key
+                                OutlinedIconContainerButton(
+                                    painter = painter,
+                                    label = label,
+                                    isSelected = isSelected,
+                                    onClick = { selectedIcon = key },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(if (isId) "Batal" else "Cancel")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            val balanceVal = balanceStr.toDoubleOrNull() ?: 0.0
+                            if (walletName.trim().isNotEmpty()) {
+                                viewModel.updateWallet(
+                                    wallet.copy(
+                                        name = walletName.trim(),
+                                        balance = balanceVal,
+                                        icon = selectedIcon
+                                    )
+                                )
+                                onDismiss()
+                            }
+                        },
+                        enabled = walletName.trim().isNotEmpty()
+                    ) {
+                        Text(if (isId) "Simpan" else "Save")
+                    }
+                }
+            }
+        }
     }
 }
 

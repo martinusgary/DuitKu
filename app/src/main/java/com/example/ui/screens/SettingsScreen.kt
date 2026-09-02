@@ -1138,93 +1138,6 @@ fun SettingsScreen(
                                 }
                             }
                         }
-
-                        // C. UI Design/Visual style selection
-                        val uiStyle by viewModel.uiStyle.collectAsState()
-                        Card(
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                            ),
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Text(
-                                    text = Localization.getString("style_card_title", isId),
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    text = Localization.getString("style_card_subtitle", isId),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    val isStyleFresh = uiStyle == "FRESH"
-                                    
-                                    // FRESH style
-                                    Surface(
-                                        onClick = { viewModel.setUiStyle("FRESH") },
-                                        modifier = Modifier.weight(1f).height(64.dp),
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = if (isStyleFresh) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                        contentColor = if (isStyleFresh) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        border = if (isStyleFresh) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.Center
-                                        ) {
-                                            if (isStyleFresh) {
-                                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                            }
-                                            Text(
-                                                text = if (isId) "Wallet Fresh (Playful)" else "Digital Fresh (Playful)",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontWeight = FontWeight.Bold,
-                                                textAlign = TextAlign.Center
-                                            )
-                                        }
-                                    }
-
-                                    // SOLID standard style
-                                    Surface(
-                                        onClick = { viewModel.setUiStyle("SOLID") },
-                                        modifier = Modifier.weight(1f).height(64.dp),
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = if (!isStyleFresh) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                        contentColor = if (!isStyleFresh) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        border = if (!isStyleFresh) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.Center
-                                        ) {
-                                            if (!isStyleFresh) {
-                                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                            }
-                                            Text(
-                                                text = if (isId) "Standar Bersih (Classic)" else "Modern Classic (Clean)",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontWeight = FontWeight.Bold,
-                                                textAlign = TextAlign.Center
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
                     }
                     3 -> {
                         // ----------------------------------------------------
@@ -1624,258 +1537,30 @@ fun SettingsScreen(
     // POP-UP SUB-DIALOGS (Google Drive Link Email accounts selection dialog)
     // -----------------------------------------------------------------
     if (showGoogleDialog) {
-        AlertDialog(
-            onDismissRequest = { showGoogleDialog = false },
-            title = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        Icons.Default.CloudQueue,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Text(
-                        text = if (isId) "Masuk dengan Google" else "Sign In with Google",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+        GoogleSyncDialog(
+            isId = isId,
+            viewModel = viewModel,
+            gdriveSyncState = gdriveSyncState,
+            context = context,
+            onBackupFound = { fileTime, fileData ->
+                googleAccount = viewModel.getGDriveAccount()
+                lastSyncTime = viewModel.getGDriveLastSync()
+                cloudBackupTimeFound = fileTime
+                cloudBackupDataFound = fileData
+                showCloudRestorePrompt = true
             },
-            text = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    val loggingIn = gdriveSyncState == "LOGGING_IN"
-
-                    if (loggingIn) {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                                Text(
-                                    text = if (isId) "Menghubungkan & memeriksa Drive..." else "Connecting & checking Drive...",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    } else {
-                        Text(
-                            text = if (isId) {
-                                "Pilih salah satu akun Google yang terdeteksi atau masukkan alamat email Google kustom Anda di bawah."
-                            } else {
-                                "Choose a detected Google account or enter your custom Google secure email address below."
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = if (isId) "Akun Tersimpan di Ponsel:" else "Saved Phone Accounts:",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                              )
-
-                            val savedAccounts = viewModel.getAccountHistory()
-
-                            if (savedAccounts.isEmpty()) {
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
-                                    ),
-                                    shape = RoundedCornerShape(8.dp)
-                                ) {
-                                    Text(
-                                        text = if (isId) "Belum ada akun tersimpan di perangkat ini." else "No saved accounts detected on this device.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.padding(12.dp),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
-                                    )
-                                }
-                            } else {
-                                savedAccounts.forEach { suggestEmail ->
-                                    Card(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { googleEmailInput = suggestEmail },
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = if (googleEmailInput == suggestEmail) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
-                                        ),
-                                        border = if (googleEmailInput == suggestEmail) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,
-                                        shape = RoundedCornerShape(8.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(12.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Icon(
-                                                Icons.Default.AccountCircle,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(20.dp),
-                                                tint = if (googleEmailInput == suggestEmail) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(
-                                                text = suggestEmail,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        OutlinedTextField(
-                            value = googleEmailInput,
-                            onValueChange = { googleEmailInput = it },
-                            label = { Text("Email Google kustom") },
-                            placeholder = { Text("email@example.com") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                val loggingIn = gdriveSyncState == "LOGGING_IN"
-                if (!loggingIn) {
-                    Button(
-                        onClick = {
-                            val email = googleEmailInput.trim()
-                            if (email.isNotEmpty() && android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                                viewModel.connectGDrive(email)
-                                viewModel.fetchCloudBackup(email) { fileTime, fileData ->
-                                    showGoogleDialog = false
-                                    googleAccount = viewModel.getGDriveAccount()
-                                    lastSyncTime = viewModel.getGDriveLastSync()
-                                    
-                                    if (fileTime != null && fileData != null) {
-                                        cloudBackupTimeFound = fileTime
-                                        cloudBackupDataFound = fileData
-                                        showCloudRestorePrompt = true
-                                    } else {
-                                        Toast.makeText(context, if (isId) "Akun Drive Terhubung!" else "Drive Account Connected successfully!", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            } else {
-                                Toast.makeText(context, if (isId) "Alamat email tidak valid!" else "Please input a valid Google email address!", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        shape = RoundedCornerShape(100)
-                    ) {
-                        Text(if (isId) "Hubungkan" else "Connect", fontWeight = FontWeight.Bold)
-                    }
-                }
-            },
-            dismissButton = {
-                val loggingIn = gdriveSyncState == "LOGGING_IN"
-                if (!loggingIn) {
-                    TextButton(onClick = { showGoogleDialog = false }) {
-                        Text(if (isId) "Batal" else "Cancel")
-                    }
-                }
-            }
+            onDismiss = { showGoogleDialog = false }
         )
     }
 
     if (showCloudRestorePrompt) {
-        AlertDialog(
-            onDismissRequest = { showCloudRestorePrompt = false },
-            title = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        Icons.Default.CloudSync,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Text(
-                        text = if (isId) "Cadangan Cloud Ditemukan" else "Cloud Backup Located",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = if (isId) {
-                            "Akun Google Drive Anda menyimpan berkas sinkronisasi cadangan transaksi DuitKu terdeteksi dari tanggal:"
-                        } else {
-                            "Your Google Drive contains an archived DuitKu transaction history recorded on:"
-                        },
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    Text(
-                        text = cloudBackupTimeFound ?: "Unknown Date",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = if (isId) {
-                            "Apakah Anda ingin memulihkan cadangan cloud ini sekarang? Tindakan ini akan menimpa seluruh status data lokal saku dan rincian transaksi DuitKu sekarang berjalan."
-                        } else {
-                            "Do you wish to restore this cloud backup now? Doing so will completely replace your current local financial ledger records."
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val cloudData = cloudBackupDataFound
-                        if (cloudData != null) {
-                            viewModel.importBackupJson(cloudData) { ok ->
-                                showCloudRestorePrompt = false
-                                if (ok) {
-                                    Toast.makeText(context, if (isId) "Cadangan Cloud Berhasil Dipulihkan!" else "Cloud Backup Successfully Restored!", Toast.LENGTH_LONG).show()
-                                } else {
-                                    Toast.makeText(context, if (isId) "Gagal memulihkan cadangan cloud!" else "Cloud restore unsuccessful!", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        } else {
-                            showCloudRestorePrompt = false
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError
-                    ),
-                    shape = RoundedCornerShape(100)
-                ) {
-                    Text(if (isId) "Pulihkan Sekarang" else "Restore Cloud Data", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCloudRestorePrompt = false }) {
-                    Text(if (isId) "Lewati (Gunakan Lokal)" else "Keep Local Data")
-                }
-            }
+        CloudRestorePromptDialog(
+            isId = isId,
+            cloudBackupTime = cloudBackupTimeFound,
+            cloudBackupData = cloudBackupDataFound,
+            viewModel = viewModel,
+            context = context,
+            onDismiss = { showCloudRestorePrompt = false }
         )
     }
 }

@@ -51,13 +51,13 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     private fun getSavedUiStyle(): String {
         val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
-        return prefs.getString("app_ui_style", "FRESH") ?: "FRESH"
+        return prefs.getString("app_ui_style", "SOLID") ?: "SOLID"
     }
 
     fun setUiStyle(style: String) {
         val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
-        prefs.edit().putString("app_ui_style", style).apply()
-        uiStyle.value = style
+        prefs.edit().putString("app_ui_style", "SOLID").apply()
+        uiStyle.value = "SOLID"
     }
 
     private fun getSavedTheme(): String {
@@ -233,6 +233,12 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     fun addWallet(name: String, balance: Double, icon: String) {
         viewModelScope.launch {
             repository.insertWallet(Wallet(name = name, balance = balance, icon = icon))
+        }
+    }
+
+    fun updateWallet(wallet: Wallet) {
+        viewModelScope.launch {
+            repository.updateWallet(wallet)
         }
     }
 
@@ -435,33 +441,71 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun disconnectGDrive() {
-        val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
+        val appCtx = getApplication<Application>()
+        try {
+            val client = com.example.ui.util.GoogleDriveManager.getGoogleSignInClient(appCtx)
+            client.signOut()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        val prefs = appCtx.getSharedPreferences("security_settings", Context.MODE_PRIVATE)
         prefs.edit().remove("gdrive_account").remove("gdrive_last_sync").apply()
     }
 
     fun fetchCloudBackup(email: String, onComplete: (String?, String?) -> Unit) {
         viewModelScope.launch {
             _gdriveSyncState.value = "LOGGING_IN"
-            var cloudRes = readFromCloud(email)
-            if (cloudRes == null) {
-                cloudRes = readFromLocalFallback(email)
+            val appCtx = getApplication<Application>()
+            var fileTime: String? = null
+            var fileData: String? = null
+
+            val signedInAccount = com.example.ui.util.GoogleDriveManager.getLastSignedInAccount(appCtx)
+            if (signedInAccount != null && (signedInAccount.email.equals(email, ignoreCase = true) || email.isEmpty())) {
+                val driveRes = com.example.ui.util.GoogleDriveManager.fetchBackupFromDrive(appCtx, signedInAccount)
+                if (driveRes.isSuccess && driveRes.getOrNull() != null) {
+                    val pair = driveRes.getOrNull()!!
+                    fileTime = pair.first
+                    fileData = pair.second
+                }
             }
+
+            if (fileData == null) {
+                var cloudRes = readFromCloud(email)
+                if (cloudRes == null) {
+                    cloudRes = readFromLocalFallback(email)
+                }
+                if (cloudRes != null) {
+                    fileTime = cloudRes.first
+                    fileData = cloudRes.second
+                }
+            }
+
             _gdriveSyncState.value = null
-            if (cloudRes != null) {
-                onComplete(cloudRes.first, cloudRes.second)
-            } else {
-                onComplete(null, null)
-            }
+            onComplete(fileTime, fileData)
         }
     }
 
     fun restoreFromCloud(email: String, onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
             _gdriveSyncState.value = "RESTORING"
-            var cloudRes = readFromCloud(email)
-            if (cloudRes == null) {
-                cloudRes = readFromLocalFallback(email)
+            val appCtx = getApplication<Application>()
+            var cloudRes: Pair<String, String>? = null
+
+            val signedInAccount = com.example.ui.util.GoogleDriveManager.getLastSignedInAccount(appCtx)
+            if (signedInAccount != null && (signedInAccount.email.equals(email, ignoreCase = true) || email.isEmpty())) {
+                val driveRes = com.example.ui.util.GoogleDriveManager.fetchBackupFromDrive(appCtx, signedInAccount)
+                if (driveRes.isSuccess && driveRes.getOrNull() != null) {
+                    cloudRes = driveRes.getOrNull()
+                }
             }
+
+            if (cloudRes == null) {
+                cloudRes = readFromCloud(email)
+                if (cloudRes == null) {
+                    cloudRes = readFromLocalFallback(email)
+                }
+            }
+
             if (cloudRes != null) {
                 val timestamp = cloudRes.first
                 val data = cloudRes.second
@@ -493,16 +537,27 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     fun syncGDriveNow(onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
             _gdriveSyncState.value = "SYNCING"
+            val appCtx = getApplication<Application>()
             val email = getGDriveAccount() ?: ""
             if (email.isNotEmpty()) {
                 val currentTime = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale("id", "ID")).format(Date())
                 val encryptedBackup = getEncryptedBackup()
                 
-                // Write to both cloud and resilient local mirrors
+                // 1. Google Drive API Upload if signed in with Google OAuth
+                var driveUploaded = false
+                val signedInAccount = com.example.ui.util.GoogleDriveManager.getLastSignedInAccount(appCtx)
+                if (signedInAccount != null && (signedInAccount.email.equals(email, ignoreCase = true) || email.isEmpty())) {
+                    val driveResult = com.example.ui.util.GoogleDriveManager.uploadBackupToDrive(appCtx, signedInAccount, encryptedBackup)
+                    if (driveResult.isSuccess) {
+                        driveUploaded = true
+                    }
+                }
+
+                // 2. Write to resilient local and cloud fallback mirrors as redundancy
                 writeToCloud(email, currentTime, encryptedBackup)
                 writeToLocalFallback(email, currentTime, encryptedBackup)
                 
-                val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
+                val prefs = appCtx.getSharedPreferences("security_settings", Context.MODE_PRIVATE)
                 prefs.edit().putString("gdrive_last_sync", currentTime).apply()
                 _gdriveSyncState.value = "SUCCESS"
                 onComplete(true)

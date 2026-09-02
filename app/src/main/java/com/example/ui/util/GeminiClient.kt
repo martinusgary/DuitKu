@@ -57,19 +57,19 @@ object GeminiClient {
                                     Analisis foto ini. Foto ini dapat berisi satu atau beberapa nota/kwitansi belanja sekaligus secara bersamaan (misal ditata berdampingan atau bertumpuk). Temukan semua struk/kwitansi belanja yang terdeteksi di dalam foto ini. Untuk setiap struk yang teratur, ekstrak:
                                     - amount: total belanja (Double)
                                     - type: tipe transaksi ("EXPENSE" atau "INCOME", biasanya EXPENSE)
-                                    - note: nama toko dan barang utama yang dibeli (String).
+                                    - note: WAJIB dalam format persis "Tempat: Barang" (Contoh: "Indomaret: Minyak, Gula, Roti" atau "Kopi Kenangan: Kopi Kenangan Mantan" atau "SPBU Pertamina: Pertalite"). Jika nama toko tidak terlihat, gunakan "Toko: Barang".
 
                                     Kembalikan tanggapan hanya dalam format JSON ARRAY seperti contoh berikut:
                                     [
                                       {
                                         "amount": 45000.0,
                                         "type": "EXPENSE",
-                                        "note": "Kopi Susu di Kopi Kenangan"
+                                        "note": "Kopi Kenangan: Kopi Susu & Donat"
                                       },
                                       {
                                         "amount": 120000.0,
                                         "type": "EXPENSE",
-                                        "note": "Bahan Pokok di Indomaret"
+                                        "note": "Indomaret: Bahan Pokok & Camilan"
                                       }
                                     ]
                                     Harap pastikan jumlah/amount berupa nilai numerik biasa murni tanpa format Rp atau titik ribu.
@@ -95,7 +95,7 @@ object GeminiClient {
                 val systemInstructionObj = JSONObject().apply {
                     val partsArray = JSONArray().apply {
                         put(JSONObject().apply {
-                            put("text", "You are an expert Indonesian receipt analyzer. You detect all receipts in an image and return them as a raw, valid JSON Array containing objects with amount (Double), type (String), and note (String).")
+                            put("text", "You are an expert Indonesian receipt analyzer. You detect all receipts in an image and return them as a raw, valid JSON Array containing objects with amount (Double), type (String), and note (String). Format note strictly as 'Tempat: Barang' (e.g. 'Indomaret: Minyak, Gula', 'Kopi Kenangan: Kopi Kenangan Mantan', 'SPBU Pertamina: Pertalite'). If merchant is unknown, use 'Toko: Barang'.")
                         })
                     }
                     put("parts", partsArray)
@@ -215,12 +215,12 @@ object GeminiClient {
                         // Instruction Prompt
                         val textPart = JSONObject().apply {
                             put("text", """
-                                Analisis foto nota / resi ini. Ekstrak nilai total belanja (amount), jenis transaksi (type: "EXPENSE" atau "INCOME", biasanya EXPENSE untuk belanja), dan catatan ringkas nama toko serta nama barang/jasa utama yang dibeli (note).
+                                Analisis foto nota / resi ini. Ekstrak nilai total belanja (amount), jenis transaksi (type: "EXPENSE" atau "INCOME", biasanya EXPENSE untuk belanja), dan catatan (note) WAJIB diformat persis sebagai "Tempat: Barang" (Contoh: "Indomaret: Minyak, Gula, Roti" atau "Kopi Kenangan: Kopi Susu Mantan" atau "SPBU Pertamina: Pertalite"). Jika nama tempat/toko tidak tertera, gunakan "Toko: Barang".
                                 Sila kembalikan tanggapan hanya dalam format objek JSON seperti ini:
                                 {
                                   "amount": 45000.0,
                                   "type": "EXPENSE",
-                                  "note": "Kopi Susu dan Donat di Kopi Kenangan"
+                                  "note": "Kopi Kenangan: Kopi Susu & Donat"
                                 }
                                 Harap pastikan jumlah/amount diekstrak sebagai angka numerik biasa tanpa tanda titik ribu atau mata uang (misal 50000.0 bukannya Rp 50.000).
                                 Kembalikan HANYA teks JSON tersebut tanpa prefiks ```json atau format markdown penjelasan lainnya.
@@ -247,7 +247,7 @@ object GeminiClient {
             val systemInstructionObj = JSONObject().apply {
                 val partsArray = JSONArray().apply {
                     put(JSONObject().apply {
-                        put("text", "You are an expert Indonesian receipt analyzer. You return raw, valid JSON only containing amount (Double), type (String), and note (String).")
+                        put("text", "You are an expert Indonesian receipt analyzer. You return raw, valid JSON only containing amount (Double), type (String), and note (String). Format note strictly as 'Tempat: Barang' (e.g. 'Indomaret: Minyak, Gula', 'Kopi Kenangan: Kopi Susu', 'SPBU Pertamina: Pertamax'). If merchant is unknown, use 'Toko: Barang'.")
                     })
                 }
                 put("parts", partsArray)
