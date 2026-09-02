@@ -561,21 +561,6 @@ fun TransactionsScreen(
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
                                             )
-                                            if (txn.adminFee > 0.0) {
-                                                Surface(
-                                                    shape = RoundedCornerShape(4.dp),
-                                                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f),
-                                                    modifier = Modifier.padding(start = 2.dp)
-                                                ) {
-                                                    Text(
-                                                        text = "+Admin ${viewModel.formatRupiah(txn.adminFee)}",
-                                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = MaterialTheme.colorScheme.onErrorContainer,
-                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                                    )
-                                                }
-                                            }
                                         }
                                     }
                                 }
@@ -590,9 +575,14 @@ fun TransactionsScreen(
                                     "EXPENSE" -> "-"
                                     else -> "⇄"
                                 }
+                                val listDisplayAmount = if (txn.type == "EXPENSE" || txn.type == "TRANSFER") {
+                                    txn.amount + txn.adminFee
+                                } else {
+                                    txn.amount
+                                }
 
                                 Text(
-                                    text = "$formatSign ${viewModel.formatRupiah(txn.amount)}",
+                                    text = "$formatSign ${viewModel.formatRupiah(listDisplayAmount)}",
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Black,
                                     color = priceColor
@@ -772,9 +762,14 @@ fun TransactionsScreen(
                                     else -> MaterialTheme.colorScheme.primary
                                 }
                             )
+                            val totalDetailAmount = if (txn.type == "EXPENSE" || txn.type == "TRANSFER") {
+                                txn.amount + txn.adminFee
+                            } else {
+                                txn.amount
+                            }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = viewModel.formatRupiah(txn.amount),
+                                text = viewModel.formatRupiah(totalDetailAmount),
                                 style = MaterialTheme.typography.headlineMedium,
                                 fontWeight = FontWeight.Black,
                                 color = when (txn.type) {
@@ -802,12 +797,16 @@ fun TransactionsScreen(
 
                         if (txn.adminFee > 0.0) {
                             TransactionRowItemDetail(
+                                label = if (isId) "Nominal Transaksi" else "Base Amount",
+                                value = viewModel.formatRupiah(txn.amount)
+                            )
+                            TransactionRowItemDetail(
                                 label = if (isId) "Biaya Admin" else "Admin Fee",
                                 value = viewModel.formatRupiah(txn.adminFee)
                             )
                             val totalDeducted = txn.amount + txn.adminFee
                             TransactionRowItemDetail(
-                                label = if (isId) "Total Dipotong Dari Dompet" else "Total Deducted From Wallet",
+                                label = if (isId) "Total Transaksi (+Admin)" else "Total Deducted (+Admin)",
                                 value = viewModel.formatRupiah(totalDeducted)
                             )
                         }

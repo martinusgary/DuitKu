@@ -62,6 +62,7 @@ fun AddTransactionDialog(
     val isId = appLang == "id"
 
     var amountStr by remember { mutableStateOf("") }
+    var enableAdminFee by remember { mutableStateOf(false) }
     var adminFeeStr by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf("EXPENSE") } // "INCOME", "EXPENSE", "TRANSFER"
     var selectedWalletId by remember { mutableStateOf(wallets.firstOrNull()?.id ?: 0) }
@@ -482,79 +483,191 @@ fun AddTransactionDialog(
                         placeholder = { Text("0") }
                     )
 
-                    // 2b. Admin Fee Input
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        OutlinedTextField(
-                            value = adminFeeStr,
-                            onValueChange = { if (it.all { char -> char.isDigit() }) adminFeeStr = it },
-                            label = { Text(if (isId) "Biaya Admin (Opsional)" else "Admin Fee (Optional)") },
-                            prefix = { Text("Rp ") },
-                            placeholder = { Text("0") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
+                    // 2b. Admin Fee Section (Modeled after Debt & Split collapsible toggle card)
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                        ),
+                        border = BorderStroke(
+                            1.dp,
+                            if (enableAdminFee) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                         )
-
-                        // Quick chips for Admin Fee
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            listOf("0" to "Rp 0", "1000" to "1.000", "2500" to "2.500", "6500" to "6.500").forEach { (valStr, label) ->
-                                val isSelected = adminFeeStr == valStr || (valStr == "0" && (adminFeeStr.isEmpty() || adminFeeStr == "0"))
-                                Surface(
-                                    onClick = { adminFeeStr = if (valStr == "0") "" else valStr },
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                    border = BorderStroke(
-                                        1.dp,
-                                        if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                                    )
-                                ) {
-                                    Text(
-                                        text = label,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        val parsedAmt = amountStr.toDoubleOrNull() ?: 0.0
-                        val parsedFee = adminFeeStr.toDoubleOrNull() ?: 0.0
-
-                        if (selectedType == "TRANSFER" && parsedAmt > 0.0) {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
-                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                            // Header Row toggle
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        enableAdminFee = !enableAdminFee
+                                        if (!enableAdminFee) {
+                                            adminFeeStr = ""
+                                        }
+                                    },
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text(
-                                        text = if (isId) "Ringkasan Aliran Dana Transfer:" else "Transfer Fund Flow Summary:",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(34.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (enableAdminFee) {
+                                                    Brush.horizontalGradient(listOf(Color(0xFF00897B), Color(0xFF00ACC1)))
+                                                } else {
+                                                    Brush.horizontalGradient(listOf(Color(0xFF757575).copy(alpha = 0.2f), Color(0xFF757575).copy(alpha = 0.2f)))
+                                                }
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.ReceiptLong,
+                                            contentDescription = null,
+                                            tint = if (enableAdminFee) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                    Column {
+                                        Text(
+                                            text = if (isId) "Biaya Admin (Opsional)" else "Admin Fee (Optional)",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        if (!enableAdminFee) {
+                                            Text(
+                                                text = if (isId) "Ketuk untuk menambahkan biaya admin" else "Tap to add admin fee",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Switch(
+                                    checked = enableAdminFee,
+                                    onCheckedChange = {
+                                        enableAdminFee = it
+                                        if (!it) {
+                                            adminFeeStr = ""
+                                        }
+                                    }
+                                )
+                            }
+
+                            AnimatedVisibility(visible = enableAdminFee) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 4.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    OutlinedTextField(
+                                        value = adminFeeStr,
+                                        onValueChange = { if (it.all { char -> char.isDigit() }) adminFeeStr = it },
+                                        label = { Text(if (isId) "Nominal Biaya Admin" else "Admin Fee Amount") },
+                                        prefix = { Text("Rp ") },
+                                        placeholder = { Text("0") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true
                                     )
-                                    Text(
-                                        text = if (isId) 
-                                            "• Terpotong dari dompet asal: ${viewModel.formatRupiah(parsedAmt + parsedFee)} (Nominal + Admin)"
-                                        else 
-                                            "• Deducted from source: ${viewModel.formatRupiah(parsedAmt + parsedFee)} (Amount + Admin)",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Text(
-                                        text = if (isId) 
-                                            "• Masuk ke dompet tujuan: ${viewModel.formatRupiah(parsedAmt)} (Bersih tanpa admin)"
-                                        else 
-                                            "• Received in target: ${viewModel.formatRupiah(parsedAmt)} (Net amount)",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+
+                                    // Quick chips for Admin Fee
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        listOf("1000" to "1.000", "2500" to "2.500", "6500" to "6.500", "10000" to "10.000").forEach { (valStr, label) ->
+                                            val isSelected = adminFeeStr == valStr
+                                            Surface(
+                                                onClick = { adminFeeStr = valStr },
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                                border = BorderStroke(
+                                                    1.dp,
+                                                    if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                                                )
+                                            ) {
+                                                Text(
+                                                    text = "Rp $label",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    val parsedAmt = amountStr.toDoubleOrNull() ?: 0.0
+                                    val parsedFee = adminFeeStr.toDoubleOrNull() ?: 0.0
+
+                                    if (parsedFee > 0.0 && parsedAmt > 0.0) {
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+                                            modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
+                                        ) {
+                                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Text(if (isId) "💵 Nominal Pokok:" else "💵 Base Amount:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                                                    Text(viewModel.formatRupiah(parsedAmt), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                                                }
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Text(if (isId) "🏷️ Biaya Admin:" else "🏷️ Admin Fee:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                                                    Text(viewModel.formatRupiah(parsedFee), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                                                }
+                                                HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Text(
+                                                        if (selectedType == "TRANSFER") {
+                                                            if (isId) "💳 Total Dipotong Dompet Asal:" else "💳 Total Deducted from Source:"
+                                                        } else {
+                                                            if (isId) "💳 Total Pengeluaran (+Admin):" else "💳 Total Deducted (+Admin):"
+                                                        },
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.primary
+                                                    )
+                                                    Text(
+                                                        viewModel.formatRupiah(parsedAmt + parsedFee),
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        fontWeight = FontWeight.Black,
+                                                        color = MaterialTheme.colorScheme.primary
+                                                    )
+                                                }
+                                                if (selectedType == "TRANSFER") {
+                                                    Text(
+                                                        text = if (isId) "• Bersih masuk ke dompet tujuan: ${viewModel.formatRupiah(parsedAmt)}" else "• Net received in target wallet: ${viewModel.formatRupiah(parsedAmt)}",
+                                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -731,21 +844,15 @@ fun AddTransactionDialog(
                                             text = if (isId) "Opsi Hutang & Split Pembayaran" else "Debt & Split Payment Options",
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.ExtraBold,
-                                            color = if (enableDebtOption) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface
+                                            color = MaterialTheme.colorScheme.onSurface
                                         )
-                                        Text(
-                                            text = if (enableDebtOption) {
-                                                when (debtModeOption) {
-                                                    "FULL_DEBT" -> if (isId) "Opsi 1: Hutang 1 Transaksi Penuh (Tanpa Dompet)" else "Option 1: Full Transaction Debt (No Wallet)"
-                                                    "SPLIT_DEBT" -> if (isId) "Opsi 2: Bayar Sebagian (Uang Kurang → Sisa Hutang)" else "Option 2: Partial Payment (Underfunded → Remainder Debt)"
-                                                    else -> if (isId) "Opsi 3: Talangi Teman (Piutang)" else "Option 3: Friend Split Bill (Loan)"
-                                                }
-                                            } else {
-                                                if (isId) "Ketuk untuk mencatat transaksi sebagai hutang atau split" else "Tap to log as debt or split underfunded payment"
-                                            },
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
+                                        if (!enableDebtOption) {
+                                            Text(
+                                                text = if (isId) "Ketuk untuk mencatat transaksi sebagai hutang atau split" else "Tap to log as debt or split underfunded payment",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                     }
                                 }
 
@@ -1060,7 +1167,7 @@ fun AddTransactionDialog(
                     Button(
                         onClick = {
                             val amountVal = amountStr.toDoubleOrNull() ?: 0.0
-                            val adminFeeVal = adminFeeStr.toDoubleOrNull() ?: 0.0
+                            val adminFeeVal = if (enableAdminFee) (adminFeeStr.toDoubleOrNull() ?: 0.0) else 0.0
 
                             if (scannedReceipts.isNotEmpty()) {
                                 // Save all scanned receipts

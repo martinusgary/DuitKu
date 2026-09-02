@@ -124,21 +124,6 @@ fun TransactionItemRow(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                         )
-                        if (transaction.adminFee > 0.0) {
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f),
-                                modifier = Modifier.padding(start = 2.dp)
-                            ) {
-                                Text(
-                                    text = "+Admin ${viewModel.formatRupiah(transaction.adminFee)}",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onErrorContainer,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                )
-                            }
-                        }
                     }
                 }
             }
@@ -153,9 +138,14 @@ fun TransactionItemRow(
                 "EXPENSE" -> "-"
                 else -> "⇄"
             }
+            val listDisplayAmount = if (transaction.type == "EXPENSE" || transaction.type == "TRANSFER") {
+                transaction.amount + transaction.adminFee
+            } else {
+                transaction.amount
+            }
 
             Text(
-                text = if (isHidden) "$prefix Rp ••••••" else "$prefix ${viewModel.formatRupiah(transaction.amount)}",
+                text = if (isHidden) "$prefix Rp ••••••" else "$prefix ${viewModel.formatRupiah(listDisplayAmount)}",
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Black,
                 color = priceColor
@@ -178,6 +168,12 @@ fun TransactionItemRow(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    val totalDisplayAmount = if (transaction.type == "EXPENSE" || transaction.type == "TRANSFER") {
+                        transaction.amount + transaction.adminFee
+                    } else {
+                        transaction.amount
+                    }
+
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
@@ -207,7 +203,7 @@ fun TransactionItemRow(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = viewModel.formatRupiah(transaction.amount),
+                                text = viewModel.formatRupiah(totalDisplayAmount),
                                 style = MaterialTheme.typography.headlineMedium,
                                 fontWeight = FontWeight.Black,
                                 color = when (transaction.type) {
@@ -235,12 +231,16 @@ fun TransactionItemRow(
 
                         if (transaction.adminFee > 0.0) {
                             DashboardDetailRow(
+                                label = if (isId) "Nominal Transaksi" else "Base Amount",
+                                value = viewModel.formatRupiah(transaction.amount)
+                            )
+                            DashboardDetailRow(
                                 label = if (isId) "Biaya Admin" else "Admin Fee",
                                 value = viewModel.formatRupiah(transaction.adminFee)
                             )
                             val totalDeducted = transaction.amount + transaction.adminFee
                             DashboardDetailRow(
-                                label = if (isId) "Total Dipotong Dari Dompet" else "Total Deducted From Wallet",
+                                label = if (isId) "Total Transaksi (+Admin)" else "Total Deducted (+Admin)",
                                 value = viewModel.formatRupiah(totalDeducted)
                             )
                         }
