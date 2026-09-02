@@ -8,39 +8,36 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CreditCard
-import androidx.compose.material.icons.filled.DocumentScanner
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.Handshake
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.FileProvider
@@ -73,13 +70,17 @@ fun AddTransactionDialog(
     var note by remember { mutableStateOf("") }
     var scannedReceipts by remember { mutableStateOf<List<GeminiClient.ScanResult>>(initialScannedReceipts) }
 
-    // Debt / Loan (Talangan) states
+    // Debt / Loan (Talangan & Split) states
     var enableDebtOption by remember { mutableStateOf(false) }
-    var debtTypeOption by remember { mutableStateOf("HUTANG") } // "HUTANG" or "PIUTANG"
+    // 3 debt modes:
+    // "FULL_DEBT": Opsi 1 - Hutang 1 transaksi penuh (tidak pakai wallet apapun, masuk ke pengeluaran & tab hutang)
+    // "SPLIT_DEBT": Opsi 2 - Bayar sebagian (uang kurang), pakai wallet dan hanya saldo yang dibayar yang terpotong, sisanya masuk hutang
+    // "LEND_FRIEND": Opsi 3 - Talangi teman (piutang)
+    var debtModeOption by remember { mutableStateOf("FULL_DEBT") }
     var debtPersonName by remember { mutableStateOf("") }
-    var debtCustomAmountStr by remember { mutableStateOf("") }
+    var debtWalletPaidStr by remember { mutableStateOf("") } // Amount paid from wallet in SPLIT_DEBT
+    var debtCustomAmountStr by remember { mutableStateOf("") } // Custom amount for LEND_FRIEND
     var debtDueDays by remember { mutableIntStateOf(7) } // 3, 7, 14, 30 days
-    var deductWalletForHutang by remember { mutableStateOf(true) }
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -196,6 +197,20 @@ fun AddTransactionDialog(
         }
     }
 
+    // Auto calculate default wallet payment when wallet changes or total amount changes in SPLIT_DEBT
+    val currentSelectedWallet = wallets.firstOrNull { it.id == selectedWalletId }
+    val parsedTotalAmount = amountStr.toDoubleOrNull() ?: 0.0
+
+    LaunchedEffect(selectedWalletId, amountStr, enableDebtOption, debtModeOption) {
+        if (enableDebtOption && debtModeOption == "SPLIT_DEBT" && debtWalletPaidStr.isEmpty()) {
+            val walletBal = currentSelectedWallet?.balance ?: 0.0
+            if (walletBal > 0.0 && parsedTotalAmount > 0.0) {
+                val autoPaid = minOf(walletBal, parsedTotalAmount)
+                debtWalletPaidStr = autoPaid.toInt().toString()
+            }
+        }
+    }
+
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp
     val screenHeight = configuration.screenHeightDp
@@ -208,7 +223,7 @@ fun AddTransactionDialog(
         Card(
             modifier = Modifier
                 .width(dialogWidth)
-                .heightIn(max = (screenHeight * 0.85).dp)
+                .heightIn(max = (screenHeight * 0.88).dp)
                 .padding(12.dp),
             shape = RoundedCornerShape(24.dp)
         ) {
@@ -219,48 +234,57 @@ fun AddTransactionDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text(
-                    text = if (isId) "Tambah Transaksi Baru" else "Add New Transaction",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
+                // Header Title
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (isId) "Tambah Transaksi Baru" else "Add New Transaction",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Black
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
 
-                // 1. Selector Tab (High-polish Segmented Control)
+                // 1. Transaction Type Selector with Vibrant Gradients
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            shape = RoundedCornerShape(12.dp)
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                            shape = RoundedCornerShape(14.dp)
                         )
                         .padding(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     val items = listOf(
-                        "EXPENSE" to (if (isId) "Pengeluaran" else "Expense"),
-                        "INCOME" to (if (isId) "Pemasukan" else "Income"),
-                        "TRANSFER" to (if (isId) "Transfer" else "Transfer")
+                        Triple("EXPENSE", if (isId) "Pengeluaran" else "Expense", listOf(Color(0xFFE53935), Color(0xFFC62828))),
+                        Triple("INCOME", if (isId) "Pemasukan" else "Income", listOf(Color(0xFF43A047), Color(0xFF2E7D32))),
+                        Triple("TRANSFER", if (isId) "Transfer" else "Transfer", listOf(Color(0xFF1E88E5), Color(0xFF1565C0)))
                     )
-                    items.forEach { (type, label) ->
+                    items.forEach { (type, label, gradientColors) ->
                         val isSelected = selectedType == type
-                        val tabItemShape = RoundedCornerShape(8.dp)
+                        val tabItemShape = RoundedCornerShape(10.dp)
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .background(
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                    shape = tabItemShape
-                                )
                                 .clip(tabItemShape)
+                                .background(
+                                    if (isSelected) Brush.horizontalGradient(gradientColors) else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent))
+                                )
                                 .clickable { selectedType = type }
                                 .padding(vertical = 10.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = label,
-                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold
                             )
                         }
                     }
@@ -268,13 +292,13 @@ fun AddTransactionDialog(
 
                 // Quick Scan Receipt Section (Camera & Gallery)
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier.padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Row(
@@ -284,30 +308,38 @@ fun AddTransactionDialog(
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.DocumentScanner,
-                                    contentDescription = "Scan Struk",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.DocumentScanner,
+                                        contentDescription = "Scan Struk",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                                 Text(
-                                    text = if (isId) "Pindai Struk / Upload Gambar" else "Scan Receipt / Upload Image",
+                                    text = if (isId) "Pindai Struk Belanja (AI)" else "Scan Receipt (AI)",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }
                             if (isScanningInsideDialog) {
-                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                             }
                         }
                         Text(
-                            text = if (isId) 
-                                "Otomatis isi nominal, catatan, dan tipe dari foto struk belanja dengan AI Gemini." 
-                            else 
-                                "Auto-populate amount, notes, and category from receipt photo via Gemini AI.",
+                            text = if (isId)
+                                "Pindai struk untuk mengisi nominal, catatan, & kategori secara otomatis."
+                            else
+                                "Scan receipts to auto-populate amount, notes, and category.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -525,56 +557,80 @@ fun AddTransactionDialog(
                                     )
                                 }
                             }
-                        } else if (parsedFee > 0.0 && parsedAmt > 0.0) {
+                        }
+                    }
+                }
+
+                // 3. Wallets Selection (Gradient-styled Mini Wallet Cards)
+                val isFullDebtActive = enableDebtOption && debtModeOption == "FULL_DEBT"
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (isId) "Dompet Asal:" else "Source Wallet:",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (isFullDebtActive) {
                             Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                                shape = RoundedCornerShape(6.dp),
+                                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
                             ) {
                                 Text(
-                                    text = if (isId) 
-                                        "Total saldo terpotong: ${viewModel.formatRupiah(parsedAmt + parsedFee)} (${viewModel.formatRupiah(parsedAmt)} + Admin ${viewModel.formatRupiah(parsedFee)})"
-                                    else 
-                                        "Total deducted: ${viewModel.formatRupiah(parsedAmt + parsedFee)} (${viewModel.formatRupiah(parsedAmt)} + Fee ${viewModel.formatRupiah(parsedFee)})",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(10.dp)
+                                    text = if (isId) "Tanpa Dompet (Hutang 100%)" else "No Wallet (100% Debt)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    if (wallets.isEmpty()) {
+                        Text(
+                            if (isId) "Dompet tidak ditemukan. Silakan tambahkan dompet terlebih dahulu di tab Dompet." else "No wallets found. Please add a wallet first in the Wallets tab.",
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    } else {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(wallets, key = { it.id }) { w ->
+                                WalletGradientChip(
+                                    wallet = w,
+                                    isSelected = selectedWalletId == w.id && !isFullDebtActive,
+                                    isDisabled = isFullDebtActive,
+                                    formattedBalance = viewModel.formatRupiah(w.balance),
+                                    onClick = {
+                                        if (!isFullDebtActive) {
+                                            selectedWalletId = w.id
+                                        }
+                                    }
                                 )
                             }
                         }
                     }
                 }
 
-                // 3. Wallets Selection (From / Source Wallet)
-                Text(if (isId) "Dompet Asal:" else "Source Wallet:", style = MaterialTheme.typography.labelMedium)
-                if (wallets.isEmpty()) {
-                    Text(if (isId) "Dompet tidak ditemukan. Silakan tambahkan dompet terlebih dahulu di tab Dompet." else "No wallets found. Please add a wallet first in the Wallets tab.", color = MaterialTheme.colorScheme.error)
-                } else {
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        items(wallets, key = { it.id }) { w ->
-                            SimpleCustomChip(
-                                text = w.name,
-                                isSelected = selectedWalletId == w.id,
-                                onClick = { selectedWalletId = w.id }
-                            )
-                        }
-                    }
-                }
-
                 // 4. Specific to Transfer Destination Wallet
                 if (selectedType == "TRANSFER") {
-                    Text(if (isId) "Dompet Tujuan:" else "Destination Wallet:", style = MaterialTheme.typography.labelMedium)
+                    Text(if (isId) "Dompet Tujuan:" else "Destination Wallet:", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                     LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         items(wallets, key = { it.id }) { w ->
-                            SimpleCustomChip(
-                                text = w.name,
+                            WalletGradientChip(
+                                wallet = w,
                                 isSelected = selectedTargetWalletId == w.id,
+                                isDisabled = false,
+                                formattedBalance = viewModel.formatRupiah(w.balance),
                                 onClick = { selectedTargetWalletId = w.id }
                             )
                         }
@@ -583,7 +639,7 @@ fun AddTransactionDialog(
 
                 // 5. Category Selection (Only for Income and Expense)
                 if (selectedType != "TRANSFER") {
-                    Text(if (isId) "Kategori:" else "Category:", style = MaterialTheme.typography.labelMedium)
+                    Text(if (isId) "Kategori:" else "Category:", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                     val listToShow = if (selectedType == "INCOME") incomeCategoryList else expenseCategoryList
                     
                     if (listToShow.isEmpty()) {
@@ -610,33 +666,33 @@ fun AddTransactionDialog(
                         value = note,
                         onValueChange = { note = it },
                         label = { Text(if (isId) "Catatan Tambahan" else "Additional Note") },
-                        placeholder = { Text(if (isId) "misal: Belanja bulanan, bonus gaji, kopi bareng teman, dll." else "e.g., Grocery store, salary bonus, coffee with friends, etc.") },
+                        placeholder = { Text(if (isId) "misal: Belanja warung, kopi, makan siang, dll." else "e.g., Grocery store, coffee, lunch, etc.") },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
 
-                // 7. Compact Expandable Hutang & Talangan Teman (Piutang) Section
-                if (selectedType != "TRANSFER") {
+                // 7. HUTANG & TALANGAN SECTION (With 2 Clear Options & Gradient Design)
+                if (selectedType == "EXPENSE") {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
                             containerColor = if (enableDebtOption) {
-                                MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.25f)
+                                MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.2f)
                             } else {
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                             }
                         ),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(20.dp),
                         border = BorderStroke(
                             1.dp,
-                            if (enableDebtOption) MaterialTheme.colorScheme.tertiary.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                            if (enableDebtOption) MaterialTheme.colorScheme.tertiary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                         )
                     ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             // Header Row toggle
                             Row(
@@ -648,27 +704,44 @@ fun AddTransactionDialog(
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Handshake,
-                                        contentDescription = null,
-                                        tint = if (enableDebtOption) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp)
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(34.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (enableDebtOption) {
+                                                    Brush.horizontalGradient(listOf(Color(0xFF8E24AA), Color(0xFF5E35B1)))
+                                                } else {
+                                                    Brush.horizontalGradient(listOf(Color(0xFF757575).copy(alpha = 0.2f), Color(0xFF757575).copy(alpha = 0.2f)))
+                                                }
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Handshake,
+                                            contentDescription = null,
+                                            tint = if (enableDebtOption) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
                                     Column {
                                         Text(
-                                            text = if (isId) "Opsi Hutang / Talangi Teman" else "Debt & Split Bill (Loan)",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (enableDebtOption) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface
+                                            text = if (isId) "Opsi Hutang & Split Pembayaran" else "Debt & Split Payment Options",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = if (enableDebtOption) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface
                                         )
                                         Text(
                                             text = if (enableDebtOption) {
-                                                if (debtTypeOption == "HUTANG") (if (isId) "Tercatat di menu Hutang Saya" else "Logged to My Debts")
-                                                else (if (isId) "Tercatat di menu Piutang / Ditalangi" else "Logged to Debts Owed to Me")
+                                                when (debtModeOption) {
+                                                    "FULL_DEBT" -> if (isId) "Opsi 1: Hutang 1 Transaksi Penuh (Tanpa Dompet)" else "Option 1: Full Transaction Debt (No Wallet)"
+                                                    "SPLIT_DEBT" -> if (isId) "Opsi 2: Bayar Sebagian (Uang Kurang → Sisa Hutang)" else "Option 2: Partial Payment (Underfunded → Remainder Debt)"
+                                                    else -> if (isId) "Opsi 3: Talangi Teman (Piutang)" else "Option 3: Friend Split Bill (Loan)"
+                                                }
                                             } else {
-                                                if (isId) "Ketuk untuk catat hutang atau talangan otomatis" else "Tap to link with debts or friend loans"
+                                                if (isId) "Ketuk untuk mencatat transaksi sebagai hutang atau split" else "Tap to log as debt or split underfunded payment"
                                             },
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -678,155 +751,251 @@ fun AddTransactionDialog(
 
                                 Switch(
                                     checked = enableDebtOption,
-                                    onCheckedChange = { enableDebtOption = it },
-                                    modifier = Modifier.height(28.dp)
+                                    onCheckedChange = { enableDebtOption = it }
                                 )
                             }
 
                             AnimatedVisibility(visible = enableDebtOption) {
                                 Column(
-                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 4.dp),
+                                    verticalArrangement = Arrangement.spacedBy(14.dp)
                                 ) {
-                                    // Mode Selector
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-                                            .padding(3.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        val isHutang = debtTypeOption == "HUTANG"
-                                        
-                                        // Saya Berhutang (Hutang)
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .background(
-                                                    if (isHutang) MaterialTheme.colorScheme.errorContainer else Color.Transparent,
-                                                    RoundedCornerShape(8.dp)
-                                                )
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .clickable { debtTypeOption = "HUTANG" }
-                                                .padding(vertical = 8.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                if (isHutang) {
-                                                    Icon(Icons.Default.CreditCard, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.size(14.dp))
-                                                    Spacer(modifier = Modifier.width(4.dp))
+                                    // 2 PRIMARY HUTANG OPTIONS (Cards with gradient style)
+                                    Text(
+                                        text = if (isId) "PILIH OPSI HUTANG:" else "SELECT DEBT MODE:",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Black,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        letterSpacing = 0.5.sp
+                                    )
+
+                                    // Option 1 Card: Hutang 1 Transaksi Penuh (Tanpa Dompet)
+                                    DebtModeOptionCard(
+                                        title = if (isId) "1. Hutang Transaksi Penuh" else "1. Full Transaction Debt",
+                                        subtitle = if (isId) 
+                                            "Tidak pakai wallet apapun. Masuk pengeluaran dan dicatat ke tab hutang." 
+                                        else 
+                                            "No wallet deducted. Logged to expenses and recorded in debts tab.",
+                                        badge = if (isId) "Tanpa Dompet" else "No Wallet",
+                                        isSelected = debtModeOption == "FULL_DEBT",
+                                        gradientBrush = Brush.horizontalGradient(listOf(Color(0xFF8E24AA), Color(0xFF5E35B1))),
+                                        icon = Icons.Default.CreditCard,
+                                        onClick = { debtModeOption = "FULL_DEBT" }
+                                    )
+
+                                    // Option 2 Card: Bayar Sebagian / Uang Kurang (Split Dompet + Hutang)
+                                    DebtModeOptionCard(
+                                        title = if (isId) "2. Bayar Sebagian (Uang Kurang)" else "2. Partial Payment (Underfunded)",
+                                        subtitle = if (isId) 
+                                            "Pakai dompet. Yang terpotong hanya saldo yang dibayar, sisanya masuk ke hutang." 
+                                        else 
+                                            "Use wallet. Deducts only available paid balance, remainder goes to debt.",
+                                        badge = if (isId) "Split Dompet + Hutang" else "Split Wallet + Debt",
+                                        isSelected = debtModeOption == "SPLIT_DEBT",
+                                        gradientBrush = Brush.horizontalGradient(listOf(Color(0xFF1E88E5), Color(0xFF3949AB))),
+                                        icon = Icons.Default.AccountBalanceWallet,
+                                        onClick = { debtModeOption = "SPLIT_DEBT" }
+                                    )
+
+                                    // Option 3 Card: Talangi Teman (Piutang)
+                                    DebtModeOptionCard(
+                                        title = if (isId) "3. Talangi Teman (Piutang)" else "3. Paid for Friend (Loan)",
+                                        subtitle = if (isId) 
+                                            "Bayar penuh dari dompet, bagian teman dicatat di menu Piutang." 
+                                        else 
+                                            "Paid full from wallet, friend's portion logged in Loans menu.",
+                                        badge = if (isId) "Piutang" else "Friend Loan",
+                                        isSelected = debtModeOption == "LEND_FRIEND",
+                                        gradientBrush = Brush.horizontalGradient(listOf(Color(0xFF00897B), Color(0xFF00695C))),
+                                        icon = Icons.Default.Group,
+                                        onClick = { debtModeOption = "LEND_FRIEND" }
+                                    )
+
+                                    Spacer(modifier = Modifier.height(2.dp))
+
+                                    // SPECIFIC INPUT FIELDS BASED ON SELECTED DEBT MODE
+                                    when (debtModeOption) {
+                                        "FULL_DEBT" -> {
+                                            // OPTION 1 DETAILS
+                                            OutlinedTextField(
+                                                value = debtPersonName,
+                                                onValueChange = { debtPersonName = it },
+                                                label = { Text(if (isId) "Nama Pemberi Hutang / Toko / Orang" else "Creditor / Store / Person Name") },
+                                                placeholder = { Text(if (isId) "misal: Warung Bu Siti, Pak Budi, Toko Bangunan" else "e.g., Grocery store, Alex, John") },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                singleLine = true,
+                                                leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) }
+                                            )
+
+                                            // Visual Breakdown Card for Option 1
+                                            Card(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(14.dp),
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = MaterialTheme.colorScheme.surface
+                                                ),
+                                                border = BorderStroke(1.dp, Color(0xFF8E24AA).copy(alpha = 0.3f))
+                                            ) {
+                                                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                    ) {
+                                                        Text(if (isId) "🛒 Total Pengeluaran:" else "🛒 Total Expense:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                                                        Text(viewModel.formatRupiah(parsedTotalAmount), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Black)
+                                                    }
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                    ) {
+                                                        Text(if (isId) "💳 Potong Saldo Dompet:" else "💳 Deduct Wallet:", style = MaterialTheme.typography.bodySmall, color = Color(0xFF43A047), fontWeight = FontWeight.SemiBold)
+                                                        Text("Rp 0 (Tanpa Dompet)", style = MaterialTheme.typography.bodySmall, color = Color(0xFF43A047), fontWeight = FontWeight.Bold)
+                                                    }
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                    ) {
+                                                        Text(if (isId) "📋 Masuk ke Tab Hutang:" else "📋 Logged to Debts Tab:", style = MaterialTheme.typography.bodySmall, color = Color(0xFFC62828), fontWeight = FontWeight.SemiBold)
+                                                        Text(viewModel.formatRupiah(parsedTotalAmount), style = MaterialTheme.typography.bodySmall, color = Color(0xFFC62828), fontWeight = FontWeight.Black)
+                                                    }
                                                 }
-                                                Text(
-                                                    text = if (isId) "Saya Berhutang" else "I Owe (Debt)",
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = if (isHutang) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
                                             }
                                         }
 
-                                        // Talangi Teman (Piutang)
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .background(
-                                                    if (!isHutang) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                                                    RoundedCornerShape(8.dp)
+                                        "SPLIT_DEBT" -> {
+                                            // OPTION 2 DETAILS: Partial payment
+                                            val walletBal = currentSelectedWallet?.balance ?: 0.0
+                                            val walletPaidVal = debtWalletPaidStr.toDoubleOrNull() ?: 0.0
+                                            val remainingDebtVal = (parsedTotalAmount - walletPaidVal).coerceAtLeast(0.0)
+
+                                            OutlinedTextField(
+                                                value = debtPersonName,
+                                                onValueChange = { debtPersonName = it },
+                                                label = { Text(if (isId) "Nama Pemberi Hutang / Toko (Penerima Sisa)" else "Creditor / Store Name (Remainder)") },
+                                                placeholder = { Text(if (isId) "misal: Warung Makan, Swalayan, Toko" else "e.g., Restaurant, Supermarket") },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                singleLine = true,
+                                                leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) }
+                                            )
+
+                                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                OutlinedTextField(
+                                                    value = debtWalletPaidStr,
+                                                    onValueChange = { if (it.all { char -> char.isDigit() }) debtWalletPaidStr = it },
+                                                    label = { Text(if (isId) "Nominal Dibayar dari Dompet" else "Amount Paid from Wallet") },
+                                                    prefix = { Text("Rp ") },
+                                                    placeholder = { Text(minOf(walletBal, parsedTotalAmount).toInt().toString()) },
+                                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    singleLine = true,
+                                                    supportingText = {
+                                                        Text(
+                                                            text = if (isId) 
+                                                                "Dompet: ${currentSelectedWallet?.name ?: "Pilih Dompet"} (Saldo: ${viewModel.formatRupiah(walletBal)})"
+                                                            else 
+                                                                "Wallet: ${currentSelectedWallet?.name ?: "Select Wallet"} (Balance: ${viewModel.formatRupiah(walletBal)})"
+                                                        )
+                                                    }
                                                 )
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .clickable { debtTypeOption = "PIUTANG" }
-                                                .padding(vertical = 8.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                if (!isHutang) {
-                                                    Icon(Icons.Default.Group, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(14.dp))
-                                                    Spacer(modifier = Modifier.width(4.dp))
+
+                                                // Quick action button to use all available wallet balance
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    OutlinedButton(
+                                                        onClick = {
+                                                            val allWallet = minOf(walletBal, parsedTotalAmount)
+                                                            debtWalletPaidStr = allWallet.toInt().toString()
+                                                        },
+                                                        shape = RoundedCornerShape(8.dp),
+                                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                                        modifier = Modifier.weight(1f)
+                                                    ) {
+                                                        Text(
+                                                            text = if (isId) "Pakai Semua Saldo (${viewModel.formatRupiah(walletBal)})" else "Use Full Balance (${viewModel.formatRupiah(walletBal)})",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                    }
                                                 }
-                                                Text(
-                                                    text = if (isId) "Talangi Teman" else "Paid for Friend",
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = if (!isHutang) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
+                                            }
+
+                                            // Visual Breakdown Card for Option 2 (Split)
+                                            Card(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(14.dp),
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = MaterialTheme.colorScheme.surface
+                                                ),
+                                                border = BorderStroke(1.dp, Color(0xFF1E88E5).copy(alpha = 0.35f))
+                                            ) {
+                                                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                    ) {
+                                                        Text(if (isId) "🛒 Total Pembelian:" else "🛒 Total Purchase:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                                                        Text(viewModel.formatRupiah(parsedTotalAmount), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Black)
+                                                    }
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                    ) {
+                                                        Text(if (isId) "💳 Terpotong dari ${currentSelectedWallet?.name ?: "Dompet"}:" else "💳 Deducted from ${currentSelectedWallet?.name ?: "Wallet"}:", style = MaterialTheme.typography.bodySmall, color = Color(0xFF1565C0), fontWeight = FontWeight.SemiBold)
+                                                        Text(viewModel.formatRupiah(walletPaidVal), style = MaterialTheme.typography.bodySmall, color = Color(0xFF1565C0), fontWeight = FontWeight.Bold)
+                                                    }
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                    ) {
+                                                        Text(if (isId) "⚠️ Sisa Kekurangan (Masuk Hutang):" else "⚠️ Remaining Underfunded (Debt):", style = MaterialTheme.typography.bodySmall, color = Color(0xFFC62828), fontWeight = FontWeight.Bold)
+                                                        Text(viewModel.formatRupiah(remainingDebtVal), style = MaterialTheme.typography.bodySmall, color = Color(0xFFC62828), fontWeight = FontWeight.Black)
+                                                    }
+                                                }
                                             }
                                         }
-                                    }
 
-                                    // Fields for Saya Berhutang vs Talangi Teman
-                                    if (debtTypeOption == "HUTANG") {
-                                        OutlinedTextField(
-                                            value = debtPersonName,
-                                            onValueChange = { debtPersonName = it },
-                                            label = { Text(if (isId) "Nama Pemberi Hutang / Toko" else "Creditor / Store Name") },
-                                            placeholder = { Text(if (isId) "misal: Warung Bu Siti, Budi" else "e.g. Store name, John") },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            singleLine = true
-                                        )
-
-                                        OutlinedTextField(
-                                            value = debtCustomAmountStr,
-                                            onValueChange = { if (it.all { char -> char.isDigit() }) debtCustomAmountStr = it },
-                                            label = { Text(if (isId) "Nominal Hutang (Kosongkan = Sesuai Total)" else "Debt Amount (Blank = Full Total)") },
-                                            prefix = { Text("Rp ") },
-                                            placeholder = { Text(amountStr.ifEmpty { "0" }) },
-                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                            modifier = Modifier.fillMaxWidth(),
-                                            singleLine = true
-                                        )
-
-                                        // Wallet deduction toggle for Hutang
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Text(
-                                                text = if (isId) "Potong saldo dompet sekarang?" else "Deduct wallet balance now?",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        "LEND_FRIEND" -> {
+                                            // OPTION 3 DETAILS: Friend loan
+                                            OutlinedTextField(
+                                                value = debtPersonName,
+                                                onValueChange = { debtPersonName = it },
+                                                label = { Text(if (isId) "Nama Teman yang Ditalangi" else "Friend's Name") },
+                                                placeholder = { Text(if (isId) "misal: Kevin, Andi, Rian" else "e.g., Alex, Kevin") },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                singleLine = true,
+                                                leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) }
                                             )
-                                            Switch(
-                                                checked = deductWalletForHutang,
-                                                onCheckedChange = { deductWalletForHutang = it }
-                                            )
-                                        }
-                                    } else {
-                                        // Talangi Teman (Piutang)
-                                        OutlinedTextField(
-                                            value = debtPersonName,
-                                            onValueChange = { debtPersonName = it },
-                                            label = { Text(if (isId) "Nama Teman yang Ditalangi" else "Friend's Name") },
-                                            placeholder = { Text(if (isId) "misal: Kevin, Andi, Rian" else "e.g. Kevin, Alex") },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            singleLine = true
-                                        )
 
-                                        OutlinedTextField(
-                                            value = debtCustomAmountStr,
-                                            onValueChange = { if (it.all { char -> char.isDigit() }) debtCustomAmountStr = it },
-                                            label = { Text(if (isId) "Nominal Talangan (Kosongkan = Sesuai Total)" else "Loaned Amount (Blank = Full Total)") },
-                                            prefix = { Text("Rp ") },
-                                            placeholder = { Text(amountStr.ifEmpty { "0" }) },
-                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                            modifier = Modifier.fillMaxWidth(),
-                                            singleLine = true
-                                        )
-
-                                        Surface(
-                                            shape = RoundedCornerShape(10.dp),
-                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Text(
-                                                text = if (isId) 
-                                                    "💡 Saldo dompet Anda akan tetap dipotong sesuai total pengeluaran, dan nominal talangan teman akan otomatis dicatat di menu Piutang."
-                                                else 
-                                                    "💡 Your wallet will be deducted for the full bill, and your friend's split portion will be recorded in the Debts menu.",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.padding(10.dp)
+                                            OutlinedTextField(
+                                                value = debtCustomAmountStr,
+                                                onValueChange = { if (it.all { char -> char.isDigit() }) debtCustomAmountStr = it },
+                                                label = { Text(if (isId) "Nominal Talangan (Kosongkan = Sesuai Total)" else "Loaned Amount (Blank = Full Total)") },
+                                                prefix = { Text("Rp ") },
+                                                placeholder = { Text(amountStr.ifEmpty { "0" }) },
+                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                modifier = Modifier.fillMaxWidth(),
+                                                singleLine = true
                                             )
+
+                                            Surface(
+                                                shape = RoundedCornerShape(10.dp),
+                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text(
+                                                    text = if (isId) 
+                                                        "💡 Saldo dompet Anda akan tetap dipotong sesuai total transaksi, dan nominal talangan teman akan otomatis dicatat di menu Piutang."
+                                                    else 
+                                                        "💡 Your wallet will be deducted for the full transaction, and your friend's split portion will be recorded in the Debts/Loans menu.",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.padding(10.dp)
+                                                )
+                                            }
                                         }
                                     }
 
@@ -878,7 +1047,7 @@ fun AddTransactionDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Actions
+                // Actions: Cancel & Save
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
@@ -890,7 +1059,8 @@ fun AddTransactionDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
-                            if (selectedWalletId == 0) return@Button
+                            val amountVal = amountStr.toDoubleOrNull() ?: 0.0
+                            val adminFeeVal = adminFeeStr.toDoubleOrNull() ?: 0.0
 
                             if (scannedReceipts.isNotEmpty()) {
                                 // Save all scanned receipts
@@ -908,8 +1078,6 @@ fun AddTransactionDialog(
                                     }
                                 }
                             } else {
-                                // Save single manual transaction
-                                val amountVal = amountStr.toDoubleOrNull() ?: 0.0
                                 if (amountVal <= 0.0 && !enableDebtOption) return@Button
 
                                 if (selectedType == "TRANSFER" && selectedWalletId == selectedTargetWalletId) {
@@ -917,55 +1085,105 @@ fun AddTransactionDialog(
                                     return@Button
                                 }
 
-                                val adminFeeVal = adminFeeStr.toDoubleOrNull() ?: 0.0
-
-                                // Check if user enabled Hutang / Piutang sync
+                                // Check if user enabled Hutang / Split options
                                 if (enableDebtOption && debtPersonName.trim().isNotEmpty()) {
-                                    val debtAmount = debtCustomAmountStr.toDoubleOrNull() ?: amountVal
                                     val dueTimestamp = System.currentTimeMillis() + (debtDueDays * 86400000L)
                                     
-                                    if (debtTypeOption == "HUTANG") {
-                                        viewModel.addDebt(
-                                            personName = debtPersonName.trim(),
-                                            totalAmount = debtAmount,
-                                            dueDate = dueTimestamp,
-                                            type = "HUTANG",
-                                            notes = if (note.isNotBlank()) "Hutang: $note" else "Hutang transaksi"
-                                        )
-                                        // If wallet deduction is enabled, record transaction
-                                        if (deductWalletForHutang && amountVal > 0.0) {
-                                            viewModel.addTransaction(
-                                                amount = amountVal,
-                                                type = selectedType,
-                                                walletId = selectedWalletId,
-                                                categoryId = selectedCategoryId,
-                                                note = if (note.isNotBlank()) "$note (Hutang ke ${debtPersonName.trim()})" else "Hutang ke ${debtPersonName.trim()}",
-                                                date = System.currentTimeMillis(),
-                                                targetWalletId = null,
-                                                adminFee = adminFeeVal
+                                    when (debtModeOption) {
+                                        "FULL_DEBT" -> {
+                                            // OPSI 1: Hutang 1 transaksi penuh (tidak pakai wallet apapun)
+                                            // 1. Catat ke tab hutang
+                                            viewModel.addDebt(
+                                                personName = debtPersonName.trim(),
+                                                totalAmount = amountVal,
+                                                dueDate = dueTimestamp,
+                                                type = "HUTANG",
+                                                notes = if (note.isNotBlank()) "$note (Hutang Penuh)" else "Hutang transaksi penuh"
                                             )
+                                            // 2. Catat ke pengeluaran dengan walletId = 0 (Tanpa Dompet)
+                                            if (amountVal > 0.0) {
+                                                viewModel.addTransaction(
+                                                    amount = amountVal,
+                                                    type = "EXPENSE",
+                                                    walletId = 0,
+                                                    categoryId = selectedCategoryId,
+                                                    note = if (note.isNotBlank()) "$note (Hutang ke ${debtPersonName.trim()})" else "Hutang ke ${debtPersonName.trim()}",
+                                                    date = System.currentTimeMillis(),
+                                                    targetWalletId = null,
+                                                    adminFee = adminFeeVal
+                                                )
+                                            }
                                         }
-                                    } else {
-                                        // PIUTANG (Talangi teman)
-                                        viewModel.addDebt(
-                                            personName = debtPersonName.trim(),
-                                            totalAmount = debtAmount,
-                                            dueDate = dueTimestamp,
-                                            type = "PIUTANG",
-                                            notes = if (note.isNotBlank()) "Talangi: $note" else "Talangan pengeluaran"
-                                        )
-                                        // Record main transaction paid from wallet
-                                        if (amountVal > 0.0) {
-                                            viewModel.addTransaction(
-                                                amount = amountVal,
-                                                type = selectedType,
-                                                walletId = selectedWalletId,
-                                                categoryId = selectedCategoryId,
-                                                note = if (note.isNotBlank()) "$note (Talangi ${debtPersonName.trim()})" else "Talangi ${debtPersonName.trim()}",
-                                                date = System.currentTimeMillis(),
-                                                targetWalletId = null,
-                                                adminFee = adminFeeVal
+
+                                        "SPLIT_DEBT" -> {
+                                            // OPSI 2: Bayar sebagian pakai wallet, sisa kekurangan masuk hutang
+                                            val paidFromWallet = (debtWalletPaidStr.toDoubleOrNull() ?: amountVal).coerceIn(0.0, amountVal)
+                                            val remainingDebt = (amountVal - paidFromWallet).coerceAtLeast(0.0)
+
+                                            // 1. Catat sisa kekurangan ke tab hutang
+                                            if (remainingDebt > 0.0) {
+                                                viewModel.addDebt(
+                                                    personName = debtPersonName.trim(),
+                                                    totalAmount = remainingDebt,
+                                                    dueDate = dueTimestamp,
+                                                    type = "HUTANG",
+                                                    notes = if (note.isNotBlank()) "$note (Sisa kekurangan belanja)" else "Kekurangan bayar belanja"
+                                                )
+                                            }
+
+                                            // 2. Catat transaksi bagian yang dibayar dari dompet (memotong saldo dompet)
+                                            if (paidFromWallet > 0.0) {
+                                                viewModel.addTransaction(
+                                                    amount = paidFromWallet,
+                                                    type = "EXPENSE",
+                                                    walletId = selectedWalletId,
+                                                    categoryId = selectedCategoryId,
+                                                    note = if (note.isNotBlank()) "$note (Bayar dari dompet)" else "Bayar belanja (dari dompet)",
+                                                    date = System.currentTimeMillis(),
+                                                    targetWalletId = null,
+                                                    adminFee = adminFeeVal
+                                                )
+                                            }
+
+                                            // 3. Catat transaksi bagian sisa hutang (walletId = 0, tanpa memotong dompet lagi)
+                                            if (remainingDebt > 0.0) {
+                                                viewModel.addTransaction(
+                                                    amount = remainingDebt,
+                                                    type = "EXPENSE",
+                                                    walletId = 0,
+                                                    categoryId = selectedCategoryId,
+                                                    note = if (note.isNotBlank()) "$note (Sisa hutang ke ${debtPersonName.trim()})" else "Sisa hutang ke ${debtPersonName.trim()}",
+                                                    date = System.currentTimeMillis(),
+                                                    targetWalletId = null,
+                                                    adminFee = 0.0
+                                                )
+                                            }
+                                        }
+
+                                        "LEND_FRIEND" -> {
+                                            // OPSI 3: Talangi teman (piutang)
+                                            val lendAmount = debtCustomAmountStr.toDoubleOrNull() ?: amountVal
+                                            // 1. Catat piutang
+                                            viewModel.addDebt(
+                                                personName = debtPersonName.trim(),
+                                                totalAmount = lendAmount,
+                                                dueDate = dueTimestamp,
+                                                type = "PIUTANG",
+                                                notes = if (note.isNotBlank()) "Talangi: $note" else "Talangan pengeluaran"
                                             )
+                                            // 2. Catat transaksi penuh dari dompet
+                                            if (amountVal > 0.0) {
+                                                viewModel.addTransaction(
+                                                    amount = amountVal,
+                                                    type = selectedType,
+                                                    walletId = selectedWalletId,
+                                                    categoryId = selectedCategoryId,
+                                                    note = if (note.isNotBlank()) "$note (Talangi ${debtPersonName.trim()})" else "Talangi ${debtPersonName.trim()}",
+                                                    date = System.currentTimeMillis(),
+                                                    targetWalletId = null,
+                                                    adminFee = adminFeeVal
+                                                )
+                                            }
                                         }
                                     }
                                 } else if (amountVal > 0.0) {
@@ -984,14 +1202,228 @@ fun AddTransactionDialog(
                             }
                             onDismiss()
                         },
-                        enabled = wallets.isNotEmpty() && (
+                        enabled = (wallets.isNotEmpty() || (enableDebtOption && debtModeOption == "FULL_DEBT")) && (
                             scannedReceipts.isNotEmpty() || amountStr.isNotEmpty() || (enableDebtOption && debtPersonName.isNotEmpty())
                         )
                     ) {
-                        Text(if (isId) "Simpan" else "Save")
+                        Text(if (isId) "Simpan Transaksi" else "Save Transaction", fontWeight = FontWeight.Bold)
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Modern Gradient Chip for Wallet Selector
+ */
+@Composable
+private fun WalletGradientChip(
+    wallet: Wallet,
+    isSelected: Boolean,
+    isDisabled: Boolean,
+    formattedBalance: String,
+    onClick: () -> Unit
+) {
+    val gradientBrush = when (wallet.icon) {
+        "bank" -> Brush.horizontalGradient(listOf(Color(0xFF1E88E5), Color(0xFF1565C0)))
+        "wallet" -> Brush.horizontalGradient(listOf(Color(0xFF8E24AA), Color(0xFF5E35B1)))
+        "savings" -> Brush.horizontalGradient(listOf(Color(0xFF43A047), Color(0xFF2E7D32)))
+        else -> Brush.horizontalGradient(listOf(Color(0xFFFFA000), Color(0xFFF57C00)))
+    }
+
+    val iconPainter = when (wallet.icon) {
+        "bank" -> painterResource(id = R.drawable.ic_wallet_type_bank)
+        "wallet" -> painterResource(id = R.drawable.ic_wallet_type_wallet)
+        "savings" -> painterResource(id = R.drawable.ic_wallet_type_savings)
+        else -> painterResource(id = R.drawable.ic_wallet_type_cash)
+    }
+
+    val chipShape = RoundedCornerShape(14.dp)
+    
+    Card(
+        modifier = Modifier
+            .wrapContentWidth()
+            .height(58.dp)
+            .clip(chipShape)
+            .clickable(enabled = !isDisabled) { onClick() }
+            .then(
+                if (isSelected) {
+                    Modifier.border(BorderStroke(2.dp, MaterialTheme.colorScheme.primary), chipShape)
+                } else if (isDisabled) {
+                    Modifier.border(BorderStroke(1.dp, Color.Gray.copy(alpha = 0.2f)), chipShape)
+                } else {
+                    Modifier.border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)), chipShape)
+                }
+            ),
+        shape = chipShape,
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 4.dp else 1.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .background(
+                    if (isDisabled) {
+                        Brush.horizontalGradient(listOf(Color(0xFF424242), Color(0xFF303030)))
+                    } else {
+                        gradientBrush
+                    }
+                )
+                .padding(horizontal = 14.dp, vertical = 8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxHeight(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.25f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = iconPainter,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                Column(
+                    modifier = Modifier.widthIn(min = 80.dp),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = wallet.name,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = formattedBalance,
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1
+                    )
+                }
+
+                if (isSelected) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = "Selected",
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Option Card for Hutang / Split Modes with Gradient Accents
+ */
+@Composable
+private fun DebtModeOptionCard(
+    title: String,
+    subtitle: String,
+    badge: String,
+    isSelected: Boolean,
+    gradientBrush: Brush,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit
+) {
+    val cardShape = RoundedCornerShape(16.dp)
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(cardShape)
+            .clickable { onClick() }
+            .then(
+                if (isSelected) {
+                    Modifier.border(BorderStroke(2.dp, MaterialTheme.colorScheme.primary), cardShape)
+                } else {
+                    Modifier.border(BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)), cardShape)
+                }
+            ),
+        shape = cardShape,
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) {
+                MaterialTheme.colorScheme.surface
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+            }
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 3.dp else 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f, fill = false),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(30.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (isSelected) gradientBrush else Brush.horizontalGradient(listOf(Color.Gray.copy(alpha = 0.2f), Color.Gray.copy(alpha = 0.2f)))
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                ) {
+                    Text(
+                        text = badge,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+            }
+
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
