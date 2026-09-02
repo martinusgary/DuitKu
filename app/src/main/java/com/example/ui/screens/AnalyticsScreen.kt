@@ -6,28 +6,42 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.data.model.Category
 import com.example.data.model.Transaction
 import com.example.data.model.Wallet
@@ -35,6 +49,28 @@ import androidx.compose.material.icons.filled.ArrowBack
 import com.example.ui.util.PdfExporter
 import com.example.ui.viewmodel.FinanceViewModel
 import java.util.Calendar
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
+
+// Vibrant palette for pie & chart segments
+private val ChartColorPalette = listOf(
+    Color(0xFFE53935), // Crimson Red
+    Color(0xFFFB8C00), // Orange
+    Color(0xFF1E88E5), // Blue
+    Color(0xFF43A047), // Green
+    Color(0xFF8E24AA), // Purple
+    Color(0xFF00ACC1), // Cyan
+    Color(0xFFFDD835), // Yellow
+    Color(0xFFD81B60), // Pink
+    Color(0xFF5E35B1), // Deep Purple
+    Color(0xFF3949AB), // Indigo
+    Color(0xFF00897B), // Teal
+    Color(0xFF7CB342), // Light Green
+    Color(0xFF6D4C41), // Brown
+    Color(0xFF546E7A)  // Blue Grey
+)
 
 @Composable
 fun AnalyticsScreen(viewModel: FinanceViewModel) {
@@ -103,11 +139,40 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
                     )
                 ) {
                     Column(modifier = Modifier.padding(20.dp)) {
-                        Text(
-                            text = if (isId) "Rasio Arus Kas Keseluruhan" else "Overall Cash Flow Ratio",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (isId) "Rasio Arus Kas Keseluruhan" else "Overall Cash Flow Ratio",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.ShowChart,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = if (isId) "Ikhtisar" else "Summary",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
                         Spacer(modifier = Modifier.height(16.dp))
 
                         // Progress representation of Expense over Income
@@ -200,7 +265,30 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
                 }
             }
 
-            // 2. Laporan PDF & Mutasi Card
+            // 2. Interactive Donut Chart for Category Expense
+            if (expenseByCategory.isNotEmpty()) {
+                item {
+                    CategoryDonutChartCard(
+                        expenseByCategory = expenseByCategory,
+                        totalExpense = totalExpenseAmount,
+                        viewModel = viewModel,
+                        isFresh = isFresh,
+                        isId = isId
+                    )
+                }
+            }
+
+            // 3. Monthly Trend Chart (6 Months Cashflow Bar Comparison)
+            item {
+                MonthlyCashFlowBarChartCard(
+                    transactions = transactions,
+                    viewModel = viewModel,
+                    isFresh = isFresh,
+                    isId = isId
+                )
+            }
+
+            // 4. Laporan PDF & Mutasi Card
             item {
                 var selectedMonth by remember { mutableStateOf(Calendar.getInstance().get(Calendar.MONTH)) }
                 var selectedYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR)) }
@@ -628,6 +716,525 @@ fun CategorySpendProgressRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun CategoryDonutChartCard(
+    expenseByCategory: List<CategorySpend>,
+    totalExpense: Double,
+    viewModel: FinanceViewModel,
+    isFresh: Boolean,
+    isId: Boolean
+) {
+    val cardShape = RoundedCornerShape(24.dp)
+    var selectedCategoryIndex by remember { mutableStateOf<Int?>(null) }
+
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (isFresh) Modifier.border(
+                    BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                    cardShape
+                ) else Modifier
+            ),
+        shape = cardShape,
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.PieChart,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Text(
+                        text = if (isId) "Visualisasi Donut Pengeluaran" else "Spending Donut Breakdown",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Text(
+                    text = if (isId) "Interaktif" else "Interactive",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Donut Canvas + Center Information Box
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(240.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                val animationProgress by animateFloatAsState(
+                    targetValue = 1f,
+                    animationSpec = tween(durationMillis = 800),
+                    label = "donut_anim"
+                )
+
+                Canvas(
+                    modifier = Modifier
+                        .size(220.dp)
+                        .pointerInput(expenseByCategory, totalExpense) {
+                            detectTapGestures { tapOffset ->
+                                val center = Offset(size.width / 2f, size.height / 2f)
+                                val dx = tapOffset.x - center.x
+                                val dy = tapOffset.y - center.y
+                                val distance = sqrt(dx * dx + dy * dy)
+                                val minDim = minOf(size.width.toFloat(), size.height.toFloat())
+                                val outerRadius = minDim / 2f
+                                val innerRadius = outerRadius * 0.58f
+
+                                if (distance in innerRadius..outerRadius) {
+                                    var touchAngle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
+                                    if (touchAngle < 0) touchAngle += 360f
+                                    // Offset by startAngle (-90 deg = top)
+                                    var relativeAngle = (touchAngle + 90f) % 360f
+
+                                    var cumulativeAngle = 0f
+                                    for ((index, item) in expenseByCategory.take(7).withIndex()) {
+                                        val sweep = if (totalExpense > 0) ((item.totalSpend / totalExpense) * 360f).toFloat() else 0f
+                                        if (relativeAngle >= cumulativeAngle && relativeAngle <= cumulativeAngle + sweep) {
+                                            selectedCategoryIndex = if (selectedCategoryIndex == index) null else index
+                                            break
+                                        }
+                                        cumulativeAngle += sweep
+                                    }
+                                } else {
+                                    selectedCategoryIndex = null
+                                }
+                            }
+                        }
+                ) {
+                    val strokeWidth = 36.dp.toPx()
+                    val diameter = size.minDimension - strokeWidth
+                    val topLeft = Offset((size.width - diameter) / 2f, (size.height - diameter) / 2f)
+                    val arcSize = Size(diameter, diameter)
+
+                    var startAngle = -90f
+                    val topCategories = expenseByCategory.take(7)
+                    val otherCategories = expenseByCategory.drop(7)
+                    val otherSum = otherCategories.sumOf { it.totalSpend }
+
+                    topCategories.forEachIndexed { index, item ->
+                        val sweepAngle = if (totalExpense > 0) {
+                            ((item.totalSpend / totalExpense).toFloat() * 360f) * animationProgress
+                        } else 0f
+
+                        val isSelected = selectedCategoryIndex == index
+                        val color = ChartColorPalette[index % ChartColorPalette.size]
+
+                        drawArc(
+                            color = color,
+                            startAngle = startAngle,
+                            sweepAngle = (sweepAngle - 2f).coerceAtLeast(0.5f),
+                            useCenter = false,
+                            topLeft = topLeft,
+                            size = arcSize,
+                            style = Stroke(
+                                width = if (isSelected) strokeWidth * 1.25f else strokeWidth,
+                                cap = StrokeCap.Round
+                            )
+                        )
+                        startAngle += sweepAngle
+                    }
+
+                    if (otherSum > 0) {
+                        val otherSweep = if (totalExpense > 0) {
+                            ((otherSum / totalExpense).toFloat() * 360f) * animationProgress
+                        } else 0f
+                        val isSelected = selectedCategoryIndex == 7
+                        drawArc(
+                            color = Color.Gray,
+                            startAngle = startAngle,
+                            sweepAngle = (otherSweep - 2f).coerceAtLeast(0.5f),
+                            useCenter = false,
+                            topLeft = topLeft,
+                            size = arcSize,
+                            style = Stroke(
+                                width = if (isSelected) strokeWidth * 1.25f else strokeWidth,
+                                cap = StrokeCap.Round
+                            )
+                        )
+                    }
+                }
+
+                // Center Label inside Donut Hole
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                ) {
+                    if (selectedCategoryIndex != null && selectedCategoryIndex!! < expenseByCategory.size) {
+                        val activeCat = expenseByCategory[selectedCategoryIndex!!]
+                        val pct = if (totalExpense > 0) ((activeCat.totalSpend / totalExpense) * 100).toInt() else 0
+                        Text(
+                            text = activeCat.category.name,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = ChartColorPalette[selectedCategoryIndex!! % ChartColorPalette.size],
+                            maxLines = 1
+                        )
+                        Text(
+                            text = "$pct%",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = viewModel.formatRupiah(activeCat.totalSpend),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    } else {
+                        Text(
+                            text = if (isId) "Total Beban" else "Total Spend",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = viewModel.formatRupiah(totalExpense),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (isId) "Ketuk grafik" else "Tap segment",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Legend Chips Row / Flow
+            val topLegends = expenseByCategory.take(6)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                topLegends.chunked(2).forEach { rowPair ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        rowPair.forEachIndexed { innerIdx, item ->
+                            val actualIdx = topLegends.indexOf(item)
+                            val isSelected = selectedCategoryIndex == actualIdx
+                            val pct = if (totalExpense > 0) ((item.totalSpend / totalExpense) * 100).toInt() else 0
+                            val color = ChartColorPalette[actualIdx % ChartColorPalette.size]
+
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        selectedCategoryIndex = if (isSelected) null else actualIdx
+                                    },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) color.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                border = if (isSelected) BorderStroke(1.5.dp, color) else null
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(10.dp)
+                                            .clip(CircleShape)
+                                            .background(color)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = item.category.name,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "$pct% • ${viewModel.formatRupiah(item.totalSpend)}",
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        if (rowPair.size == 1) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+data class MonthlyBarData(
+    val monthName: String,
+    val income: Double,
+    val expense: Double
+)
+
+@Composable
+fun MonthlyCashFlowBarChartCard(
+    transactions: List<Transaction>,
+    viewModel: FinanceViewModel,
+    isFresh: Boolean,
+    isId: Boolean
+) {
+    val cardShape = RoundedCornerShape(24.dp)
+    val monthShortNames = if (isId) {
+        listOf("Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Ags", "Sep", "Okt", "Nov", "Des")
+    } else {
+        listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+    }
+
+    // Compute last 6 months metrics
+    val last6MonthsData = remember(transactions) {
+        val result = mutableListOf<MonthlyBarData>()
+        val cal = Calendar.getInstance()
+        // Start from 5 months ago to current month
+        for (i in 5 downTo 0) {
+            val targetCal = Calendar.getInstance().apply {
+                timeInMillis = cal.timeInMillis
+                add(Calendar.MONTH, -i)
+            }
+            val targetMonth = targetCal.get(Calendar.MONTH)
+            val targetYear = targetCal.get(Calendar.YEAR)
+
+            val monthTx = transactions.filter { tx ->
+                val txCal = Calendar.getInstance().apply { timeInMillis = tx.date }
+                txCal.get(Calendar.MONTH) == targetMonth && txCal.get(Calendar.YEAR) == targetYear
+            }
+
+            val inc = monthTx.filter { it.type == "INCOME" }.sumOf { it.amount }
+            val exp = monthTx.filter { it.type == "EXPENSE" }.sumOf { it.amount }
+
+            result.add(
+                MonthlyBarData(
+                    monthName = monthShortNames[targetMonth],
+                    income = inc,
+                    expense = exp
+                )
+            )
+        }
+        result
+    }
+
+    val maxAmount = remember(last6MonthsData) {
+        val maxVal = last6MonthsData.maxOfOrNull { maxOf(it.income, it.expense) } ?: 1.0
+        if (maxVal <= 0.0) 1.0 else maxVal
+    }
+
+    var selectedBarMonth by remember { mutableStateOf<MonthlyBarData?>(null) }
+
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (isFresh) Modifier.border(
+                    BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                    cardShape
+                ) else Modifier
+            ),
+        shape = cardShape,
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.BarChart,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Text(
+                        text = if (isId) "Tren Arus Kas (6 Bulan)" else "Cash Flow Trend (6 Months)",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Legend indicators
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(Color(0xFF2E7D32)))
+                    Text(if (isId) "Pemasukan" else "Income", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(Color(0xFFC62828)))
+                    Text(if (isId) "Pengeluaran" else "Expense", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Bar Chart Area
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                last6MonthsData.forEach { data ->
+                    val isSelected = selectedBarMonth?.monthName == data.monthName
+                    val incomeRatio = (data.income / maxAmount).coerceIn(0.0, 1.0).toFloat()
+                    val expenseRatio = (data.expense / maxAmount).coerceIn(0.0, 1.0).toFloat()
+
+                    val animatedIncomeHeight by animateFloatAsState(
+                        targetValue = incomeRatio,
+                        animationSpec = tween(600),
+                        label = "inc_bar"
+                    )
+                    val animatedExpenseHeight by animateFloatAsState(
+                        targetValue = expenseRatio,
+                        animationSpec = tween(600),
+                        label = "exp_bar"
+                    )
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable {
+                                selectedBarMonth = if (isSelected) null else data
+                            }
+                            .padding(horizontal = 2.dp)
+                    ) {
+                        // Bars container
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                            contentAlignment = Alignment.BottomCenter
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                verticalAlignment = Alignment.Bottom,
+                                modifier = Modifier.fillMaxHeight()
+                            ) {
+                                // Income bar
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight(fraction = if (animatedIncomeHeight > 0.05f) animatedIncomeHeight else if (data.income > 0) 0.06f else 0.01f)
+                                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                        .background(
+                                            if (isSelected) Color(0xFF1B5E20) else Color(0xFF4CAF50)
+                                        )
+                                )
+
+                                // Expense bar
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight(fraction = if (animatedExpenseHeight > 0.05f) animatedExpenseHeight else if (data.expense > 0) 0.06f else 0.01f)
+                                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                        .background(
+                                            if (isSelected) Color(0xFFB71C1C) else Color(0xFFEF5350)
+                                        )
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = data.monthName,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (isSelected) FontWeight.Black else FontWeight.Medium,
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            // Info popup banner for clicked bar
+            if (selectedBarMonth != null) {
+                Spacer(modifier = Modifier.height(14.dp))
+                val activeData = selectedBarMonth!!
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Bulan ${activeData.monthName}",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Masuk: ${viewModel.formatRupiah(activeData.income)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF2E7D32)
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = "Keluar: ${viewModel.formatRupiah(activeData.expense)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFFC62828)
+                            )
+                            val diff = activeData.income - activeData.expense
+                            Text(
+                                text = (if (diff >= 0) "Surplus: +" else "Defisit: ") + viewModel.formatRupiah(diff),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (diff >= 0) Color(0xFF2E7D32) else Color(0xFFC62828)
+                            )
+                        }
+                    }
+                }
             }
         }
     }
