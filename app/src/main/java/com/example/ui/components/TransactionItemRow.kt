@@ -306,8 +306,8 @@ fun TransactionItemRow(
                 ) {
                     Text(
                         text = if (isId) 
-                            "Pilih bagaimana Anda ingin menghapus transaksi ini:" 
-                        else "Choose how you want to delete this transaction:",
+                            "Pilih cara hapus transaksi:" 
+                        else "Choose deletion method:",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -334,7 +334,7 @@ fun TransactionItemRow(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = if (isId) "Hanya Hapus Riwayat" else "Delete History Only",
+                                    text = if (isId) "Hapus Riwayat Saja" else "Delete History Only",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary
@@ -343,8 +343,8 @@ fun TransactionItemRow(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = if (isId)
-                                    "Hanya menghapus catatan. Saldo dompet tidak akan diubah/dikembalikan."
-                                else "Removes record only. The wallet balance will NOT be modified.",
+                                    "Hapus catatan riwayat saja. Saldo dompet tetap."
+                                else "Removes record only. Wallet balance unchanged.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -382,8 +382,8 @@ fun TransactionItemRow(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = if (isId)
-                                    "Membatalkan transaksi dan mengembalikan uang ke saldo dompet Anda."
-                                else "Cancels the transaction and restores/reverts funds in the wallet.",
+                                    "Batalkan transaksi dan kembalikan dana ke saldo dompet."
+                                else "Cancels transaction and restores funds to wallet.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

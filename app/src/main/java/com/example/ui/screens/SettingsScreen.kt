@@ -604,9 +604,9 @@ fun SettingsScreen(
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = if (isId) {
-                                            "Seluruh database dompet, transaksi, dan target keuangan Anda tersimpan sepenuhnya secara offline di memori internal perangkat ini. Tidak ada data yang dikirim ke server pihak ketiga. Gunakan fitur Ekspor & Impor di bawah untuk mencadangkan data Anda secara mandiri."
+                                            "Data tersimpan offline di memori perangkat, aman tanpa server pihak ketiga. Gunakan fitur di bawah untuk cadangan mandiri."
                                         } else {
-                                            "All your wallets, transactions, and financial goals are stored completely offline inside this device's internal storage. No data is transmitted to third-party servers. Use the Export & Import tools below to manage your local backups."
+                                            "Data is stored offline on device, secure without third-party servers. Use the tools below to manage local backups."
                                         },
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -635,9 +635,9 @@ fun SettingsScreen(
                                 )
                                 Text(
                                     text = if (isId) {
-                                        "Unduh salinan riwayat transaksi, anggaran belanja, saku rekening, dan utang piutang Anda dalam bentuk berkas luring."
+                                        "Unduh salinan riwayat, dompet, anggaran, dan hutang piutang ke berkas cadangan."
                                     } else {
-                                        "Download a portable file bundle containing all of your local ledger records, wallets, budgeting parameters, and debt histories."
+                                        "Download a backup file containing your transactions, wallets, budgets, and debts."
                                     },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -719,9 +719,9 @@ fun SettingsScreen(
                                             )
                                             Text(
                                                 text = if (isId) {
-                                                    "Mengimpor database akan mengganti seluruh transaksi Anda saat ini. Tindakan ini tidak dapat dibatalkan!"
+                                                    "Impor akan menimpa data saat ini. Tindakan ini tidak dapat dibatalkan!"
                                                 } else {
-                                                    "Restoring replaces target documents completely with the backup. This operation cannot be undone."
+                                                    "Restoring will overwrite current data. This action cannot be undone!"
                                                 },
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onErrorContainer

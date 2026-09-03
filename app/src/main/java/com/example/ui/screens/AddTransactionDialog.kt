@@ -339,9 +339,9 @@ fun AddTransactionDialog(
                         }
                         Text(
                             text = if (isId)
-                                "Pindai struk untuk mengisi nominal, catatan, & kategori secara otomatis."
+                                "Pindai struk untuk isi otomatis nominal & rincian."
                             else
-                                "Scan receipts to auto-populate amount, notes, and category.",
+                                "Scan receipt to auto-fill amount & details.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -714,7 +714,7 @@ fun AddTransactionDialog(
 
                     if (wallets.isEmpty()) {
                         Text(
-                            if (isId) "Dompet tidak ditemukan. Silakan tambahkan dompet terlebih dahulu di tab Dompet." else "No wallets found. Please add a wallet first in the Wallets tab.",
+                            if (isId) "Belum ada dompet. Tambah dulu di menu Dompet." else "No wallets found. Please add in Wallets tab.",
                             color = MaterialTheme.colorScheme.error
                         )
                     } else {
@@ -897,9 +897,9 @@ fun AddTransactionDialog(
                                     DebtModeOptionCard(
                                         title = if (isId) "1. Hutang Transaksi Penuh" else "1. Full Transaction Debt",
                                         subtitle = if (isId) 
-                                            "Tidak pakai wallet apapun. Masuk pengeluaran dan dicatat ke tab hutang." 
+                                            "Tanpa dompet, langsung ke tab Hutang." 
                                         else 
-                                            "No wallet deducted. Logged to expenses and recorded in debts tab.",
+                                            "No wallet used, directly to Debts.",
                                         badge = if (isId) "Tanpa Dompet" else "No Wallet",
                                         isSelected = debtModeOption == "FULL_DEBT",
                                         gradientBrush = Brush.horizontalGradient(listOf(Color(0xFF8E24AA), Color(0xFF5E35B1))),
@@ -911,9 +911,9 @@ fun AddTransactionDialog(
                                     DebtModeOptionCard(
                                         title = if (isId) "2. Bayar Sebagian (Uang Kurang)" else "2. Partial Payment (Underfunded)",
                                         subtitle = if (isId) 
-                                            "Pakai dompet. Yang terpotong hanya saldo yang dibayar, sisanya masuk ke hutang." 
+                                            "Potong saldo dompet, sisanya ke Hutang." 
                                         else 
-                                            "Use wallet. Deducts only available paid balance, remainder goes to debt.",
+                                            "Deduct balance, remainder to Debt.",
                                         badge = if (isId) "Split Dompet + Hutang" else "Split Wallet + Debt",
                                         isSelected = debtModeOption == "SPLIT_DEBT",
                                         gradientBrush = Brush.horizontalGradient(listOf(Color(0xFF1E88E5), Color(0xFF3949AB))),
@@ -925,9 +925,9 @@ fun AddTransactionDialog(
                                     DebtModeOptionCard(
                                         title = if (isId) "3. Talangi Teman (Piutang)" else "3. Paid for Friend (Loan)",
                                         subtitle = if (isId) 
-                                            "Bayar penuh dari dompet, bagian teman dicatat di menu Piutang." 
+                                            "Bayar penuh, porsi teman ke Piutang." 
                                         else 
-                                            "Paid full from wallet, friend's portion logged in Loans menu.",
+                                            "Pay in full, friend's share to Loan.",
                                         badge = if (isId) "Piutang" else "Friend Loan",
                                         isSelected = debtModeOption == "LEND_FRIEND",
                                         gradientBrush = Brush.horizontalGradient(listOf(Color(0xFF00897B), Color(0xFF00695C))),
@@ -1110,9 +1110,9 @@ fun AddTransactionDialog(
                                             ) {
                                                 Text(
                                                     text = if (isId) 
-                                                        "💡 Saldo dompet Anda akan tetap dipotong sesuai total transaksi, dan nominal talangan teman akan otomatis dicatat di menu Piutang."
+                                                        "💡 Dompet dipotong penuh, talangan teman dicatat ke Piutang."
                                                     else 
-                                                        "💡 Your wallet will be deducted for the full transaction, and your friend's split portion will be recorded in the Debts/Loans menu.",
+                                                        "💡 Wallet deducted in full, friend's split logged to Loans.",
                                                     style = MaterialTheme.typography.labelSmall,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                     modifier = Modifier.padding(10.dp)

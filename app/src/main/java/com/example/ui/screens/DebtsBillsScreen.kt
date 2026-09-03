@@ -401,8 +401,8 @@ fun DebtsTabContent(
     if (selectedDebtForDelete != null) {
         AlertDialog(
             onDismissRequest = { selectedDebtForDelete = null },
-            title = { Text(if (isId) "Hapus Catatan Hutang/Piutang?" else "Delete Debt Record?") },
-            text = { Text(if (isId) "Apakah Anda yakin ingin menghapus catatan ini? Saldo dompet saat ini tidak akan terpengaruh secara otomatis." else "Are you sure you want to delete this record from your device? The current balance will not be affected.") },
+            title = { Text(if (isId) "Hapus Catatan?" else "Delete Record?") },
+            text = { Text(if (isId) "Hapus catatan hutang/piutang ini? Saldo dompet tidak berubah." else "Delete this debt/loan record? Wallet balance will not change.") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -1156,7 +1156,7 @@ fun BillsTabContent(
         AlertDialog(
             onDismissRequest = { selectedBillForDelete = null },
             title = { Text(if (isId) "Hapus Tagihan?" else "Delete Bill?") },
-            text = { Text(if (isId) "Apakah Anda yakin ingin menghapus tagihan rutin '${selectedBillForDelete!!.name}' dari sistem?" else "Are you sure you want to delete recurring bill '${selectedBillForDelete!!.name}' from the system?") },
+            text = { Text(if (isId) "Hapus tagihan rutin '${selectedBillForDelete!!.name}'?" else "Delete recurring bill '${selectedBillForDelete!!.name}'?") },
             confirmButton = {
                 TextButton(
                     onClick = {

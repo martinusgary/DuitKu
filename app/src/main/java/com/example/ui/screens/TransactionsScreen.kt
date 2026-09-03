@@ -614,8 +614,8 @@ fun TransactionsScreen(
                 ) {
                     Text(
                         text = if (isId) 
-                            "Pilih bagaimana Anda ingin menghapus ${selectedTxIds.size} transaksi terpilih:" 
-                        else "Choose how you want to delete the ${selectedTxIds.size} selected transactions:",
+                            "Pilih cara hapus ${selectedTxIds.size} transaksi terpilih:" 
+                        else "Delete ${selectedTxIds.size} selected transactions:",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -627,7 +627,7 @@ fun TransactionsScreen(
                             viewModel.deleteTransactionsBulk(toDelete, refund = false)
                             onBulkModeChange(false)
                             showBulkDeleteConfirm = false
-                            Toast.makeText(context, if (isId) "${toDelete.size} catatan sejarah berhasil dihapus!" else "${toDelete.size} history logs deleted!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, if (isId) "${toDelete.size} catatan dihapus!" else "${toDelete.size} logs deleted!", Toast.LENGTH_SHORT).show()
                         },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -644,7 +644,7 @@ fun TransactionsScreen(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = if (isId) "Hanya Hapus Riwayat" else "Delete History Only",
+                                    text = if (isId) "Hapus Riwayat Saja" else "Delete History Only",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary
@@ -653,8 +653,8 @@ fun TransactionsScreen(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = if (isId)
-                                    "Hanya menghapus catatan. Saldo seluruh dompet tidak akan diubah/dikembalikan."
-                                else "Removes records only. Wallet balances will NOT be modified.",
+                                    "Hapus catatan riwayat saja. Saldo dompet tidak berubah."
+                                else "Removes records only. Wallet balances unchanged.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -668,7 +668,7 @@ fun TransactionsScreen(
                             viewModel.deleteTransactionsBulk(toDelete, refund = true)
                             onBulkModeChange(false)
                             showBulkDeleteConfirm = false
-                            Toast.makeText(context, if (isId) "${toDelete.size} transaksi dibatalkan & saldo dipulihkan!" else "${toDelete.size} transactions cancelled & balances restored!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, if (isId) "${toDelete.size} transaksi dibatalkan & dana kembali!" else "${toDelete.size} transactions cancelled & restored!", Toast.LENGTH_SHORT).show()
                         },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -694,8 +694,8 @@ fun TransactionsScreen(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = if (isId)
-                                    "Membatalkan seluruh transaksi terpilih dan mengembalikan dana ke masing-masing dompet."
-                                else "Cancels selected transactions and restores/reverts funds in respective wallets.",
+                                    "Batalkan transaksi dan pulihkan saldo masing-masing dompet."
+                                else "Cancel transactions and restore funds to wallets.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -873,8 +873,8 @@ fun TransactionsScreen(
                 ) {
                     Text(
                         text = if (isId) 
-                            "Pilih bagaimana Anda ingin menghapus transaksi ini:" 
-                        else "Choose how you want to delete this transaction:",
+                            "Pilih cara hapus transaksi:" 
+                        else "Choose deletion method:",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -905,7 +905,7 @@ fun TransactionsScreen(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = if (isId) "Hanya Hapus Riwayat" else "Delete History Only",
+                                    text = if (isId) "Hapus Riwayat Saja" else "Delete History Only",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary
@@ -914,8 +914,8 @@ fun TransactionsScreen(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = if (isId)
-                                    "Hanya menghapus catatan. Saldo dompet tidak akan diubah/dikembalikan."
-                                else "Removes record only. The wallet balance will NOT be modified.",
+                                    "Hapus catatan riwayat saja. Saldo dompet tetap."
+                                else "Removes record only. Wallet balance unchanged.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -957,8 +957,8 @@ fun TransactionsScreen(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = if (isId)
-                                    "Membatalkan transaksi dan mengembalikan uang ke saldo dompet Anda."
-                                else "Cancels the transaction and restores/reverts funds in the wallet.",
+                                    "Batalkan transaksi dan kembalikan dana ke saldo dompet."
+                                else "Cancels transaction and restores funds to wallet.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

@@ -340,8 +340,8 @@ fun CategoryManagementDialog(
             },
             text = {
                 Text(
-                    if (isId) "Apakah Anda yakin ingin menghapus kategori \"${catToDelete?.name}\"? Transaksi di kategori ini tidak akan dihapus, tetapi tidak lagi dikategorikan." 
-                    else "Are you sure you want to delete the category \"${catToDelete?.name}\"? Transactions in this category will not be deleted, but they will no longer be categorized."
+                    if (isId) "Hapus kategori \"${catToDelete?.name}\"? Transaksi terkait tidak akan dihapus." 
+                    else "Delete category \"${catToDelete?.name}\"? Related transactions will not be deleted."
                 )
             },
             confirmButton = {

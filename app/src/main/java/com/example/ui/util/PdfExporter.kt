@@ -127,165 +127,81 @@ object PdfExporter {
             "Please save this PDF file as a reference for account mutations or print the document physically if needed."
         }
 
-        // Paints Setup (Clean Light Theme matching the original screenshot)
-        val paintTitle = Paint().apply {
-            color = Color.parseColor("#1E3A8A") // Deep navy blue
-            textSize = 13f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
+        val sansNormal = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+        val sansBold = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+        val sansItalic = Typeface.create(Typeface.SANS_SERIF, Typeface.ITALIC)
+
+        fun createPdfPaint(tf: Typeface, size: Float, clr: Int, spacing: Float = 0.02f): Paint {
+            return Paint().apply {
+                typeface = tf
+                textSize = size
+                color = clr
+                isAntiAlias = true
+                isSubpixelText = true
+                isLinearText = true
+                letterSpacing = spacing
+            }
         }
 
-        val paintSubtitle = Paint().apply {
-            color = Color.parseColor("#64748B") // Slate grey
-            textSize = 8.5f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            isAntiAlias = true
-        }
-
-        val paintMetaBold = Paint().apply {
-            color = Color.parseColor("#1E293B")
-            textSize = 8.5f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-
-        val paintMetaRegular = Paint().apply {
-            color = Color.parseColor("#475569")
-            textSize = 8.5f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            isAntiAlias = true
-        }
-
-        val paintSectionTitle = Paint().apply {
-            color = Color.parseColor("#1E293B")
-            textSize = 8.5f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
+        // Paints Setup (Clean Light Theme with Roboto/SansSerif and crisp letter spacing)
+        val paintTitle = createPdfPaint(sansBold, 13f, Color.parseColor("#1E3A8A"), 0.015f)
+        val paintSubtitle = createPdfPaint(sansNormal, 8.5f, Color.parseColor("#64748B"), 0.015f)
+        val paintMetaBold = createPdfPaint(sansBold, 8.5f, Color.parseColor("#1E293B"), 0.015f)
+        val paintMetaRegular = createPdfPaint(sansNormal, 8.5f, Color.parseColor("#475569"), 0.015f)
+        val paintSectionTitle = createPdfPaint(sansBold, 9f, Color.parseColor("#1E293B"), 0.015f)
 
         // Summary Card Paints
         val paintCardBg = Paint().apply {
-            color = Color.parseColor("#F8FAFC") // Clean light card background
+            color = Color.parseColor("#F8FAFC")
             style = Paint.Style.FILL
             isAntiAlias = true
         }
 
         val paintCardBorder = Paint().apply {
-            color = Color.parseColor("#E2E8F0") // Subtle light border
-            style = Paint.Style.STROKE
-            strokeWidth = 0.8f
-            isAntiAlias = true
-        }
-
-        val paintCardLabel = Paint().apply {
-            color = Color.parseColor("#64748B")
-            textSize = 7f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-
-        val paintCardInitialVal = Paint().apply {
-            color = Color.parseColor("#0F172A")
-            textSize = 8.5f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-
-        val paintCardIncomeVal = Paint().apply {
-            color = Color.parseColor("#15803D") // Forest Green
-            textSize = 8.5f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-
-        val paintCardExpenseVal = Paint().apply {
-            color = Color.parseColor("#B91C1C") // Crimson Red
-            textSize = 8.5f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-
-        val paintCardClosingVal = Paint().apply {
-            color = Color.parseColor("#2563EB") // Royal Blue
-            textSize = 8.5f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-
-        // Table Paints
-        val paintTableHeaderText = Paint().apply {
-            color = Color.parseColor("#1E293B")
-            textSize = 8f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-
-        val paintTableLine = Paint().apply {
             color = Color.parseColor("#E2E8F0")
             style = Paint.Style.STROKE
             strokeWidth = 0.8f
             isAntiAlias = true
         }
 
+        val paintCardLabel = createPdfPaint(sansBold, 7f, Color.parseColor("#64748B"), 0.02f)
+        val paintCardInitialVal = createPdfPaint(sansBold, 8.5f, Color.parseColor("#0F172A"), 0.015f)
+        val paintCardIncomeVal = createPdfPaint(sansBold, 8.5f, Color.parseColor("#15803D"), 0.015f)
+        val paintCardExpenseVal = createPdfPaint(sansBold, 8.5f, Color.parseColor("#B91C1C"), 0.015f)
+        val paintCardClosingVal = createPdfPaint(sansBold, 8.5f, Color.parseColor("#2563EB"), 0.015f)
+
+        // Table Paints
+        val paintTableHeaderText = createPdfPaint(sansBold, 8f, Color.parseColor("#1E293B"), 0.02f)
+
+        val paintTableLine = Paint().apply {
+            color = Color.parseColor("#E2E8F0")
+            style = Paint.Style.STROKE
+            strokeWidth = 0.6f
+            isAntiAlias = true
+        }
+
         val paintTableDivider = Paint().apply {
             color = Color.parseColor("#CBD5E1")
             style = Paint.Style.STROKE
-            strokeWidth = 0.9f
+            strokeWidth = 1.0f
             isAntiAlias = true
         }
 
-        val paintBody = Paint().apply {
-            color = Color.parseColor("#334155")
-            textSize = 8f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            isAntiAlias = true
-        }
+        val paintBody = createPdfPaint(sansNormal, 8f, Color.parseColor("#334155"), 0.02f)
+        val paintAdminSubtext = createPdfPaint(sansItalic, 7f, Color.parseColor("#64748B"), 0.02f)
 
-        val paintAdminSubtext = Paint().apply {
-            color = Color.parseColor("#64748B")
-            textSize = 7f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.ITALIC)
-            isAntiAlias = true
-        }
+        val paintFooterText = createPdfPaint(sansItalic, 7.5f, Color.parseColor("#64748B"), 0.02f)
 
-        val paintGreen = Paint().apply {
-            color = Color.parseColor("#15803D")
-            textSize = 8f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
+        // Table Column X Coordinates (Page width = 595, margins: 38f to 557f = 519f printable width)
+        val colX_Date = 38f         // width ~50f (38..88)
+        val colX_Wallet = 94f       // width ~62f (94..156)
+        val colX_Category = 162f    // width ~82f (162..244)
+        val colX_Desc = 250f        // width ~158f (250..408)
+        val colX_Amount = 557f      // right aligned at 557f (ample safe zone > 140f)
 
-        val paintRed = Paint().apply {
-            color = Color.parseColor("#B91C1C")
-            textSize = 8f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-
-        val paintBlue = Paint().apply {
-            color = Color.parseColor("#2563EB")
-            textSize = 8f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-
-        val paintFooterText = Paint().apply {
-            color = Color.parseColor("#64748B")
-            textSize = 7.5f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.ITALIC)
-            isAntiAlias = true
-        }
-
-        // Table Column X Coordinates (Page width = 595, margins: 40f to 555f = 515f width)
-        val colX_Date = 40f         // width 55f (40..95)
-        val colX_Wallet = 95f       // width 68f (95..163)
-        val colX_Category = 163f    // width 107f (163..270) -> wider for categories
-        val colX_Desc = 270f        // width 175f (270..445) -> wide for full description
-        val colX_Amount = 555f      // right aligned at 555f (445..555)
-
-        val widthWallet = 64f
-        val widthCategory = 102f
-        val widthDesc = 170f
+        val widthWallet = 60f
+        val widthCategory = 80f
+        val widthDesc = 154f
 
         // Precompute formatted rows
         val sdfDate = SimpleDateFormat("dd/MM/yyyy", if (isIndonesian) Locale("id", "ID") else Locale.US)
@@ -332,7 +248,8 @@ object PdfExporter {
                 noteLines.size,
                 if (adminFeeStr != null) 2 else 1
             )
-            val rowHeight = maxOf(20f, 6f + (maxLineCount * 11f))
+            // Generous line height (13.5f per line) prevents vertical font collision between lines and row borders
+            val rowHeight = maxOf(24f, 9f + (maxLineCount * 13.5f))
 
             formattedRows.add(
                 FormattedTxRow(
@@ -379,20 +296,20 @@ object PdfExporter {
 
         // Header Drawer Function
         fun drawPageHeader(can: Canvas, pageNum: Int) {
-            can.drawText(titleStr, 40f, 50f, paintTitle)
-            can.drawText(subtitleStr, 40f, 64f, paintSubtitle)
-            can.drawLine(40f, 74f, 555f, 74f, paintTableLine)
+            can.drawText(titleStr, 38f, 50f, paintTitle)
+            can.drawText(subtitleStr, 38f, 64f, paintSubtitle)
+            can.drawLine(38f, 74f, 557f, 74f, paintTableLine)
 
-            can.drawText("$reportPeriodLbl: $periodDisplay", 40f, 92f, paintMetaBold)
-            can.drawText("$printedOnLbl: $printedTime", 40f, 105f, paintMetaRegular)
+            can.drawText("$reportPeriodLbl: $periodDisplay", 38f, 92f, paintMetaBold)
+            can.drawText("$printedOnLbl: $printedTime", 38f, 105f, paintMetaRegular)
 
             val pageStr = "$pageLbl $pageNum"
             val pRight = Paint(paintMetaRegular).apply { textAlign = Paint.Align.RIGHT }
-            can.drawText(pageStr, 555f, 92f, pRight)
+            can.drawText(pageStr, 557f, 92f, pRight)
         }
 
         fun drawTableHeaderRow(can: Canvas, y: Float) {
-            can.drawLine(40f, y, 555f, y, paintTableDivider)
+            can.drawLine(38f, y, 557f, y, paintTableDivider)
 
             can.drawText(colDateLbl, colX_Date, y + 14f, paintTableHeaderText)
             can.drawText(colWalletLbl, colX_Wallet, y + 14f, paintTableHeaderText)
@@ -402,7 +319,7 @@ object PdfExporter {
             val rightAlign = Paint(paintTableHeaderText).apply { textAlign = Paint.Align.RIGHT }
             can.drawText(colAmountLbl, colX_Amount, y + 14f, rightAlign)
 
-            can.drawLine(40f, y + 20f, 555f, y + 20f, paintTableDivider)
+            can.drawLine(38f, y + 21f, 557f, y + 21f, paintTableDivider)
         }
 
         // Render each page
@@ -418,8 +335,8 @@ object PdfExporter {
                 yPos = 125f
 
                 // 4 Summary Mutation Cards (Saldo Awal, Total Pemasukan, Total Pengeluaran, Saldo Akhir)
-                val totalAreaWidth = 515f
-                val gap = 8f
+                val totalAreaWidth = 519f
+                val gap = 7f
                 val cardWidth = (totalAreaWidth - (3 * gap)) / 4f
                 val cardHeight = 46f
 
@@ -431,27 +348,33 @@ object PdfExporter {
                 )
 
                 for ((cIdx, card) in cardsData.withIndex()) {
-                    val cx = 40f + (cIdx * (cardWidth + gap))
+                    val cx = 38f + (cIdx * (cardWidth + gap))
                     canvas.drawRect(cx, yPos, cx + cardWidth, yPos + cardHeight, paintCardBg)
                     canvas.drawRect(cx, yPos, cx + cardWidth, yPos + cardHeight, paintCardBorder)
 
-                    canvas.drawText(card.first, cx + 8f, yPos + 16f, paintCardLabel)
-                    canvas.drawText(card.second, cx + 8f, yPos + 34f, card.third)
+                    // Auto-scale value font if number is large to avoid overflowing borders
+                    val vPaint = Paint(card.third)
+                    while (vPaint.measureText(card.second) > (cardWidth - 14f) && vPaint.textSize > 6.0f) {
+                        vPaint.textSize -= 0.4f
+                    }
+
+                    canvas.drawText(card.first, cx + 7f, yPos + 16f, paintCardLabel)
+                    canvas.drawText(card.second, cx + 7f, yPos + 34f, vPaint)
                 }
 
                 yPos += cardHeight + 25f
 
                 // Table Section Title
-                canvas.drawText(tableTitle, 40f, yPos, paintSectionTitle)
+                canvas.drawText(tableTitle, 38f, yPos, paintSectionTitle)
                 yPos += 10f
 
                 drawTableHeaderRow(canvas, yPos)
-                yPos += 20f
+                yPos += 21f
             } else {
                 drawPageHeader(canvas, pageNum)
                 yPos = 120f
                 drawTableHeaderRow(canvas, yPos)
-                yPos += 20f
+                yPos += 21f
             }
 
             // Draw Rows
@@ -459,44 +382,46 @@ object PdfExporter {
                 val emptyPaint = Paint(paintSubtitle).apply { textAlign = Paint.Align.CENTER }
                 canvas.drawText(emptyMessage, 595f / 2f, yPos + 22f, emptyPaint)
                 yPos += 35f
-                canvas.drawLine(40f, yPos, 555f, yPos, paintTableLine)
+                canvas.drawLine(38f, yPos, 557f, yPos, paintTableLine)
             } else {
                 for (row in pageRows) {
                     val rTop = yPos
                     val rBottom = yPos + row.rowHeight
 
-                    // Bottom line
-                    canvas.drawLine(40f, rBottom, 555f, rBottom, paintTableLine)
+                    // Bottom row divider line
+                    canvas.drawLine(38f, rBottom, 557f, rBottom, paintTableLine)
+
+                    val textBaseY = rTop + 14f
 
                     // 1. Date
-                    canvas.drawText(row.dateStr, colX_Date, rTop + 12f, paintBody)
+                    canvas.drawText(row.dateStr, colX_Date, textBaseY, paintBody)
 
                     // 2. Wallet lines
                     row.walletLines.forEachIndexed { idx, line ->
-                        canvas.drawText(line, colX_Wallet, rTop + 12f + (idx * 10f), paintBody)
+                        canvas.drawText(line, colX_Wallet, textBaseY + (idx * 13.5f), paintBody)
                     }
 
                     // 3. Category lines
                     row.categoryLines.forEachIndexed { idx, line ->
-                        canvas.drawText(line, colX_Category, rTop + 12f + (idx * 10f), paintBody)
+                        canvas.drawText(line, colX_Category, textBaseY + (idx * 13.5f), paintBody)
                     }
 
                     // 4. Description lines
                     row.noteLines.forEachIndexed { idx, line ->
-                        canvas.drawText(line, colX_Desc, rTop + 12f + (idx * 10f), paintBody)
+                        canvas.drawText(line, colX_Desc, textBaseY + (idx * 13.5f), paintBody)
                     }
 
                     // 5. Amount & Admin
-                    val amtPaint = Paint(paintBody).apply {
-                        color = row.amountColor
-                        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                    val amtPaint = createPdfPaint(sansBold, 8f, row.amountColor, 0.02f).apply {
                         textAlign = Paint.Align.RIGHT
                     }
-                    canvas.drawText(row.amountStr, colX_Amount, rTop + 12f, amtPaint)
+                    canvas.drawText(row.amountStr, colX_Amount, textBaseY, amtPaint)
 
                     if (row.adminFeeStr != null) {
-                        val feePaint = Paint(paintAdminSubtext).apply { textAlign = Paint.Align.RIGHT }
-                        canvas.drawText(row.adminFeeStr, colX_Amount, rTop + 22f, feePaint)
+                        val feePaint = createPdfPaint(sansItalic, 7f, Color.parseColor("#64748B"), 0.02f).apply {
+                            textAlign = Paint.Align.RIGHT
+                        }
+                        canvas.drawText(row.adminFeeStr, colX_Amount, textBaseY + 13.5f, feePaint)
                     }
 
                     yPos = rBottom
@@ -506,14 +431,14 @@ object PdfExporter {
             // Draw Clean Footer (Ensuring spacious line height and no overlapping fonts)
             if (pageNum == totalPages) {
                 // Ensure adequate margin from bottom of table
-                yPos = maxOf(yPos + 20f, 740f)
+                yPos = maxOf(yPos + 22f, 745f)
 
-                canvas.drawLine(40f, yPos, 555f, yPos, paintTableLine)
-                yPos += 14f
+                canvas.drawLine(38f, yPos, 557f, yPos, paintTableLine)
+                yPos += 15f
 
-                canvas.drawText(footerDisclaimer1, 40f, yPos, paintFooterText)
+                canvas.drawText(footerDisclaimer1, 38f, yPos, paintFooterText)
                 yPos += 13f // Generous 13pt line height to completely prevent font collisions
-                canvas.drawText(footerDisclaimer2, 40f, yPos, paintFooterText)
+                canvas.drawText(footerDisclaimer2, 38f, yPos, paintFooterText)
             }
 
             pdfDocument.finishPage(page)
@@ -530,46 +455,54 @@ object PdfExporter {
         val trimmed = text.trim()
         if (trimmed.isEmpty() || trimmed == "-") return listOf("-")
 
-        if (paint.measureText(trimmed) <= maxWidth) {
-            return listOf(trimmed)
-        }
+        val paragraphs = trimmed.split("\n")
+        val allLines = mutableListOf<String>()
 
-        val words = trimmed.split(" ")
-        val lines = mutableListOf<String>()
-        var currentLine = StringBuilder()
+        for (paragraph in paragraphs) {
+            val pTrim = paragraph.trim()
+            if (pTrim.isEmpty()) continue
 
-        for (word in words) {
-            val candidate = if (currentLine.isEmpty()) word else "${currentLine} $word"
-            if (paint.measureText(candidate) <= maxWidth) {
-                currentLine = StringBuilder(candidate)
-            } else {
-                if (currentLine.isNotEmpty()) {
-                    lines.add(currentLine.toString())
-                    currentLine = StringBuilder()
-                }
-                if (paint.measureText(word) > maxWidth) {
-                    var subWord = ""
-                    for (ch in word) {
-                        if (paint.measureText(subWord + ch) <= maxWidth) {
-                            subWord += ch
-                        } else {
-                            if (subWord.isNotEmpty()) lines.add(subWord)
-                            subWord = ch.toString()
-                        }
-                    }
-                    if (subWord.isNotEmpty()) {
-                        currentLine = StringBuilder(subWord)
-                    }
+            if (paint.measureText(pTrim) <= maxWidth) {
+                allLines.add(pTrim)
+                continue
+            }
+
+            val words = pTrim.split(" ")
+            var currentLine = StringBuilder()
+
+            for (word in words) {
+                val candidate = if (currentLine.isEmpty()) word else "${currentLine} $word"
+                if (paint.measureText(candidate) <= maxWidth) {
+                    currentLine = StringBuilder(candidate)
                 } else {
-                    currentLine = StringBuilder(word)
+                    if (currentLine.isNotEmpty()) {
+                        allLines.add(currentLine.toString())
+                        currentLine = StringBuilder()
+                    }
+                    if (paint.measureText(word) > maxWidth) {
+                        var subWord = ""
+                        for (ch in word) {
+                            if (paint.measureText(subWord + ch) <= maxWidth) {
+                                subWord += ch
+                            } else {
+                                if (subWord.isNotEmpty()) allLines.add(subWord)
+                                subWord = ch.toString()
+                            }
+                        }
+                        if (subWord.isNotEmpty()) {
+                            currentLine = StringBuilder(subWord)
+                        }
+                    } else {
+                        currentLine = StringBuilder(word)
+                    }
                 }
             }
-        }
-        if (currentLine.isNotEmpty()) {
-            lines.add(currentLine.toString())
+            if (currentLine.isNotEmpty()) {
+                allLines.add(currentLine.toString())
+            }
         }
 
-        return lines.ifEmpty { listOf(trimmed) }
+        return allLines.ifEmpty { listOf(trimmed) }
     }
 
     private fun getMonthName(month: Int, isIndonesian: Boolean): String {

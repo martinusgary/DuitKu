@@ -72,7 +72,7 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        if (isId) "Buat dompet baru untuk mencatat saldo awal Anda." else "Create a wallet to record your initial balance.",
+                        if (isId) "Buat dompet baru untuk mencatat saldo." else "Create a wallet to record balance.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -101,7 +101,7 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
-                    text = if (isId) "Ketuk dompet untuk melihat rincian saldo atau mengeditnya." else "Tap a wallet to view balance details or edit it.",
+                    text = if (isId) "Ketuk dompet untuk rincian atau edit." else "Tap a wallet to view details or edit.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -209,7 +209,7 @@ fun WalletDetailDialog(
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text(if (isId) "Hapus Dompet: ${wallet.name}?" else "Delete Wallet: ${wallet.name}?") },
-            text = { Text(if (isId) "Apakah Anda yakin ingin menghapus dompet ini? Riwayat transaksi lama tetap tersimpan." else "Are you sure you want to delete this wallet? Previous transaction records will remain.") },
+            text = { Text(if (isId) "Hapus dompet ini? Riwayat transaksi lama tetap tersimpan." else "Delete this wallet? Previous transactions remain saved.") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -351,9 +351,9 @@ fun WalletDetailDialog(
                         )
                         Text(
                             text = if (isId) 
-                                "Saldo aktif dapat digunakan langsung untuk pencatatan transaksi masuk, keluar, atau transfer."
+                                "Saldo aktif dapat dipakai untuk transaksi atau transfer."
                             else 
-                                "Active balance is ready for tracking income, expense, and transfer transactions.",
+                                "Active balance is ready for transactions or transfer.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
