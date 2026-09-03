@@ -1290,21 +1290,22 @@ fun DashboardScreen(
         }
 
         // Floating Action Button (Only show if not on FRESH theme)
-        if (!isFresh) {
+        if (!isFresh && !showAddDialog) {
             FloatingActionButton(
                 onClick = { showAddDialog = true },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(24.dp)
+                    .padding(end = 16.dp, bottom = 16.dp)
                     .testTag("add_transaction_fab"),
+                shape = RoundedCornerShape(16.dp),
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 16.dp),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(painterResource(id = R.drawable.ic_add_custom), contentDescription = "Add")
+                    Icon(painterResource(id = R.drawable.ic_add_custom), contentDescription = "Add", modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(if (isId) "Transaksi Baru" else "New Transaction", fontWeight = FontWeight.Bold)
                 }

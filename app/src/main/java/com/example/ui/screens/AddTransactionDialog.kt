@@ -223,9 +223,10 @@ fun AddTransactionDialog(
     ) {
         Card(
             modifier = Modifier
-                .width(dialogWidth)
-                .heightIn(max = (screenHeight * 0.88).dp)
-                .padding(12.dp),
+                .fillMaxWidth(0.95f)
+                .widthIn(max = 520.dp)
+                .heightIn(max = (screenHeight * 0.90).dp)
+                .padding(vertical = 12.dp),
             shape = RoundedCornerShape(24.dp)
         ) {
             Column(
@@ -515,6 +516,9 @@ fun AddTransactionDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
@@ -538,18 +542,22 @@ fun AddTransactionDialog(
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
-                                    Column {
+                                    Column(modifier = Modifier.weight(1f, fill = false)) {
                                         Text(
-                                            text = if (isId) "Biaya Admin (Opsional)" else "Admin Fee (Optional)",
+                                            text = if (isId) "Biaya Admin" else "Admin Fee",
                                             style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = MaterialTheme.colorScheme.onSurface
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                         if (!enableAdminFee) {
                                             Text(
-                                                text = if (isId) "Ketuk untuk menambahkan biaya admin" else "Tap to add admin fee",
+                                                text = if (isId) "Tambah biaya admin transaksi" else "Add extra transaction fee",
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                         }
                                     }
@@ -816,6 +824,9 @@ fun AddTransactionDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
@@ -839,18 +850,22 @@ fun AddTransactionDialog(
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
-                                    Column {
+                                    Column(modifier = Modifier.weight(1f, fill = false)) {
                                         Text(
-                                            text = if (isId) "Opsi Hutang & Split Pembayaran" else "Debt & Split Payment Options",
+                                            text = if (isId) "Hutang & Split" else "Debt & Split",
                                             style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = MaterialTheme.colorScheme.onSurface
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                         if (!enableDebtOption) {
                                             Text(
-                                                text = if (isId) "Ketuk untuk mencatat transaksi sebagai hutang atau split" else "Tap to log as debt or split underfunded payment",
+                                                text = if (isId) "Catat hutang / split bayar" else "Log as debt or split payment",
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                         }
                                     }
@@ -1156,14 +1171,23 @@ fun AddTransactionDialog(
 
                 // Actions: Cancel & Save
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text(if (isId) "Batal" else "Cancel")
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = if (isId) "Batal" else "Cancel",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
                             val amountVal = amountStr.toDoubleOrNull() ?: 0.0
@@ -1311,9 +1335,16 @@ fun AddTransactionDialog(
                         },
                         enabled = (wallets.isNotEmpty() || (enableDebtOption && debtModeOption == "FULL_DEBT")) && (
                             scannedReceipts.isNotEmpty() || amountStr.isNotEmpty() || (enableDebtOption && debtPersonName.isNotEmpty())
-                        )
+                        ),
+                        modifier = Modifier.weight(1.4f).height(48.dp),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text(if (isId) "Simpan Transaksi" else "Save Transaction", fontWeight = FontWeight.Bold)
+                        Text(
+                            text = if (isId) "Simpan Transaksi" else "Save Transaction",
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }

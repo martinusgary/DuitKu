@@ -31,6 +31,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.animation.*
@@ -58,23 +59,45 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                 var isRegistered by remember { mutableStateOf(prefs.getBoolean("is_registered", false)) }
                 var isAuthenticated by remember { mutableStateOf(!isRegistered) }
 
+                val tabStack = remember { mutableStateListOf<Int>(0) }
                 var selectedTab by remember { mutableStateOf(0) }
+                var settingsSubmenu by remember { mutableStateOf<Int?>(null) }
                 var showBackupDialog by remember { mutableStateOf(false) }
                 var showCategoryDialog by remember { mutableStateOf(false) }
                 var isTransactionsBulkMode by remember { mutableStateOf(false) }
 
                 fun navigateToTab(tabIndex: Int) {
                     if (selectedTab != tabIndex) {
+                        if (tabStack.isEmpty() || tabStack.last() != tabIndex) {
+                            tabStack.add(tabIndex)
+                        }
                         selectedTab = tabIndex
+                        if (tabIndex != 5) {
+                            settingsSubmenu = null
+                        }
                     }
                 }
 
-                fun handleBackNavigation() {
+                fun handleBackNavigation(): Boolean {
                     if (isTransactionsBulkMode) {
                         isTransactionsBulkMode = false
+                        return true
+                    }
+                    if (selectedTab == 5 && settingsSubmenu != null) {
+                        settingsSubmenu = null
+                        return true
+                    }
+                    if (tabStack.size > 1) {
+                        tabStack.removeAt(tabStack.lastIndex)
+                        selectedTab = tabStack.last()
+                        return true
                     } else if (selectedTab != 0) {
                         selectedTab = 0
+                        tabStack.clear()
+                        tabStack.add(0)
+                        return true
                     }
+                    return false
                 }
 
                 val appLang by viewModel.appLanguage.collectAsState()
@@ -105,7 +128,8 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                         val uiStyle by viewModel.uiStyle.collectAsState()
                         val isFresh = uiStyle == "FRESH"
 
-                        BackHandler(enabled = isTransactionsBulkMode || selectedTab != 0) {
+                        val canNavigateBack = isTransactionsBulkMode || (selectedTab == 5 && settingsSubmenu != null) || tabStack.size > 1 || selectedTab != 0
+                        BackHandler(enabled = canNavigateBack) {
                             handleBackNavigation()
                         }
 
@@ -114,8 +138,12 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                             topBar = {
                                 TopAppBar(
                                     navigationIcon = {
-                                        if (selectedTab != 0) {
-                                            IconButton(onClick = { handleBackNavigation() }) {
+                                        val showBackButton = selectedTab != 0 || (selectedTab == 5 && settingsSubmenu != null)
+                                        if (showBackButton) {
+                                            IconButton(
+                                                onClick = { handleBackNavigation() },
+                                                modifier = Modifier.testTag("back_button")
+                                            ) {
                                                 Icon(
                                                     painter = painterResource(id = R.drawable.ic_arrow_back_custom),
                                                     contentDescription = "Back",
@@ -146,15 +174,34 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                                         )
                                     }
                                     Column {
+                                        val headerTitle = when (selectedTab) {
+                                            0 -> "DuitKu"
+                                            1 -> if (isId) "Dompet Saya" else "My Wallets"
+                                            2 -> if (isId) "Riwayat Transaksi" else "Transaction History"
+                                            3 -> if (isId) "Analisis Finansial" else "Financial Analytics"
+                                            4 -> if (isId) "Utang & Tagihan" else "Debts & Bills"
+                                            5 -> {
+                                                when (settingsSubmenu) {
+                                                    1 -> if (isId) "Profil & Cadangan Data" else "Profile & Data Backup"
+                                                    2 -> if (isId) "Tampilan & Tema" else "Visuals & Themes"
+                                                    3 -> if (isId) "Keamanan & Kunci PIN" else "PIN Lock & Security"
+                                                    4 -> if (isId) "Info Aplikasi & Pembaruan" else "App Info & Updates"
+                                                    else -> if (isId) "Pengaturan & Keamanan" else "Settings & Security"
+                                                }
+                                            }
+                                            else -> "DuitKu"
+                                        }
                                         Text(
-                                            text = "DuitKu",
-                                            style = MaterialTheme.typography.titleLarge.copy(
+                                            text = headerTitle,
+                                            style = MaterialTheme.typography.titleMedium.copy(
                                                 fontWeight = FontWeight.ExtraBold,
                                                 letterSpacing = if (isFresh) 0.5.sp else 0.sp
                                             ),
-                                            color = if (isFresh) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary
+                                            color = MaterialTheme.colorScheme.primary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
-                                        if (isFresh) {
+                                        if (isFresh && selectedTab == 0) {
                                             Text(
                                                 text = if (isId) "Dompet Digital Cerdas" else "Smart Financial Wallet",
                                                 style = MaterialTheme.typography.labelSmall.copy(
@@ -217,7 +264,8 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                         )
                     },
                     bottomBar = {
-                        if (!isFresh) {
+                        val isSubmenuOpen = selectedTab == 5 && settingsSubmenu != null
+                        if (!isSubmenuOpen) {
                             val configuration = androidx.compose.ui.platform.LocalConfiguration.current
                             val screenWidth = configuration.screenWidthDp
                             val labelStyle = if (screenWidth < 380) {
@@ -349,7 +397,11 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                                         )
                                         3 -> AnalyticsScreen(viewModel = viewModel)
                                         4 -> DebtsBillsScreen(viewModel = viewModel)
-                                        5 -> SettingsScreen(viewModel = viewModel)
+                                        5 -> SettingsScreen(
+                                            viewModel = viewModel,
+                                            activeCategory = settingsSubmenu,
+                                            onActiveCategoryChange = { settingsSubmenu = it }
+                                        )
                                     }
                                 }
 

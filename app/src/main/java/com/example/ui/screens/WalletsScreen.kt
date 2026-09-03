@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.window.Dialog
@@ -76,7 +77,10 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = { showAddWalletDialog = true }) {
+                    Button(
+                        onClick = { showAddWalletDialog = true },
+                        modifier = Modifier.testTag("create_wallet_btn")
+                    ) {
                         Icon(painterResource(id = R.drawable.ic_add_custom), contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(if (isId) "Tambah Dompet Baru" else "Add New Wallet")
@@ -119,17 +123,20 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
                 }
             }
 
-            // Small Floating Fab to Add Wallet when list is not empty
-            FloatingActionButton(
-                onClick = { showAddWalletDialog = true },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(24.dp)
-                    .testTag("add_wallet_fab"),
-                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-            ) {
-                Icon(painterResource(id = R.drawable.ic_add_custom), contentDescription = if (isId) "Tambah Dompet" else "Add Wallet")
+            // Floating Fab to Add Wallet when list is not empty
+            if (!showAddWalletDialog && selectedWalletForDetail == null) {
+                FloatingActionButton(
+                    onClick = { showAddWalletDialog = true },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 16.dp, bottom = 16.dp)
+                        .testTag("add_wallet_fab"),
+                    shape = RoundedCornerShape(16.dp),
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                ) {
+                    Icon(painterResource(id = R.drawable.ic_add_custom), contentDescription = if (isId) "Tambah Dompet" else "Add Wallet")
+                }
             }
         }
     }
@@ -496,14 +503,19 @@ fun EditWalletDialog(
                 }
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text(if (isId) "Batal" else "Cancel")
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(if (isId) "Batal" else "Cancel", maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
                             val balanceVal = balanceStr.toDoubleOrNull() ?: 0.0
@@ -518,9 +530,11 @@ fun EditWalletDialog(
                                 onDismiss()
                             }
                         },
-                        enabled = walletName.trim().isNotEmpty()
+                        enabled = walletName.trim().isNotEmpty(),
+                        modifier = Modifier.weight(1.4f).height(48.dp),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text(if (isId) "Simpan" else "Save")
+                        Text(if (isId) "Simpan Perubahan" else "Save Changes", fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -759,14 +773,19 @@ fun AddWalletDialog(
                 }
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text(if (isId) "Batal" else "Cancel")
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(if (isId) "Batal" else "Cancel", maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
                             val balanceVal = initialBalanceStr.toDoubleOrNull() ?: 0.0
@@ -779,9 +798,11 @@ fun AddWalletDialog(
                                 onDismiss()
                             }
                         },
-                        enabled = walletName.trim().isNotEmpty()
+                        enabled = walletName.trim().isNotEmpty(),
+                        modifier = Modifier.weight(1.4f).height(48.dp),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text(if (isId) "Simpan" else "Save")
+                        Text(if (isId) "Tambah Dompet" else "Add Wallet", fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }

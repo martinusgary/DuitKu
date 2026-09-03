@@ -43,7 +43,9 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
-    viewModel: FinanceViewModel
+    viewModel: FinanceViewModel,
+    activeCategory: Int? = null,
+    onActiveCategoryChange: (Int?) -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -66,15 +68,7 @@ fun SettingsScreen(
     var importJsonContent by remember { mutableStateOf("") }
     var isEncryptedFile by remember { mutableStateOf(false) }
 
-    // Google Drive dynamic sync states
-    var googleAccount by remember { mutableStateOf(viewModel.getGDriveAccount()) }
-    var lastSyncTime by remember { mutableStateOf(viewModel.getGDriveLastSync()) }
-    val gdriveSyncState by viewModel.gdriveSyncState.collectAsState()
-    var showGoogleDialog by remember { mutableStateOf(false) }
-    var googleEmailInput by remember { mutableStateOf("") }
-    var showCloudRestorePrompt by remember { mutableStateOf(false) }
-    var cloudBackupTimeFound by remember { mutableStateOf<String?>(null) }
-    var cloudBackupDataFound by remember { mutableStateOf<String?>(null) }
+    // Local backup states
 
     // Biometrics support
     val isBiometricSupported = remember {
@@ -85,8 +79,10 @@ fun SettingsScreen(
         mutableStateOf(prefs.getBoolean("biometric_enabled", false))
     }
 
-    // Active Category View state (null = Main Menu, 1 = Profile & Backup, 2 = Visuals & Themes, 3 = Lock & Security)
-    var activeCategory by remember { mutableStateOf<Int?>(null) }
+    // Handle back button when within a Settings submenu
+    androidx.activity.compose.BackHandler(enabled = activeCategory != null) {
+        onActiveCategoryChange(null)
+    }
 
     // Pre-generate JSON on opening for backup
     LaunchedEffect(Unit) {
@@ -218,7 +214,7 @@ fun SettingsScreen(
 
                     // A. PROFILE ACCOUNT CARD (At the very top) - Clicking goes to Profile & Backup category
                     Card(
-                        onClick = { activeCategory = 1 },
+                        onClick = { onActiveCategoryChange(1) },
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
                         ),
@@ -265,14 +261,11 @@ fun SettingsScreen(
                                     color = MaterialTheme.colorScheme.onBackground
                                 )
                                 
-                                // Dynamic email follow from GDrive email list if any
-                                if (!googleAccount.isNullOrEmpty()) {
-                                    Text(
-                                        text = googleAccount!!,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                                Text(
+                                    text = if (isId) "Akun Lokal & Keamanan" else "Local Account & Security",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
 
                             Icon(
@@ -302,7 +295,7 @@ fun SettingsScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(12.dp))
-                                    .clickable { activeCategory = 2 }
+                                    .clickable { onActiveCategoryChange(2) }
                                     .padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -351,7 +344,7 @@ fun SettingsScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(12.dp))
-                                    .clickable { activeCategory = 3 }
+                                    .clickable { onActiveCategoryChange(3) }
                                     .padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -400,7 +393,7 @@ fun SettingsScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(12.dp))
-                                    .clickable { activeCategory = 4 }
+                                    .clickable { onActiveCategoryChange(4) }
                                     .padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -483,7 +476,7 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     IconButton(
-                        onClick = { activeCategory = null },
+                        onClick = { onActiveCategoryChange(null) },
                         modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), CircleShape)
                     ) {
                         Icon(
@@ -508,7 +501,7 @@ fun SettingsScreen(
                         )
                         Text(
                             text = when (activeCategory) {
-                                1 -> if (isId) "Ubah nama sapaan, sinkronisasi Google Drive, atau ekspor-impor data." else "Customize greeting name, sync Google Drive, or export/import files."
+                                1 -> if (isId) "Ubah nama sapaan, atau ekspor-impor cadangan data lokal." else "Customize greeting name, or export/import local backup data."
                                 2 -> if (isId) "Pilih preferensi bahasa, palet warna, dan gaya tampilan visual." else "Choose language preferences, custom color themes, and visual interface styles."
                                 3 -> if (isId) "Konfigurasi pengunci PIN enam digit dan verifikasi keamanan biometrik." else "Configure the six-digit safety passcode and biometrics verification lock."
                                 4 -> if (isId) "Periksa pembaruan rilis terbaru dari GitHub dan perlindungan data lokal." else "Check for the latest GitHub releases and safe local data preservation."
@@ -582,149 +575,42 @@ fun SettingsScreen(
                             }
                         }
 
-                        // B. Google Drive Cloud synchronization
+                        // B. 100% Local Storage Notice
                         Card(
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
                             ),
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp)
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(
+                            Row(
                                 modifier = Modifier.padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                                verticalAlignment = Alignment.Top,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Text(
-                                    text = if (isId) "Google Drive - Sinkronisasi Cloud" else "Google Drive - Cloud Synchronization",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
+                                Icon(
+                                    Icons.Default.Security,
+                                    contentDescription = "Penyimpanan Lokal",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(22.dp)
                                 )
-                                
-                                Text(
-                                    text = if (isId) {
-                                        "Amankan seluruh saku, anggaran, transaksi, dan target keuangan Anda secara berkala ke cloud Google Drive pribadi."
-                                    } else {
-                                        "Securely persist all pockets, spending budgets, transaction records, and goals regularly to your personal Google Drive account."
-                                    },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-
-                                if (googleAccount != null) {
-                                    // Connected State
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
-                                            .padding(10.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(Icons.Default.CloudDone, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
-                                        Spacer(modifier = Modifier.width(10.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(googleAccount ?: "", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
-                                            Text(
-                                                text = if (lastSyncTime != null) {
-                                                    (if (isId) "Sinkronisasi terakhir: " else "Last synced: ") + lastSyncTime
-                                                } else {
-                                                    if (isId) "Belum sinkron" else "Not synced yet"
-                                                },
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                        TextButton(onClick = {
-                                            viewModel.disconnectGDrive()
-                                            googleAccount = null
-                                            lastSyncTime = null
-                                        }) {
-                                            Text(if (isId) "Putus" else "Unlink", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
-                                        }
-                                    }
-
-                                    Button(
-                                        onClick = {
-                                            viewModel.syncGDriveNow { success ->
-                                                if (success) {
-                                                    lastSyncTime = viewModel.getGDriveLastSync()
-                                                    Toast.makeText(context, if (isId) "Sinkronisasi Google Drive Berhasil!" else "Google Drive Synced Successfully!", Toast.LENGTH_SHORT).show()
-                                                }
-                                            }
-                                        },
-                                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                                        shape = RoundedCornerShape(12.dp)
-                                    ) {
-                                        if (gdriveSyncState == "SYNCING") {
-                                            CircularProgressIndicator(
-                                                modifier = Modifier.size(18.dp),
-                                                color = MaterialTheme.colorScheme.onPrimary,
-                                                strokeWidth = 2.dp
-                                            )
+                                Column {
+                                    Text(
+                                        text = if (isId) "Penyimpanan 100% Lokal & Privat" else "100% Local & Private Storage",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = if (isId) {
+                                            "Seluruh database dompet, transaksi, dan target keuangan Anda tersimpan sepenuhnya secara offline di memori internal perangkat ini. Tidak ada data yang dikirim ke server pihak ketiga. Gunakan fitur Ekspor & Impor di bawah untuk mencadangkan data Anda secara mandiri."
                                         } else {
-                                            Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(16.dp))
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(if (isId) "Sinkronkan Sekarang" else "Sync Now", fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                } else {
-                                    // Unconnected Google sync state
-                                    Button(
-                                        onClick = {
-                                            googleEmailInput = ""
-                                            showGoogleDialog = true
+                                            "All your wallets, transactions, and financial goals are stored completely offline inside this device's internal storage. No data is transmitted to third-party servers. Use the Export & Import tools below to manage your local backups."
                                         },
-                                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = MaterialTheme.colorScheme.secondary
-                                        )
-                                    ) {
-                                        Icon(Icons.Default.CloudQueue, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(if (isId) "Hubungkan Akun Google Drive" else "Link Google Drive Account", fontWeight = FontWeight.Bold)
-                                    }
-                                }
-
-                                // Auto-sync notice
-                                Card(
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
-                                    ),
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(12.dp),
-                                        verticalAlignment = Alignment.Top,
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.CheckCircle,
-                                            contentDescription = "Sync",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Column {
-                                            Text(
-                                                text = if (isId) "Auto-Backup Android Aktif" else "Android Auto-Backup Engaged",
-                                                style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Text(
-                                                text = if (isId) {
-                                                    "Sistem Android Anda secara default menyinkronkan data database Room privat DuitKu ini secara aman ke cadangan cloud akun Google pribadi Anda ketika perangkat sedang dicas di malam hari lewat Wi-Fi."
-                                                } else {
-                                                    "Our custom system backup rules guarantee persistent system sync of the Room databases to your personal GDrive storage when the phone charges overnight on Wi-Fi."
-                                                },
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
                             }
                         }
@@ -1533,34 +1419,4 @@ fun SettingsScreen(
     }
 
 
-    // -----------------------------------------------------------------
-    // POP-UP SUB-DIALOGS (Google Drive Link Email accounts selection dialog)
-    // -----------------------------------------------------------------
-    if (showGoogleDialog) {
-        GoogleSyncDialog(
-            isId = isId,
-            viewModel = viewModel,
-            gdriveSyncState = gdriveSyncState,
-            context = context,
-            onBackupFound = { fileTime, fileData ->
-                googleAccount = viewModel.getGDriveAccount()
-                lastSyncTime = viewModel.getGDriveLastSync()
-                cloudBackupTimeFound = fileTime
-                cloudBackupDataFound = fileData
-                showCloudRestorePrompt = true
-            },
-            onDismiss = { showGoogleDialog = false }
-        )
-    }
-
-    if (showCloudRestorePrompt) {
-        CloudRestorePromptDialog(
-            isId = isId,
-            cloudBackupTime = cloudBackupTimeFound,
-            cloudBackupData = cloudBackupDataFound,
-            viewModel = viewModel,
-            context = context,
-            onDismiss = { showCloudRestorePrompt = false }
-        )
-    }
 }
