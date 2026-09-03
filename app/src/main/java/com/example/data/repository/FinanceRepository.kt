@@ -1,5 +1,6 @@
 package com.example.data.repository
 
+import android.util.Log
 import com.example.data.dao.FinanceDao
 import com.example.data.model.*
 import com.squareup.moshi.Moshi
@@ -183,9 +184,29 @@ class FinanceRepository(private val financeDao: FinanceDao) {
                     if (backup.transactions.isNotEmpty()) parsedTransactions.addAll(backup.transactions)
                     if (backup.debts.isNotEmpty()) parsedDebts.addAll(backup.debts)
                     if (backup.bills.isNotEmpty()) parsedBills.addAll(backup.bills)
+
+                    Log.d("FinanceRepository", "Moshi parsed -> Wallets: ${parsedWallets.size}, Categories: ${parsedCategories.size}, Transactions: ${parsedTransactions.size}, Debts: ${parsedDebts.size}, Bills: ${parsedBills.size}")
+
+                    if (parsedWallets.isNotEmpty() || parsedTransactions.isNotEmpty() || parsedCategories.isNotEmpty() || parsedDebts.isNotEmpty() || parsedBills.isNotEmpty()) {
+                        financeDao.clearAllWallets()
+                        financeDao.clearAllCategories()
+                        financeDao.clearAllTransactions()
+                        financeDao.clearAllDebts()
+                        financeDao.clearAllBills()
+
+                        if (parsedWallets.isNotEmpty()) financeDao.insertWallets(parsedWallets)
+                        if (parsedCategories.isNotEmpty()) financeDao.insertCategories(parsedCategories)
+                        if (parsedTransactions.isNotEmpty()) financeDao.insertTransactions(parsedTransactions)
+                        if (parsedDebts.isNotEmpty()) financeDao.insertDebts(parsedDebts)
+                        if (parsedBills.isNotEmpty()) financeDao.insertBills(parsedBills)
+
+                        prepDefaultDataIfNeeded()
+                        Log.d("FinanceRepository", "Database overwritten successfully with parsed Moshi lists.")
+                        return@withContext true
+                    }
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("FinanceRepository", "Moshi parsing failed: ${e.message}", e)
             }
 
             // 2. If standard Moshi didn't populate completely or format differs, use robust JSON parser
@@ -396,24 +417,26 @@ class FinanceRepository(private val financeDao: FinanceDao) {
             }
 
             // Perform atomic database replacement
+            Log.d("FinanceRepository", "Fallback commit -> Wallets: ${calculatedWallets.size}, Categories: ${parsedCategories.size}, Transactions: ${parsedTransactions.size}")
             financeDao.clearAllWallets()
             financeDao.clearAllCategories()
             financeDao.clearAllTransactions()
             financeDao.clearAllDebts()
             financeDao.clearAllBills()
 
-            for (w in calculatedWallets) financeDao.insertWallet(w)
-            for (c in parsedCategories) financeDao.insertCategory(c)
-            for (t in parsedTransactions) financeDao.insertTransaction(t)
-            for (d in parsedDebts) financeDao.insertDebt(d)
-            for (b in parsedBills) financeDao.insertBill(b)
+            if (calculatedWallets.isNotEmpty()) financeDao.insertWallets(calculatedWallets)
+            if (parsedCategories.isNotEmpty()) financeDao.insertCategories(parsedCategories)
+            if (parsedTransactions.isNotEmpty()) financeDao.insertTransactions(parsedTransactions)
+            if (parsedDebts.isNotEmpty()) financeDao.insertDebts(parsedDebts)
+            if (parsedBills.isNotEmpty()) financeDao.insertBills(parsedBills)
 
             // If default categories are now missing, ensure base categories are restored
             prepDefaultDataIfNeeded()
 
+            Log.d("FinanceRepository", "Fallback database restore completed successfully.")
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("FinanceRepository", "Fatal failure during importFromJson: ${e.message}", e)
             false
         }
     }

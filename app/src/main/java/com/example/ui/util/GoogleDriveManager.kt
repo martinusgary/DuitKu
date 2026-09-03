@@ -26,7 +26,6 @@ object GoogleDriveManager {
     private const val TAG = "GoogleDriveManager"
     private const val BACKUP_FILE_NAME = "duitku_cloud_backup.duitku"
     private const val SCOPE_DRIVE_APPDATA = "https://www.googleapis.com/auth/drive.appdata"
-    private const val SCOPE_DRIVE_FILE = "https://www.googleapis.com/auth/drive.file"
 
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -38,10 +37,7 @@ object GoogleDriveManager {
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
             .requestProfile()
-            .requestScopes(
-                Scope(SCOPE_DRIVE_APPDATA),
-                Scope(SCOPE_DRIVE_FILE)
-            )
+            .requestScopes(Scope("https://www.googleapis.com/auth/drive.appdata"))
             .build()
         return GoogleSignIn.getClient(context, gso)
     }
@@ -55,7 +51,7 @@ object GoogleDriveManager {
             try {
                 val androidAccount = account.account
                 if (androidAccount != null) {
-                    val scopeString = "oauth2:$SCOPE_DRIVE_APPDATA $SCOPE_DRIVE_FILE email profile"
+                    val scopeString = "oauth2:https://www.googleapis.com/auth/drive.appdata email profile"
                     GoogleAuthUtil.getToken(context, androidAccount, scopeString)
                 } else {
                     null

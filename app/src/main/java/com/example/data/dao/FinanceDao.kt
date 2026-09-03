@@ -25,6 +25,9 @@ interface FinanceDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertWallet(wallet: Wallet): Long
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertWallets(wallets: List<Wallet>)
+
     @Update
     suspend fun updateWallet(wallet: Wallet)
 
@@ -37,6 +40,9 @@ interface FinanceDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCategory(category: Category): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCategories(categories: List<Category>)
 
     @Update
     suspend fun updateCategory(category: Category)
@@ -54,6 +60,9 @@ interface FinanceDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTransaction(transaction: Transaction): Long
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTransactions(transactions: List<Transaction>)
+
     @Update
     suspend fun updateTransaction(transaction: Transaction)
 
@@ -67,6 +76,9 @@ interface FinanceDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertDebt(debt: Debt): Long
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertDebts(debts: List<Debt>)
+
     @Update
     suspend fun updateDebt(debt: Debt)
 
@@ -79,6 +91,9 @@ interface FinanceDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBill(bill: Bill): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertBills(bills: List<Bill>)
 
     @Update
     suspend fun updateBill(bill: Bill)
