@@ -1,37 +1,37 @@
 # DuitKu
 
-Aplikasi manajemen keuangan pribadi berbasis Material You (Material 3) yang dirancang untuk memudahkan pencatatan dompet, transaksi, hutang, dan tagihan. DuitKu dilengkapi dengan fitur ekspor/impor data serta integrasi kecerdasan buatan melalui Gemini API.
+A personal finance management application based on Material You (Material 3) designed to simplify tracking your wallets, transactions, debts, and bills. DuitKu features data export/import capabilities as well as smart artificial intelligence integration via the Gemini API.
 
-## Fitur Utama
-* **Manajemen Transaksi & Dompet:** Pencatatan pemasukan, pengeluaran, dan saldo antar dompet.
-* **Pantau Hutang & Tagihan:** Kelola status hutang piutang serta pengingat tagihan rutin.
-* **Material You (Material 3):** Antarmuka modern, responsif, dan dinamis menyesuaikan preferensi visual perangkat Anda.
-* **Integrasi Cerdas Gemini AI:** Memanfaatkan kapabilitas server-side Gemini API untuk pemrosesan keuangan yang lebih cerdas.
-* **Ekspor & Impor Data:** Cadangkan dan pulihkan riwayat keuangan Anda dengan aman dan mudah.
-
----
-
-## 🚀 Download & Instalasi (Untuk Pengguna)
-
-DuitKu **Versi 1.0** sudah dirilis dan bisa langsung Anda gunakan di perangkat Android tanpa perlu melakukan kompilasi kode. 
-
-1. Kunjungi tab **[Releases](../../releases)** pada repositori ini (atau sesuaikan dengan tautan rilis Anda).
-2. Pada rilis **v1.0.0**, unduh file `app-release.apk` (atau nama file APK yang tersedia) di bagian *Assets*.
-3. Buka file APK yang sudah diunduh di perangkat Android Anda.
-4. Jika muncul peringatan keamanan, izinkan instalasi dari sumber tidak dikenal (*Install unknown apps*) di pengaturan perangkat Anda.
-5. Ikuti petunjuk di layar, dan DuitKu siap digunakan!
+## Key Features
+* **Transaction & Wallet Management:** Record income, expenses, and track balances across multiple wallets.
+* **Debt & Bill Tracking:** Manage your payables and receivables, and get reminders for routine bills.
+* **Material You (Material 3):** A modern, responsive, and dynamic user interface that adapts to your device's visual preferences.
+* **Smart Gemini AI Integration:** Leverages server-side Gemini API capabilities for intelligent financial processing and insights.
+* **Data Export & Import:** Securely back up and restore your financial history with ease.
 
 ---
 
-## 💻 Pengembangan Lokal (Untuk Developer)
+## 🚀 Download & Installation (For Users)
 
-Jika Anda ingin melihat kode sumber, berkontribusi, atau membangun aplikasi ini sendiri, silakan ikuti panduan berikut.
+DuitKu **Version 1.0** is officially released and ready to use on your Android device without compiling any code.
 
-**Prasyarat:** [Android Studio](https://developer.android.com/studio)
+1. Go to the **[Releases](../../releases)** tab in this repository (or adjust the link accordingly).
+2. Under the **v1.0.0** release, download the `app-release.apk` file from the *Assets* section.
+3. Open the downloaded APK file on your Android device.
+4. If prompted with a security warning, allow installation from unknown sources in your device settings.
+5. Follow the on-screen instructions, and DuitKu is ready to use!
 
-1. Buka aplikasi **Android Studio**.
-2. Pilih **Open** dan arahkan ke direktori proyek DuitKu ini.
-3. Tunggu proses sinkronisasi Gradle selesai dan izinkan Android Studio untuk memperbaiki inkonsistensi dependensi saat mengimpor proyek jika diperlukan.
-4. Buat sebuah file baru bernama `.env` pada direktori *root* proyek. Masukkan kunci API Gemini Anda ke dalam file tersebut (Anda bisa melihat file `.env.example` sebagai referensi):
+---
+
+## 💻 Local Development (For Developers)
+
+If you want to view the source code, contribute, or build the application yourself, please follow the guide below.
+
+**Prerequisites:** [Android Studio](https://developer.android.com/studio)
+
+1. Open **Android Studio**.
+2. Select **Open** and choose the directory containing this project.
+3. Allow Android Studio to fix any incompatibilities as it imports the project and wait for the Gradle sync to finish.
+4. Create a file named `.env` in the root project directory and set your Gemini API key in that file (see `.env.example` for an example):
    ```env
-   GEMINI_API_KEY=masukkan_api_key_gemini_anda_di_sini
+   GEMINI_API_KEY=insert_your_gemini_api_key_here
