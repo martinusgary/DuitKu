@@ -68,7 +68,20 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
 
                 fun navigateToTab(tabIndex: Int) {
                     if (selectedTab != tabIndex) {
-                        if (tabStack.isEmpty() || tabStack.last() != tabIndex) {
+                        if (tabIndex == 0) {
+                            // Dashboard is the root bottom of navigation
+                            tabStack.clear()
+                            tabStack.add(0)
+                        } else if (tabIndex == 5) {
+                            // Settings is opened over current destination
+                            tabStack.removeAll { it == 5 }
+                            tabStack.add(5)
+                        } else {
+                            // Bottom navigation tabs (1: Wallets, 2: Transactions, 3: Analytics, 4: Debts):
+                            // Dashboard (0) is always the bottom/start destination.
+                            // Clear previous top-level tabs to prevent circular stack loops
+                            tabStack.clear()
+                            tabStack.add(0)
                             tabStack.add(tabIndex)
                         }
                         selectedTab = tabIndex
@@ -89,12 +102,17 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                     }
                     if (tabStack.size > 1) {
                         tabStack.removeAt(tabStack.lastIndex)
-                        selectedTab = tabStack.last()
+                        val prevTab = tabStack.last()
+                        selectedTab = prevTab
+                        if (prevTab != 5) {
+                            settingsSubmenu = null
+                        }
                         return true
                     } else if (selectedTab != 0) {
                         selectedTab = 0
                         tabStack.clear()
                         tabStack.add(0)
+                        settingsSubmenu = null
                         return true
                     }
                     return false

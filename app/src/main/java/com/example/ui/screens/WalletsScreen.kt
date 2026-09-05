@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.window.Dialog
@@ -360,6 +361,61 @@ fun WalletDetailDialog(
                     }
                 }
 
+                // Savings Goal / Target Section
+                if (wallet.icon == "savings" || wallet.targetLimit != null) {
+                    if (wallet.targetLimit != null && wallet.targetLimit > 0) {
+                        val progress = (wallet.balance / wallet.targetLimit).coerceIn(0.0, 1.0).toFloat()
+                        val percent = ((wallet.balance / wallet.targetLimit) * 100).toInt()
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(if (isId) "Target Tabungan" else "Savings Target", style = MaterialTheme.typography.labelMedium)
+                                    Text(viewModel.formatRupiah(wallet.targetLimit), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                }
+                                LinearProgressIndicator(
+                                    progress = { progress },
+                                    modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
+                                    color = Color(0xFF2E7D32)
+                                )
+                                Text(
+                                    text = if (isId) "Tercapai $percent% dari target limit" else "$percent% achieved of target limit",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    } else if (wallet.isLimitless) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Default.AllInclusive, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                Text(
+                                    text = if (isId) "Tabungan Tanpa Batas (Limitless)" else "Limitless Savings",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Actions Footer
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -415,6 +471,10 @@ fun EditWalletDialog(
         mutableStateOf(if (wallet.balance % 1.0 == 0.0) wallet.balance.toLong().toString() else wallet.balance.toString()) 
     }
     var selectedIcon by remember(wallet) { mutableStateOf(wallet.icon) }
+    var isLimitless by remember(wallet) { mutableStateOf(wallet.isLimitless) }
+    var targetLimitStr by remember(wallet) { 
+        mutableStateOf(wallet.targetLimit?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() } ?: "") 
+    }
 
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp
@@ -499,6 +559,104 @@ fun EditWalletDialog(
                                 )
                             }
                         }
+
+                        // Conditional Savings Target Configuration
+                        if (selectedIcon == "savings") {
+                            Surface(
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                                shape = RoundedCornerShape(16.dp),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Text(
+                                        text = if (isId) "Tipe Target Tabungan" else "Savings Target Mode",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+
+                                    // Selector: With Target Limit vs Limitless
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(
+                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                                shape = RoundedCornerShape(12.dp)
+                                            )
+                                            .padding(4.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        val tabShape = RoundedCornerShape(8.dp)
+                                        // With Target Limit
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .background(
+                                                    color = if (!isLimitless) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                                    shape = tabShape
+                                                )
+                                                .clip(tabShape)
+                                                .clickable { isLimitless = false }
+                                                .padding(vertical = 10.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = if (isId) "Dengan Target" else "With Target Limit",
+                                                color = if (!isLimitless) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.Bold,
+                                                textAlign = TextAlign.Center
+                                            )
+                                        }
+
+                                        // Limitless
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .background(
+                                                    color = if (isLimitless) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                                    shape = tabShape
+                                                )
+                                                .clip(tabShape)
+                                                .clickable { isLimitless = true }
+                                                .padding(vertical = 10.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = if (isId) "Tanpa Batas (Bebas)" else "Limitless",
+                                                color = if (isLimitless) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.Bold,
+                                                textAlign = TextAlign.Center
+                                            )
+                                        }
+                                    }
+
+                                    if (!isLimitless) {
+                                        OutlinedTextField(
+                                            value = targetLimitStr,
+                                            onValueChange = { if (it.all { char -> char.isDigit() }) targetLimitStr = it },
+                                            label = { Text(if (isId) "Target Nominal Tabungan" else "Target Savings Amount") },
+                                            prefix = { Text("Rp ") },
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                            placeholder = { Text("10.000.000") },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            singleLine = true
+                                        )
+                                    } else {
+                                        Text(
+                                            text = if (isId) "Tabungan tanpa target batas nominal akhir." else "Open-ended savings with no predefined upper limit.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -519,12 +677,15 @@ fun EditWalletDialog(
                     Button(
                         onClick = {
                             val balanceVal = balanceStr.toDoubleOrNull() ?: 0.0
+                            val targetVal = if (selectedIcon == "savings" && !isLimitless) targetLimitStr.toDoubleOrNull() else null
                             if (walletName.trim().isNotEmpty()) {
                                 viewModel.updateWallet(
                                     wallet.copy(
                                         name = walletName.trim(),
                                         balance = balanceVal,
-                                        icon = selectedIcon
+                                        icon = selectedIcon,
+                                        targetLimit = targetVal,
+                                        isLimitless = if (selectedIcon == "savings") isLimitless else true
                                     )
                                 )
                                 onDismiss()
@@ -668,6 +829,16 @@ fun WalletGridCard(
                         color = Color.White,
                         fontWeight = FontWeight.Black
                     )
+                    if (wallet.icon == "savings" && wallet.targetLimit != null && wallet.targetLimit > 0) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        val progress = (wallet.balance / wallet.targetLimit).coerceIn(0.0, 1.0).toFloat()
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+                            color = Color.White,
+                            trackColor = Color.White.copy(alpha = 0.3f)
+                        )
+                    }
                 }
             }
         }
@@ -685,6 +856,8 @@ fun AddWalletDialog(
     var walletName by remember { mutableStateOf("") }
     var initialBalanceStr by remember { mutableStateOf("") }
     var selectedIcon by remember { mutableStateOf("cash") } // "cash", "bank", "wallet", "savings"
+    var isLimitless by remember { mutableStateOf(true) }
+    var targetLimitStr by remember { mutableStateOf("") }
 
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp
@@ -769,6 +942,104 @@ fun AddWalletDialog(
                                 )
                             }
                         }
+
+                        // Conditional Savings Target Configuration
+                        if (selectedIcon == "savings") {
+                            Surface(
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                                shape = RoundedCornerShape(16.dp),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Text(
+                                        text = if (isId) "Tipe Target Tabungan" else "Savings Target Mode",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+
+                                    // Selector: With Target Limit vs Limitless
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(
+                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                                shape = RoundedCornerShape(12.dp)
+                                            )
+                                            .padding(4.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        val tabShape = RoundedCornerShape(8.dp)
+                                        // With Target Limit
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .background(
+                                                    color = if (!isLimitless) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                                    shape = tabShape
+                                                )
+                                                .clip(tabShape)
+                                                .clickable { isLimitless = false }
+                                                .padding(vertical = 10.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = if (isId) "Dengan Target" else "With Target Limit",
+                                                color = if (!isLimitless) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.Bold,
+                                                textAlign = TextAlign.Center
+                                            )
+                                        }
+
+                                        // Limitless
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .background(
+                                                    color = if (isLimitless) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                                    shape = tabShape
+                                                )
+                                                .clip(tabShape)
+                                                .clickable { isLimitless = true }
+                                                .padding(vertical = 10.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = if (isId) "Tanpa Batas (Bebas)" else "Limitless",
+                                                color = if (isLimitless) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.Bold,
+                                                textAlign = TextAlign.Center
+                                            )
+                                        }
+                                    }
+
+                                    if (!isLimitless) {
+                                        OutlinedTextField(
+                                            value = targetLimitStr,
+                                            onValueChange = { if (it.all { char -> char.isDigit() }) targetLimitStr = it },
+                                            label = { Text(if (isId) "Target Nominal Tabungan" else "Target Savings Amount") },
+                                            prefix = { Text("Rp ") },
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                            placeholder = { Text("10.000.000") },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            singleLine = true
+                                        )
+                                    } else {
+                                        Text(
+                                            text = if (isId) "Tabungan tanpa target batas nominal akhir." else "Open-ended savings with no predefined upper limit.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -789,11 +1060,14 @@ fun AddWalletDialog(
                     Button(
                         onClick = {
                             val balanceVal = initialBalanceStr.toDoubleOrNull() ?: 0.0
+                            val targetVal = if (selectedIcon == "savings" && !isLimitless) targetLimitStr.toDoubleOrNull() else null
                             if (walletName.trim().isNotEmpty()) {
                                 viewModel.addWallet(
                                     name = walletName,
                                     balance = balanceVal,
-                                    icon = selectedIcon
+                                    icon = selectedIcon,
+                                    targetLimit = targetVal,
+                                    isLimitless = if (selectedIcon == "savings") isLimitless else true
                                 )
                                 onDismiss()
                             }

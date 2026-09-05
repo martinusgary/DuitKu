@@ -19,6 +19,8 @@ class FinanceRepository(private val financeDao: FinanceDao) {
     val categories: Flow<List<Category>> = financeDao.getAllCategories()
     val transactions: Flow<List<Transaction>> = financeDao.getAllTransactions()
     val debts: Flow<List<Debt>> = financeDao.getAllDebts()
+    val activeDebts: Flow<List<Debt>> = financeDao.getActiveDebts()
+    val archivedDebts: Flow<List<Debt>> = financeDao.getArchivedDebts()
     val bills: Flow<List<Bill>> = financeDao.getAllBills()
 
     private val moshi = Moshi.Builder()

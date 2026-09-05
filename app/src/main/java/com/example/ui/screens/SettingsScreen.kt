@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import com.example.ui.util.UpdateResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
@@ -47,6 +48,10 @@ fun SettingsScreen(
     activeCategory: Int? = null,
     onActiveCategoryChange: (Int?) -> Unit = {}
 ) {
+    BackHandler(enabled = activeCategory != null) {
+        onActiveCategoryChange(null)
+    }
+
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     
@@ -77,11 +82,6 @@ fun SettingsScreen(
     }
     var isBiometricEnabled by remember {
         mutableStateOf(prefs.getBoolean("biometric_enabled", false))
-    }
-
-    // Handle back button when within a Settings submenu
-    androidx.activity.compose.BackHandler(enabled = activeCategory != null) {
-        onActiveCategoryChange(null)
     }
 
     // Pre-generate JSON on opening for backup
@@ -206,7 +206,7 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.onBackground
                         )
                         Text(
-                            text = if (isId) "Kelola profil sapaan, keamanan PIN, visual, dan cadangan data." else "Manage custom greetings, security locks, visual styles, and data storage.",
+                            text = if (isId) "Profil, PIN keamanan, tema, dan cadangan data." else "Profile, PIN security, themes, and backups.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -321,7 +321,7 @@ fun SettingsScreen(
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = if (isId) "Bahasa aplikasi, skema warna dinamis tema, & gaya antarmuka." else "App language, dynamic Material theme colors, & UI layout styles.",
+                                        text = if (isId) "Bahasa, tema warna, dan gaya antarmuka." else "Language, color themes, and UI styles.",
                                         style = MaterialTheme.typography.labelMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -370,7 +370,7 @@ fun SettingsScreen(
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = if (isId) "Amankan data anggaran keuangan Anda dengan sandi PIN & biometric." else "Secure financial lockers via safe numeric PINs & biometrics.",
+                                        text = if (isId) "Kunci PIN 6 digit dan verifikasi biometrik." else "6-digit PIN and biometric authentication.",
                                         style = MaterialTheme.typography.labelMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -419,7 +419,7 @@ fun SettingsScreen(
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = if (isId) "Versi v${viewModel.getAppVersionName()} • Periksa pembaruan rilis GitHub & info database." else "Version v${viewModel.getAppVersionName()} • Check GitHub releases & database status.",
+                                        text = if (isId) "Versi v${viewModel.getAppVersionName()} • Pembaruan & info aplikasi." else "Version v${viewModel.getAppVersionName()} • App updates & info.",
                                         style = MaterialTheme.typography.labelMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -449,7 +449,7 @@ fun SettingsScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = if (isId) "Seluruh data Anda terenkripsi dan disimpan lokal secara aman." else "All records are securely encrypted and retained offline in sandbox storage.",
+                        text = if (isId) "Data terenkripsi dan tersimpan aman di perangkat Anda." else "Data is securely encrypted and stored locally.",
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
@@ -501,10 +501,10 @@ fun SettingsScreen(
                         )
                         Text(
                             text = when (activeCategory) {
-                                1 -> if (isId) "Ubah nama sapaan, atau ekspor-impor cadangan data lokal." else "Customize greeting name, or export/import local backup data."
-                                2 -> if (isId) "Pilih preferensi bahasa, palet warna, dan gaya tampilan visual." else "Choose language preferences, custom color themes, and visual interface styles."
-                                3 -> if (isId) "Konfigurasi pengunci PIN enam digit dan verifikasi keamanan biometrik." else "Configure the six-digit safety passcode and biometrics verification lock."
-                                4 -> if (isId) "Periksa pembaruan rilis terbaru dari GitHub dan perlindungan data lokal." else "Check for the latest GitHub releases and safe local data preservation."
+                                1 -> if (isId) "Ubah nama sapaan dan cadangan data." else "Customize greeting and backup data."
+                                2 -> if (isId) "Pilih bahasa, tema warna, dan gaya tampilan." else "Choose language, themes, and styles."
+                                3 -> if (isId) "Atur PIN 6 digit dan verifikasi biometrik." else "Configure 6-digit PIN and biometrics."
+                                4 -> if (isId) "Cek versi aplikasi dan pembaruan." else "Check app version and updates."
                                 else -> ""
                             },
                             style = MaterialTheme.typography.bodySmall,

@@ -117,21 +117,21 @@ object PdfExporter {
 
         val emptyMessage = if (isIndonesian) "Tidak ada riwayat mutasi transaksi di periode ini." else "No transaction mutation history found in this period."
         val footerDisclaimer1 = if (isIndonesian) {
-            "App Disclaimer: Seluruh perhitungan di atas disimpan secara lokal di perangkat Anda melalui database internal DuitKu."
+            "Catatan: Seluruh data dan perhitungan disimpan lokal di perangkat Anda melalui DuitKu."
         } else {
-            "App Disclaimer: All calculations above are stored locally on your device in the DuitKu internal database."
+            "Note: All calculations are securely stored locally on your device via DuitKu."
         }
         val footerDisclaimer2 = if (isIndonesian) {
-            "Silakan simpan file PDF ini sebagai rujukan mutasi rekening atau cetak fisik dokumen bila diperlukan."
+            "Simpan berkas PDF ini sebagai rujukan mutasi transaksi atau cetak dokumen bila diperlukan."
         } else {
-            "Please save this PDF file as a reference for account mutations or print the document physically if needed."
+            "Save this PDF as transaction mutation record or print physically if needed."
         }
 
         val sansNormal = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
         val sansBold = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
         val sansItalic = Typeface.create(Typeface.SANS_SERIF, Typeface.ITALIC)
 
-        fun createPdfPaint(tf: Typeface, size: Float, clr: Int, spacing: Float = 0.02f): Paint {
+        fun createPdfPaint(tf: Typeface, size: Float, clr: Int): Paint {
             return Paint().apply {
                 typeface = tf
                 textSize = size
@@ -139,16 +139,16 @@ object PdfExporter {
                 isAntiAlias = true
                 isSubpixelText = true
                 isLinearText = true
-                letterSpacing = spacing
+                letterSpacing = 0f
             }
         }
 
-        // Paints Setup (Clean Light Theme with Roboto/SansSerif and crisp letter spacing)
-        val paintTitle = createPdfPaint(sansBold, 13f, Color.parseColor("#1E3A8A"), 0.015f)
-        val paintSubtitle = createPdfPaint(sansNormal, 8.5f, Color.parseColor("#64748B"), 0.015f)
-        val paintMetaBold = createPdfPaint(sansBold, 8.5f, Color.parseColor("#1E293B"), 0.015f)
-        val paintMetaRegular = createPdfPaint(sansNormal, 8.5f, Color.parseColor("#475569"), 0.015f)
-        val paintSectionTitle = createPdfPaint(sansBold, 9f, Color.parseColor("#1E293B"), 0.015f)
+        // Paints Setup (Clean Light Theme with Roboto/SansSerif without artificial letter-spacing to prevent glyph collision)
+        val paintTitle = createPdfPaint(sansBold, 13f, Color.parseColor("#1E3A8A"))
+        val paintSubtitle = createPdfPaint(sansNormal, 8.5f, Color.parseColor("#64748B"))
+        val paintMetaBold = createPdfPaint(sansBold, 8.5f, Color.parseColor("#1E293B"))
+        val paintMetaRegular = createPdfPaint(sansNormal, 8.5f, Color.parseColor("#475569"))
+        val paintSectionTitle = createPdfPaint(sansBold, 9f, Color.parseColor("#1E293B"))
 
         // Summary Card Paints
         val paintCardBg = Paint().apply {
@@ -164,14 +164,14 @@ object PdfExporter {
             isAntiAlias = true
         }
 
-        val paintCardLabel = createPdfPaint(sansBold, 7f, Color.parseColor("#64748B"), 0.02f)
-        val paintCardInitialVal = createPdfPaint(sansBold, 8.5f, Color.parseColor("#0F172A"), 0.015f)
-        val paintCardIncomeVal = createPdfPaint(sansBold, 8.5f, Color.parseColor("#15803D"), 0.015f)
-        val paintCardExpenseVal = createPdfPaint(sansBold, 8.5f, Color.parseColor("#B91C1C"), 0.015f)
-        val paintCardClosingVal = createPdfPaint(sansBold, 8.5f, Color.parseColor("#2563EB"), 0.015f)
+        val paintCardLabel = createPdfPaint(sansBold, 7f, Color.parseColor("#64748B"))
+        val paintCardInitialVal = createPdfPaint(sansBold, 8.5f, Color.parseColor("#0F172A"))
+        val paintCardIncomeVal = createPdfPaint(sansBold, 8.5f, Color.parseColor("#15803D"))
+        val paintCardExpenseVal = createPdfPaint(sansBold, 8.5f, Color.parseColor("#B91C1C"))
+        val paintCardClosingVal = createPdfPaint(sansBold, 8.5f, Color.parseColor("#2563EB"))
 
         // Table Paints
-        val paintTableHeaderText = createPdfPaint(sansBold, 8f, Color.parseColor("#1E293B"), 0.02f)
+        val paintTableHeaderText = createPdfPaint(sansBold, 8f, Color.parseColor("#1E293B"))
 
         val paintTableLine = Paint().apply {
             color = Color.parseColor("#E2E8F0")
@@ -187,21 +187,21 @@ object PdfExporter {
             isAntiAlias = true
         }
 
-        val paintBody = createPdfPaint(sansNormal, 8f, Color.parseColor("#334155"), 0.02f)
-        val paintAdminSubtext = createPdfPaint(sansItalic, 7f, Color.parseColor("#64748B"), 0.02f)
+        val paintBody = createPdfPaint(sansNormal, 7.5f, Color.parseColor("#334155"))
+        val paintAdminSubtext = createPdfPaint(sansItalic, 6.5f, Color.parseColor("#64748B"))
 
-        val paintFooterText = createPdfPaint(sansItalic, 7.5f, Color.parseColor("#64748B"), 0.02f)
+        val paintFooterText = createPdfPaint(sansItalic, 7f, Color.parseColor("#64748B"))
 
         // Table Column X Coordinates (Page width = 595, margins: 38f to 557f = 519f printable width)
-        val colX_Date = 38f         // width ~50f (38..88)
-        val colX_Wallet = 94f       // width ~62f (94..156)
-        val colX_Category = 162f    // width ~82f (162..244)
-        val colX_Desc = 250f        // width ~158f (250..408)
-        val colX_Amount = 557f      // right aligned at 557f (ample safe zone > 140f)
+        val colX_Date = 38f         // width ~48f (38..86)
+        val colX_Wallet = 90f       // width ~62f (90..152)
+        val colX_Category = 156f    // width ~74f (156..230)
+        val colX_Desc = 236f        // width ~148f (236..384)
+        val colX_Amount = 557f      // right aligned at 557f (safe left boundary > 410f, >25f margin to desc)
 
-        val widthWallet = 60f
-        val widthCategory = 80f
-        val widthDesc = 154f
+        val widthWallet = 58f
+        val widthCategory = 70f
+        val widthDesc = 144f
 
         // Precompute formatted rows
         val sdfDate = SimpleDateFormat("dd/MM/yyyy", if (isIndonesian) Locale("id", "ID") else Locale.US)
@@ -237,7 +237,7 @@ object PdfExporter {
 
             val (amtSign, amtColor) = when (tx.type) {
                 "INCOME" -> "+ " to Color.parseColor("#15803D")
-                "TRANSFER" -> "⇄ " to Color.parseColor("#2563EB")
+                "TRANSFER" -> "→ " to Color.parseColor("#2563EB")
                 else -> "- " to Color.parseColor("#B91C1C")
             }
             val amtStr = amtSign + viewModel.formatRupiah(tx.amount)
@@ -248,8 +248,8 @@ object PdfExporter {
                 noteLines.size,
                 if (adminFeeStr != null) 2 else 1
             )
-            // Generous line height (13.5f per line) prevents vertical font collision between lines and row borders
-            val rowHeight = maxOf(24f, 9f + (maxLineCount * 13.5f))
+            // Generous line height (14f per line) prevents vertical font collision between lines and row borders
+            val rowHeight = maxOf(24f, 10f + (maxLineCount * 14f))
 
             formattedRows.add(
                 FormattedTxRow(
@@ -398,30 +398,30 @@ object PdfExporter {
 
                     // 2. Wallet lines
                     row.walletLines.forEachIndexed { idx, line ->
-                        canvas.drawText(line, colX_Wallet, textBaseY + (idx * 13.5f), paintBody)
+                        canvas.drawText(line, colX_Wallet, textBaseY + (idx * 14f), paintBody)
                     }
 
                     // 3. Category lines
                     row.categoryLines.forEachIndexed { idx, line ->
-                        canvas.drawText(line, colX_Category, textBaseY + (idx * 13.5f), paintBody)
+                        canvas.drawText(line, colX_Category, textBaseY + (idx * 14f), paintBody)
                     }
 
                     // 4. Description lines
                     row.noteLines.forEachIndexed { idx, line ->
-                        canvas.drawText(line, colX_Desc, textBaseY + (idx * 13.5f), paintBody)
+                        canvas.drawText(line, colX_Desc, textBaseY + (idx * 14f), paintBody)
                     }
 
                     // 5. Amount & Admin
-                    val amtPaint = createPdfPaint(sansBold, 8f, row.amountColor, 0.02f).apply {
+                    val amtPaint = createPdfPaint(sansBold, 7.5f, row.amountColor).apply {
                         textAlign = Paint.Align.RIGHT
                     }
                     canvas.drawText(row.amountStr, colX_Amount, textBaseY, amtPaint)
 
                     if (row.adminFeeStr != null) {
-                        val feePaint = createPdfPaint(sansItalic, 7f, Color.parseColor("#64748B"), 0.02f).apply {
+                        val feePaint = createPdfPaint(sansItalic, 6.5f, Color.parseColor("#64748B")).apply {
                             textAlign = Paint.Align.RIGHT
                         }
-                        canvas.drawText(row.adminFeeStr, colX_Amount, textBaseY + 13.5f, feePaint)
+                        canvas.drawText(row.adminFeeStr, colX_Amount, textBaseY + 13f, feePaint)
                     }
 
                     yPos = rBottom
@@ -437,7 +437,7 @@ object PdfExporter {
                 yPos += 15f
 
                 canvas.drawText(footerDisclaimer1, 38f, yPos, paintFooterText)
-                yPos += 13f // Generous 13pt line height to completely prevent font collisions
+                yPos += 13f // Generous line height to completely prevent font collisions
                 canvas.drawText(footerDisclaimer2, 38f, yPos, paintFooterText)
             }
 

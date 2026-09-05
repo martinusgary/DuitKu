@@ -17,7 +17,7 @@ import com.example.data.model.*
         Debt::class,
         Bill::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class FinanceDatabase : RoomDatabase() {
@@ -64,6 +64,45 @@ abstract class FinanceDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add isArchived to debts
+                try {
+                    db.execSQL("ALTER TABLE `debts` ADD COLUMN `isArchived` INTEGER NOT NULL DEFAULT 0")
+                } catch (_: Exception) {}
+
+                // Add targetLimit and isLimitless to wallets
+                try {
+                    db.execSQL("ALTER TABLE `wallets` ADD COLUMN `targetLimit` REAL DEFAULT NULL")
+                } catch (_: Exception) {}
+                try {
+                    db.execSQL("ALTER TABLE `wallets` ADD COLUMN `isLimitless` INTEGER NOT NULL DEFAULT 1")
+                } catch (_: Exception) {}
+
+                // Add lastPaidMonth, lastPaidDate, and lastPaidWalletId to bills
+                try {
+                    db.execSQL("ALTER TABLE `bills` ADD COLUMN `lastPaidMonth` INTEGER NOT NULL DEFAULT -1")
+                } catch (_: Exception) {}
+                try {
+                    db.execSQL("ALTER TABLE `bills` ADD COLUMN `lastPaidDate` INTEGER DEFAULT NULL")
+                } catch (_: Exception) {}
+                try {
+                    db.execSQL("ALTER TABLE `bills` ADD COLUMN `lastPaidWalletId` INTEGER DEFAULT NULL")
+                } catch (_: Exception) {}
+
+                // Add debtId, billId, installmentNumber to transactions
+                try {
+                    db.execSQL("ALTER TABLE `transactions` ADD COLUMN `debtId` INTEGER DEFAULT NULL")
+                } catch (_: Exception) {}
+                try {
+                    db.execSQL("ALTER TABLE `transactions` ADD COLUMN `billId` INTEGER DEFAULT NULL")
+                } catch (_: Exception) {}
+                try {
+                    db.execSQL("ALTER TABLE `transactions` ADD COLUMN `installmentNumber` INTEGER DEFAULT NULL")
+                } catch (_: Exception) {}
+            }
+        }
+
         fun getDatabase(context: Context): FinanceDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -71,7 +110,7 @@ abstract class FinanceDatabase : RoomDatabase() {
                     FinanceDatabase::class.java,
                     "finance_database"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                 INSTANCE = instance
                 instance

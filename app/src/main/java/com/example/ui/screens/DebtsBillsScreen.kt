@@ -38,12 +38,19 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.example.data.model.Bill
 import com.example.data.model.Debt
+import com.example.data.model.Transaction
 import com.example.data.model.Wallet
+import com.example.ui.components.DebtBillPaymentDetailDialog
 import com.example.ui.viewmodel.FinanceViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun DebtsBillsScreen(viewModel: FinanceViewModel) {
     val debts by viewModel.debts.collectAsState()
+    val activeDebts by viewModel.activeDebts.collectAsState()
+    val archivedDebts by viewModel.archivedDebts.collectAsState()
     val bills by viewModel.bills.collectAsState()
     val wallets by viewModel.wallets.collectAsState()
     val appLang by viewModel.appLanguage.collectAsState()
@@ -181,6 +188,8 @@ fun DebtsBillsScreen(viewModel: FinanceViewModel) {
                 0 -> {
                     DebtsTabContent(
                         debts = debts,
+                        activeDebts = activeDebts,
+                        archivedDebts = archivedDebts,
                         wallets = wallets,
                         viewModel = viewModel,
                         onAddClick = { showAddDebtDialog = true }
@@ -220,6 +229,8 @@ fun DebtsBillsScreen(viewModel: FinanceViewModel) {
 @Composable
 fun DebtsTabContent(
     debts: List<Debt>,
+    activeDebts: List<Debt>,
+    archivedDebts: List<Debt>,
     wallets: List<Wallet>,
     viewModel: FinanceViewModel,
     onAddClick: () -> Unit
@@ -227,11 +238,17 @@ fun DebtsTabContent(
     val appLang by viewModel.appLanguage.collectAsState()
     val isId = appLang == "id"
 
-    val totalHutang = remember(debts) { debts.filter { it.type == "HUTANG" }.sumOf { it.remainingAmount } }
-    val totalPiutang = remember(debts) { debts.filter { it.type == "PIUTANG" }.sumOf { it.remainingAmount } }
+    var selectedFilterIndex by remember { mutableIntStateOf(0) } // 0 = Aktif, 1 = Arsip / Lunas
+
+    val totalHutang = remember(activeDebts) { activeDebts.filter { it.type == "HUTANG" }.sumOf { it.remainingAmount } }
+    val totalPiutang = remember(activeDebts) { activeDebts.filter { it.type == "PIUTANG" }.sumOf { it.remainingAmount } }
 
     var selectedDebtForPay by remember { mutableStateOf<Debt?>(null) }
     var selectedDebtForDelete by remember { mutableStateOf<Debt?>(null) }
+    var selectedDebtForDetail by remember { mutableStateOf<Debt?>(null) }
+    var selectedTransactionForDetail by remember { mutableStateOf<Transaction?>(null) }
+
+    val displayedList = if (selectedFilterIndex == 0) activeDebts else archivedDebts
 
     Column(
         modifier = Modifier
@@ -345,12 +362,74 @@ fun DebtsTabContent(
             }
         }
 
+        // Active vs Archive Filter Selector
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            val filterTabShape = RoundedCornerShape(10.dp)
+            // Active Tab
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .background(
+                        color = if (selectedFilterIndex == 0) MaterialTheme.colorScheme.primary else Color.Transparent,
+                        shape = filterTabShape
+                    )
+                    .clip(filterTabShape)
+                    .clickable { selectedFilterIndex = 0 }
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (isId) "Aktif (${activeDebts.size})" else "Active (${activeDebts.size})",
+                    color = if (selectedFilterIndex == 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            // Archive Tab
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .background(
+                        color = if (selectedFilterIndex == 1) MaterialTheme.colorScheme.primary else Color.Transparent,
+                        shape = filterTabShape
+                    )
+                    .clip(filterTabShape)
+                    .clickable { selectedFilterIndex = 1 }
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (isId) "Arsip / Lunas (${archivedDebts.size})" else "Archived / Paid (${archivedDebts.size})",
+                    color = if (selectedFilterIndex == 1) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(if (isId) "Daftar Hutang & Piutang Aktif" else "Active Debt & Loan List", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                text = if (selectedFilterIndex == 0) {
+                    if (isId) "Daftar Hutang & Piutang Aktif" else "Active Debt & Loan List"
+                } else {
+                    if (isId) "Arsip Hutang / Piutang Lunas" else "Archived & Settled Debts"
+                },
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
             Button(onClick = onAddClick) {
                 Icon(painterResource(id = R.drawable.ic_add_custom), contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(4.dp))
@@ -358,7 +437,7 @@ fun DebtsTabContent(
             }
         }
 
-        if (debts.isEmpty()) {
+        if (displayedList.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -366,9 +445,22 @@ fun DebtsTabContent(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(painterResource(id = R.drawable.ic_debts_custom), contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f))
+                    Icon(
+                        painterResource(id = R.drawable.ic_debts_custom),
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f)
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(if (isId) "Belum ada catatan hutang/piutang." else "No debt/loan records found.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        text = if (selectedFilterIndex == 0) {
+                            if (isId) "Tidak ada catatan hutang/piutang aktif." else "No active debt/loan records found."
+                        } else {
+                            if (isId) "Belum ada hutang/piutang yang diarsipkan." else "No archived debts found."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         } else {
@@ -376,10 +468,11 @@ fun DebtsTabContent(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(debts, key = { it.id }) { debt ->
+                items(displayedList, key = { it.id }) { debt ->
                     DebtCardRow(
                         debt = debt,
                         viewModel = viewModel,
+                        onDetailClick = { selectedDebtForDetail = debt },
                         onPayClick = { selectedDebtForPay = debt },
                         onDeleteClick = { selectedDebtForDelete = debt },
                         modifier = Modifier.animateItem()
@@ -395,6 +488,33 @@ fun DebtsTabContent(
             wallets = wallets,
             viewModel = viewModel,
             onDismiss = { selectedDebtForPay = null }
+        )
+    }
+
+    if (selectedDebtForDetail != null) {
+        DebtDetailDialog(
+            debt = selectedDebtForDetail!!,
+            wallets = wallets,
+            viewModel = viewModel,
+            onDismiss = { selectedDebtForDetail = null },
+            onPayClick = {
+                val d = selectedDebtForDetail
+                selectedDebtForDetail = null
+                selectedDebtForPay = d
+            },
+            onTransactionClick = { txn ->
+                selectedTransactionForDetail = txn
+            }
+        )
+    }
+
+    if (selectedTransactionForDetail != null) {
+        val w = wallets.firstOrNull { it.id == selectedTransactionForDetail!!.walletId }
+        DebtBillPaymentDetailDialog(
+            transaction = selectedTransactionForDetail!!,
+            wallet = w,
+            viewModel = viewModel,
+            onDismiss = { selectedTransactionForDetail = null }
         )
     }
 
@@ -426,6 +546,7 @@ fun DebtsTabContent(
 fun DebtCardRow(
     debt: Debt,
     viewModel: FinanceViewModel,
+    onDetailClick: () -> Unit,
     onPayClick: () -> Unit,
     onDeleteClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -441,9 +562,16 @@ fun DebtCardRow(
         1.0
     }
 
+    val strictDateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
+    val formattedDueDate = remember(debt.dueDate) { strictDateFormatter.format(Date(debt.dueDate)) }
+
+    val cardShape = RoundedCornerShape(24.dp)
     ElevatedCard(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(cardShape)
+            .clickable { onDetailClick() },
+        shape = cardShape,
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.surface
         )
@@ -471,11 +599,27 @@ fun DebtCardRow(
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Column {
-                        Text(
-                            text = debt.personName,
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = debt.personName,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (debt.isArchived) {
+                                Surface(
+                                    color = Color(0xFF2E7D32).copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(6.dp)
+                                ) {
+                                    Text(
+                                        text = if (isId) "ARSIP" else "ARCHIVED",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFF2E7D32),
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
                         Text(
                             text = if (isHutang) {
                                 if (isId) "Hutang Saya" else "My Debt"
@@ -513,7 +657,7 @@ fun DebtCardRow(
                 Column(horizontalAlignment = Alignment.End) {
                     Text(if (isId) "Jatuh Tempo" else "Due Date", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
-                        viewModel.formatDate(debt.dueDate),
+                        formattedDueDate,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -566,8 +710,8 @@ fun DebtCardRow(
                     }
                 } else {
                     SuggestionChip(
-                        onClick = {},
-                        label = { Text(if (isId) "LUNAS" else "PAID", fontWeight = FontWeight.Black) },
+                        onClick = onDetailClick,
+                        label = { Text(if (isId) "LUNAS (Lihat)" else "PAID (View)", fontWeight = FontWeight.Black) },
                         border = null,
                         colors = SuggestionChipDefaults.suggestionChipColors(
                             containerColor = Color(0xFFE8F5E9),
@@ -581,6 +725,283 @@ fun DebtCardRow(
 }
 
 @Composable
+fun DebtDetailDialog(
+    debt: Debt,
+    wallets: List<Wallet>,
+    viewModel: FinanceViewModel,
+    onDismiss: () -> Unit,
+    onPayClick: () -> Unit,
+    onTransactionClick: (Transaction) -> Unit
+) {
+    val appLang by viewModel.appLanguage.collectAsState()
+    val isId = appLang == "id"
+    val allTransactions by viewModel.transactions.collectAsState()
+
+    val debtTransactions = remember(debt, allTransactions) {
+        allTransactions.filter {
+            it.debtId == debt.id || (it.note.contains("Cicilan") && it.note.contains(debt.personName))
+        }.sortedByDescending { it.date }
+    }
+
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val screenHeight = configuration.screenHeightDp
+    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 520.dp
+
+    val isHutang = debt.type == "HUTANG"
+    val colorAccent = if (isHutang) MaterialTheme.colorScheme.error else Color(0xFF2E7D32)
+
+    val strictDateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
+    val formattedDueDate = remember(debt.dueDate) { strictDateFormatter.format(Date(debt.dueDate)) }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .width(dialogWidth)
+                .heightIn(max = (screenHeight * 0.88).dp)
+                .padding(12.dp),
+            shape = RoundedCornerShape(24.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = if (isId) "Rincian & Riwayat Cicilan" else "Debt Details & History",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = debt.personName,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        // Summary banner
+                        Surface(
+                            color = colorAccent.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = if (isHutang) (if (isId) "Tipe: Hutang Saya" else "Type: My Debt") else (if (isId) "Tipe: Piutang Saya" else "Type: My Loan"),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = colorAccent
+                                    )
+                                    Text(
+                                        text = if (debt.isArchived) (if (isId) "Status: Lunas (Arsip)" else "Status: Paid (Archived)") else (if (isId) "Status: Aktif" else "Status: Active"),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (debt.isArchived) Color(0xFF2E7D32) else colorAccent
+                                    )
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column {
+                                        Text(if (isId) "Total Pinjaman" else "Total Amount", style = MaterialTheme.typography.labelSmall)
+                                        Text(viewModel.formatRupiah(debt.totalAmount), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                    }
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text(if (isId) "Sisa Tagihan" else "Remaining", style = MaterialTheme.typography.labelSmall)
+                                        Text(viewModel.formatRupiah(debt.remainingAmount), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = colorAccent)
+                                    }
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = if (isId) "Target Jatuh Tempo: $formattedDueDate" else "Target Due Date: $formattedDueDate",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                                if (debt.notes.isNotBlank()) {
+                                    Text(
+                                        text = if (isId) "Catatan: ${debt.notes}" else "Note: ${debt.notes}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+
+                        // Installment Transactions Section
+                        Text(
+                            text = if (isId) "Riwayat Pembayaran Cicilan (${debtTransactions.size})" else "Installment Payment History (${debtTransactions.size})",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (isId) "Ketuk transaksi di bawah untuk rincian tanggal, metode (via), dan cicilan." else "Tap any transaction below to view date, method (via), and installment details.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        if (debtTransactions.isEmpty()) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (isId) "Belum ada transaksi cicilan tercatat." else "No installment payments recorded yet.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                debtTransactions.forEachIndexed { index, txn ->
+                                    val wallet = wallets.firstOrNull { it.id == txn.walletId }
+                                    val seqNum = txn.installmentNumber ?: (debtTransactions.size - index)
+                                    Surface(
+                                        onClick = { onTransactionClick(txn) },
+                                        shape = RoundedCornerShape(14.dp),
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(32.dp)
+                                                        .clip(CircleShape)
+                                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        Icons.Default.ReceiptLong,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+                                                Column {
+                                                    Text(
+                                                        text = if (isId) "Pembayaran Cicilan ke-$seqNum" else "Installment Payment #$seqNum",
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Text(
+                                                        text = "Via: ${wallet?.name ?: (if (isId) "Dompet" else "Wallet")} • ${viewModel.formatDate(txn.date)}",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+                                            Column(horizontalAlignment = Alignment.End) {
+                                                Text(
+                                                    text = viewModel.formatRupiah(txn.amount),
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Black,
+                                                    color = Color(0xFF2E7D32)
+                                                )
+                                                Text(
+                                                    text = if (isId) "Ketuk rincian" else "Tap detail",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Dialog bottom actions
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (debt.isArchived) {
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.unarchiveDebt(debt)
+                                onDismiss()
+                            }
+                        ) {
+                            Text(if (isId) "Pulihkan ke Aktif" else "Restore to Active")
+                        }
+                    } else if (debt.remainingAmount > 0) {
+                        Button(
+                            onClick = onPayClick,
+                            colors = ButtonDefaults.buttonColors(containerColor = colorAccent)
+                        ) {
+                            Text(if (isId) "Bayar Cicilan" else "Record Payment", fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+
+                    TextButton(onClick = onDismiss) {
+                        Text(if (isId) "Tutup" else "Close", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun AddDebtDialog(
     viewModel: FinanceViewModel,
     onDismiss: () -> Unit
@@ -592,12 +1013,46 @@ fun AddDebtDialog(
     var totalAmountStr by remember { mutableStateOf("") }
     var type by remember { mutableStateOf("HUTANG") } // HUTANG / PIUTANG
     var notes by remember { mutableStateOf("") }
-    var daysToDue by remember { mutableStateOf("7") } // Calculate due date as CurrentTime + items * 1 day
+    
+    // Strict Date Picker (DD/MM/YYYY)
+    val defaultDueDate = remember { System.currentTimeMillis() + 7 * 24 * 60 * 60 * 1000L }
+    var selectedDueDateMillis by remember { mutableStateOf(defaultDueDate) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    val strictDateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
+    val formattedDueDateText = remember(selectedDueDateMillis) { strictDateFormatter.format(Date(selectedDueDateMillis)) }
 
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp
     val screenHeight = configuration.screenHeightDp
     val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 520.dp
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = selectedDueDateMillis
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let {
+                            selectedDueDateMillis = it
+                        }
+                        showDatePicker = false
+                    }
+                ) {
+                    Text(if (isId) "Pilih" else "Select")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text(if (isId) "Batal" else "Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -709,14 +1164,20 @@ fun AddDebtDialog(
                             singleLine = true
                         )
 
+                        // Strict Date Picker (DD/MM/YYYY)
                         OutlinedTextField(
-                            value = daysToDue,
-                            onValueChange = { if (it.all { char -> char.isDigit() }) daysToDue = it },
-                            label = { Text(if (isId) "Hari hingga Jatuh Tempo" else "Days until Due Date") },
-                            suffix = { Text(if (isId) "Hari lagi" else "Days left") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
+                            value = formattedDueDateText,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(if (isId) "Tanggal Jatuh Tempo (DD/MM/YYYY)" else "Due Date (DD/MM/YYYY)") },
+                            trailingIcon = {
+                                IconButton(onClick = { showDatePicker = true }) {
+                                    Icon(Icons.Default.CalendarToday, contentDescription = if (isId) "Pilih Tanggal" else "Select Date")
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showDatePicker = true }
                         )
 
                         OutlinedTextField(
@@ -740,14 +1201,12 @@ fun AddDebtDialog(
                     Button(
                         onClick = {
                             val amountVal = totalAmountStr.toDoubleOrNull() ?: 0.0
-                            val daysVal = daysToDue.toLongOrNull() ?: 7
-                            val dueDateCalculated = System.currentTimeMillis() + daysVal * 24 * 60 * 60 * 1000L
                             
                             if (personName.trim().isNotEmpty() && amountVal > 0) {
                                 viewModel.addDebt(
                                     personName = personName,
                                     totalAmount = amountVal,
-                                    dueDate = dueDateCalculated,
+                                    dueDate = selectedDueDateMillis,
                                     type = type,
                                     notes = notes
                                 )
@@ -907,6 +1366,9 @@ fun BillsTabContent(
 
     var selectedBillForPay by remember { mutableStateOf<Bill?>(null) }
     var selectedBillForDelete by remember { mutableStateOf<Bill?>(null) }
+    var selectedBillForDetail by remember { mutableStateOf<Bill?>(null) }
+    var showPaidHistoryDialog by remember { mutableStateOf(false) }
+    var selectedTransactionForDetail by remember { mutableStateOf<Transaction?>(null) }
 
     val totalUnpaid = remember(bills) { bills.filter { it.status != "LUNAS" }.sumOf { it.amount } }
     val totalPaid = remember(bills) { bills.filter { it.status == "LUNAS" }.sumOf { it.amount } }
@@ -972,9 +1434,12 @@ fun BillsTabContent(
                 }
             }
 
-            // Paid Bills Gradient Card
+            // Paid Bills Gradient Card (Clickable to view paid history)
             Card(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(20.dp))
+                    .clickable { showPaidHistoryDialog = true },
                 shape = RoundedCornerShape(20.dp),
                 border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -987,23 +1452,35 @@ fun BillsTabContent(
                 ) {
                     Column {
                         Row(
+                            modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White.copy(alpha = 0.2f)),
-                                contentAlignment = Alignment.Center
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White.copy(alpha = 0.2f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+                                }
+                                Text(
+                                    text = if (isId) "Sudah Lunas" else "Paid Bills",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
-                            Text(
-                                text = if (isId) "Sudah Lunas" else "Paid Bills",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White.copy(alpha = 0.9f),
-                                fontWeight = FontWeight.Bold
+                            Icon(
+                                Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.7f),
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                         Spacer(modifier = Modifier.height(6.dp))
@@ -1014,9 +1491,9 @@ fun BillsTabContent(
                             color = Color.White
                         )
                         Text(
-                            text = if (isId) "${bills.count { it.status == "LUNAS" }} Tagihan" else "${bills.count { it.status == "LUNAS" }} Bills",
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                            color = Color.White.copy(alpha = 0.75f)
+                            text = if (isId) "${bills.count { it.status == "LUNAS" }} Tagihan • Lihat Riwayat" else "${bills.count { it.status == "LUNAS" }} Bills • View History",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
+                            color = Color.White.copy(alpha = 0.85f)
                         )
                     }
                 }
@@ -1029,10 +1506,23 @@ fun BillsTabContent(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(if (isId) "Daftar Tagihan Rutin" else "Recurring Bills List", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Button(onClick = onAddClick) {
-                Icon(painterResource(id = R.drawable.ic_add_custom), contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(if (isId) "Tambah Tagihan" else "Add Bill")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = { showPaidHistoryDialog = true },
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(if (isId) "Riwayat Lunas" else "Paid History", style = MaterialTheme.typography.bodySmall)
+                }
+                Button(
+                    onClick = onAddClick,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Icon(painterResource(id = R.drawable.ic_add_custom), contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(if (isId) "Tambah" else "Add", style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
 
@@ -1065,7 +1555,9 @@ fun BillsTabContent(
                     Card(
                         modifier = Modifier
                             .animateItem()
-                            .fillMaxWidth(),
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(24.dp))
+                            .clickable { selectedBillForDetail = bill },
                         shape = RoundedCornerShape(24.dp),
                         border = borderAccent,
                         colors = CardColors(
@@ -1152,6 +1644,46 @@ fun BillsTabContent(
         )
     }
 
+    if (selectedBillForDetail != null) {
+        BillDetailDialog(
+            bill = selectedBillForDetail!!,
+            wallets = wallets,
+            viewModel = viewModel,
+            onDismiss = { selectedBillForDetail = null },
+            onPayClick = {
+                val b = selectedBillForDetail
+                selectedBillForDetail = null
+                selectedBillForPay = b
+            },
+            onTransactionClick = { txn ->
+                selectedTransactionForDetail = txn
+            }
+        )
+    }
+
+    if (showPaidHistoryDialog) {
+        PaidBillsHistoryDialog(
+            bills = bills,
+            wallets = wallets,
+            viewModel = viewModel,
+            onDismiss = { showPaidHistoryDialog = false },
+            onTransactionClick = { txn ->
+                selectedTransactionForDetail = txn
+            }
+        )
+    }
+
+    if (selectedTransactionForDetail != null) {
+        val w = wallets.firstOrNull { it.id == selectedTransactionForDetail!!.walletId }
+        DebtBillPaymentDetailDialog(
+            transaction = selectedTransactionForDetail!!,
+            wallet = w,
+            viewModel = viewModel,
+            onDismiss = { selectedTransactionForDetail = null },
+            title = if (isId) "Rincian Pembayaran Tagihan" else "Bill Payment Details"
+        )
+    }
+
     if (selectedBillForDelete != null) {
         AlertDialog(
             onDismissRequest = { selectedBillForDelete = null },
@@ -1173,6 +1705,467 @@ fun BillsTabContent(
                 }
             }
         )
+    }
+}
+
+@Composable
+fun BillDetailDialog(
+    bill: Bill,
+    wallets: List<Wallet>,
+    viewModel: FinanceViewModel,
+    onDismiss: () -> Unit,
+    onPayClick: () -> Unit,
+    onTransactionClick: (Transaction) -> Unit
+) {
+    val appLang by viewModel.appLanguage.collectAsState()
+    val isId = appLang == "id"
+    val allTransactions by viewModel.transactions.collectAsState()
+
+    val isLunas = bill.status == "LUNAS"
+    val billTransactions = remember(bill, allTransactions) {
+        allTransactions.filter {
+            it.billId == bill.id || (it.note.contains("Tagihan") && it.note.contains(bill.name))
+        }.sortedByDescending { it.date }
+    }
+
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val screenHeight = configuration.screenHeightDp
+    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 520.dp
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .width(dialogWidth)
+                .heightIn(max = (screenHeight * 0.88).dp)
+                .padding(12.dp),
+            shape = RoundedCornerShape(24.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = if (isId) "Rincian Tagihan Rutin" else "Recurring Bill Details",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = bill.name,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        // Summary Banner
+                        Surface(
+                            color = if (isLunas) Color(0xFF2E7D32).copy(alpha = 0.12f) else MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = if (isId) "Status Pembayaran" else "Payment Status",
+                                        style = MaterialTheme.typography.labelMedium
+                                    )
+                                    Text(
+                                        text = if (isLunas) (if (isId) "SUDAH LUNAS" else "PAID") else (if (isId) "BELUM DIBAYAR" else "UNPAID"),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Black,
+                                        color = if (isLunas) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error
+                                    )
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column {
+                                        Text(if (isId) "Nominal Tagihan" else "Bill Amount", style = MaterialTheme.typography.labelSmall)
+                                        Text(viewModel.formatRupiah(bill.amount), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+                                    }
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text(if (isId) "Jatuh Tempo Rutin" else "Recurring Due Date", style = MaterialTheme.typography.labelSmall)
+                                        Text(bill.dueDateValue, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+
+                        // Payments history for this bill
+                        Text(
+                            text = if (isId) "Riwayat Pembayaran Tagihan (${billTransactions.size})" else "Bill Payment History (${billTransactions.size})",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (isId) "Ketuk transaksi untuk melihat detail tanggal, metode, dan frekuensi pembayaran." else "Tap any transaction to view payment date, method, and installment frequency.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        if (billTransactions.isEmpty()) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (isId) "Belum ada transaksi pembayaran untuk tagihan ini." else "No payments recorded for this bill yet.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                billTransactions.forEachIndexed { index, txn ->
+                                    val wallet = wallets.firstOrNull { it.id == txn.walletId }
+                                    val seqNum = txn.installmentNumber ?: (billTransactions.size - index)
+                                    Surface(
+                                        onClick = { onTransactionClick(txn) },
+                                        shape = RoundedCornerShape(14.dp),
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(32.dp)
+                                                        .clip(CircleShape)
+                                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        Icons.Default.ReceiptLong,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+                                                Column {
+                                                    Text(
+                                                        text = if (isId) "Pembayaran Tagihan #$seqNum" else "Bill Payment #$seqNum",
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Text(
+                                                        text = "Via: ${wallet?.name ?: (if (isId) "Dompet" else "Wallet")} • ${viewModel.formatDate(txn.date)}",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+                                            Column(horizontalAlignment = Alignment.End) {
+                                                Text(
+                                                    text = viewModel.formatRupiah(txn.amount),
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Black,
+                                                    color = Color(0xFF2E7D32)
+                                                )
+                                                Text(
+                                                    text = if (isId) "Ketuk rincian" else "Tap detail",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Actions Footer
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (!isLunas) {
+                        Button(
+                            onClick = onPayClick,
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Text(if (isId) "Bayar Tagihan" else "Record Payment", fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        OutlinedButton(onClick = {
+                            viewModel.resetBillStatus(bill)
+                            onDismiss()
+                        }) {
+                            Text(if (isId) "Reset Status" else "Reset Status")
+                        }
+                    }
+
+                    TextButton(onClick = onDismiss) {
+                        Text(if (isId) "Tutup" else "Close", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PaidBillsHistoryDialog(
+    bills: List<Bill>,
+    wallets: List<Wallet>,
+    viewModel: FinanceViewModel,
+    onDismiss: () -> Unit,
+    onTransactionClick: (Transaction) -> Unit
+) {
+    val appLang by viewModel.appLanguage.collectAsState()
+    val isId = appLang == "id"
+    val allTransactions by viewModel.transactions.collectAsState()
+
+    // Find all transactions that correspond to bills
+    val billTransactions = remember(bills, allTransactions) {
+        allTransactions.filter { txn ->
+            txn.billId != null || txn.note.startsWith("Bayar Tagihan", ignoreCase = true) || bills.any { it.name.isNotBlank() && txn.note.contains(it.name, ignoreCase = true) }
+        }.sortedByDescending { it.date }
+    }
+
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val screenHeight = configuration.screenHeightDp
+    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 520.dp
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .width(dialogWidth)
+                .heightIn(max = (screenHeight * 0.88).dp)
+                .padding(12.dp),
+            shape = RoundedCornerShape(24.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = if (isId) "Riwayat Tagihan Selesai & Lunas" else "Paid & Completed Bills History",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = if (isId) "${billTransactions.size} Transaksi Pembayaran" else "${billTransactions.size} Payment Transactions",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .fillMaxWidth()
+                ) {
+                    if (billTransactions.isEmpty()) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 24.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(20.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.CheckCircleOutline,
+                                    contentDescription = null,
+                                    tint = Color(0xFF2E7D32).copy(alpha = 0.6f),
+                                    modifier = Modifier.size(48.dp)
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(
+                                    text = if (isId) "Belum ada transaksi pembayaran tagihan tercatat." else "No paid bill transactions recorded yet.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    } else {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(
+                                text = if (isId) "Ketuk item di bawah untuk rincian tanggal, metode (via), dan frekuensi." else "Tap an item below to inspect payment date, method (via), and frequency.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            billTransactions.forEachIndexed { index, txn ->
+                                val wallet = wallets.firstOrNull { it.id == txn.walletId }
+                                val relatedBill = bills.firstOrNull { it.id == txn.billId }
+                                val billTitle = relatedBill?.name ?: run {
+                                    if (txn.note.contains("Tagihan:", ignoreCase = true)) {
+                                        txn.note.substringAfter("Tagihan:").substringBefore("(").trim()
+                                    } else {
+                                        if (isId) "Tagihan Rutin" else "Recurring Bill"
+                                    }
+                                }
+                                val seqNum = txn.installmentNumber ?: (billTransactions.size - index)
+
+                                Surface(
+                                    onClick = { onTransactionClick(txn) },
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(14.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(36.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color(0xFF2E7D32).copy(alpha = 0.15f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Check,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFF2E7D32),
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                            Column {
+                                                Text(
+                                                    text = billTitle,
+                                                    style = MaterialTheme.typography.bodyLarge,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                Text(
+                                                    text = "Via: ${wallet?.name ?: (if (isId) "Dompet" else "Wallet")} • ${viewModel.formatDate(txn.date)}",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                                Text(
+                                                    text = if (isId) "Pembayaran Tagihan #$seqNum" else "Payment #$seqNum",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
+                                        }
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text(
+                                                text = viewModel.formatRupiah(txn.amount),
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Black,
+                                                color = Color(0xFF2E7D32)
+                                            )
+                                            Surface(
+                                                color = Color(0xFF2E7D32).copy(alpha = 0.12f),
+                                                shape = RoundedCornerShape(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = if (isId) "LUNAS" else "PAID",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = Color(0xFF2E7D32),
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(if (isId) "Tutup" else "Close", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
     }
 }
 

@@ -73,6 +73,12 @@ interface FinanceDao {
     @Query("SELECT * FROM debts ORDER BY dueDate ASC")
     fun getAllDebts(): Flow<List<Debt>>
 
+    @Query("SELECT * FROM debts WHERE isArchived = 0 ORDER BY dueDate ASC")
+    fun getActiveDebts(): Flow<List<Debt>>
+
+    @Query("SELECT * FROM debts WHERE isArchived = 1 ORDER BY dueDate DESC")
+    fun getArchivedDebts(): Flow<List<Debt>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertDebt(debt: Debt): Long
 

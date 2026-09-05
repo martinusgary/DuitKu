@@ -23,6 +23,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     val categories: StateFlow<List<Category>>
     val transactions: StateFlow<List<Transaction>>
     val debts: StateFlow<List<Debt>>
+    val activeDebts: StateFlow<List<Debt>>
+    val archivedDebts: StateFlow<List<Debt>>
     val bills: StateFlow<List<Bill>>
 
     private val _importStatus = MutableStateFlow<String?>(null)
@@ -154,15 +156,29 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             initialValue = emptyList()
         )
 
+        activeDebts = repository.activeDebts.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+        archivedDebts = repository.archivedDebts.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
         bills = repository.bills.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
 
-        // Try to prefill default data if db is brand new
+        // Try to prefill default data if db is brand new and run auto-maintenance checks
         viewModelScope.launch {
             repository.prepDefaultDataIfNeeded()
+            checkAndArchiveZeroDebts()
+            checkAndResetMonthlyBills()
         }
     }
 
@@ -230,9 +246,17 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
 
     // --- WALLET OPERATIONS ---
-    fun addWallet(name: String, balance: Double, icon: String) {
+    fun addWallet(name: String, balance: Double, icon: String, targetLimit: Double? = null, isLimitless: Boolean = true) {
         viewModelScope.launch {
-            repository.insertWallet(Wallet(name = name, balance = balance, icon = icon))
+            repository.insertWallet(
+                Wallet(
+                    name = name,
+                    balance = balance,
+                    icon = icon,
+                    targetLimit = targetLimit,
+                    isLimitless = isLimitless
+                )
+            )
         }
     }
 
@@ -267,7 +291,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    // --- DEB / LOAN OPERATIONS (INCLUDING REPAY AND CORRESPONDING TRANSACTION LOGGING) ---
+    // --- DEBT / LOAN OPERATIONS (INCLUDING REPAY AND CORRESPONDING TRANSACTION LOGGING) ---
     fun addDebt(personName: String, totalAmount: Double, dueDate: Long, type: String, notes: String) {
         viewModelScope.launch {
             val d = Debt(
@@ -276,7 +300,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 remainingAmount = totalAmount,
                 dueDate = dueDate,
                 type = type,
-                notes = notes
+                notes = notes,
+                isArchived = false
             )
             repository.insertDebt(d)
         }
@@ -287,7 +312,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             if (amountPaid <= 0) return@launch
 
             val newRemaining = (debt.remainingAmount - amountPaid).coerceAtLeast(0.0)
-            val updatedDebt = debt.copy(remainingAmount = newRemaining)
+            val isNowArchived = (newRemaining <= 0.0)
+            val updatedDebt = debt.copy(remainingAmount = newRemaining, isArchived = isNowArchived)
             repository.updateDebt(updatedDebt)
 
             // Log corresponding transaction
@@ -295,14 +321,22 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             // If PIUTANG (They owe me) and they pay: it is money coming INTO my wallet (INCOME)
             val txType = if (debt.type == "HUTANG") "EXPENSE" else "INCOME"
             
+            // Calculate sequence of installment
+            val priorPayments = transactions.value.count { 
+                it.debtId == debt.id || (it.note.contains("Cicilan") && it.note.contains(debt.personName))
+            }
+            val installmentSeq = priorPayments + 1
+
             // Try to find a tagihan/hutang category or generic "Lain-lain" (or create one)
             val matchingCategories = categories.value
-            val isExpense = (txType == "EXPENSE")
             val defaultCat = matchingCategories.firstOrNull { 
-                it.type == txType && (it.name.contains("Tagihan", true) || it.name.contains("Lain-lain", true))
+                it.type == txType && (it.name.contains("Hutang", true) || it.name.contains("Tagihan", true) || it.name.contains("Lain-lain", true))
             } ?: matchingCategories.firstOrNull { it.type == txType }
             
             val catId = defaultCat?.id ?: 1
+
+            val extraNote = if (note.isNotBlank()) " - $note" else ""
+            val fullNote = "Pembayaran Cicilan ke-$installmentSeq: ${debt.personName}$extraNote"
 
             val txn = Transaction(
                 amount = amountPaid,
@@ -310,9 +344,39 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 walletId = walletId,
                 categoryId = catId,
                 type = txType,
-                note = "Pembayaran Cicilan: ${debt.personName} - $note"
+                note = fullNote,
+                debtId = debt.id,
+                installmentNumber = installmentSeq
             )
             repository.insertTransaction(txn)
+        }
+    }
+
+    fun unarchiveDebt(debt: Debt) {
+        viewModelScope.launch {
+            repository.updateDebt(debt.copy(isArchived = false))
+        }
+    }
+
+    fun checkAndArchiveZeroDebts() {
+        viewModelScope.launch {
+            debts.value.forEach { debt ->
+                if (debt.remainingAmount <= 0.0 && !debt.isArchived) {
+                    repository.updateDebt(debt.copy(isArchived = true))
+                }
+            }
+        }
+    }
+
+    fun checkAndResetMonthlyBills() {
+        viewModelScope.launch {
+            val calendar = Calendar.getInstance()
+            val currentMonthKey = calendar.get(Calendar.YEAR) * 12 + calendar.get(Calendar.MONTH)
+            bills.value.forEach { bill ->
+                if (bill.status == "LUNAS" && bill.lastPaidMonth != -1 && bill.lastPaidMonth < currentMonthKey) {
+                    repository.updateBill(bill.copy(status = "BELUM_DIBAYAR"))
+                }
+            }
         }
     }
 
@@ -337,8 +401,23 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     fun payBill(bill: Bill, walletId: Int) {
         viewModelScope.launch {
-            val updatedBill = bill.copy(status = "LUNAS")
+            val now = System.currentTimeMillis()
+            val calendar = Calendar.getInstance()
+            val currentMonthKey = calendar.get(Calendar.YEAR) * 12 + calendar.get(Calendar.MONTH)
+
+            val updatedBill = bill.copy(
+                status = "LUNAS",
+                lastPaidMonth = currentMonthKey,
+                lastPaidDate = now,
+                lastPaidWalletId = walletId
+            )
             repository.updateBill(updatedBill)
+
+            // Determine sequence/frequency
+            val priorPayments = transactions.value.count {
+                it.billId == bill.id || (it.note.contains("Tagihan") && it.note.contains(bill.name))
+            }
+            val paymentSeq = priorPayments + 1
 
             // Log corresponding EXPENSE transaction
             val matchingCategories = categories.value
@@ -350,11 +429,13 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
             val txn = Transaction(
                 amount = bill.amount,
-                date = System.currentTimeMillis(),
+                date = now,
                 walletId = walletId,
                 categoryId = catId,
                 type = "EXPENSE",
-                note = "Bayar Tagihan: ${bill.name}"
+                note = "Bayar Tagihan ke-$paymentSeq: ${bill.name}",
+                billId = bill.id,
+                installmentNumber = paymentSeq
             )
             repository.insertTransaction(txn)
         }
