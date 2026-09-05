@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.BarChart
@@ -46,6 +47,10 @@ import com.example.data.model.Category
 import com.example.data.model.Transaction
 import com.example.data.model.Wallet
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.ui.util.PdfExporter
 import com.example.ui.viewmodel.FinanceViewModel
 import java.util.Calendar
@@ -265,10 +270,20 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
                 }
             }
 
-            // 2. Interactive Donut Chart for Category Expense
+            // 2. Savings Overview Card (Purely savings pocket total in analytics)
+            item {
+                SavingsOverviewCard(
+                    wallets = wallets,
+                    viewModel = viewModel,
+                    isFresh = isFresh,
+                    isId = isId
+                )
+            }
+
+            // 3. Category Spending Storage Bar (Substituted spending donut with phone storage style bar)
             if (expenseByCategory.isNotEmpty()) {
                 item {
-                    CategoryDonutChartCard(
+                    CategorySpendingStorageBarCard(
                         expenseByCategory = expenseByCategory,
                         totalExpense = totalExpenseAmount,
                         viewModel = viewModel,
@@ -722,7 +737,512 @@ fun CategorySpendProgressRow(
 }
 
 @Composable
-fun CategoryDonutChartCard(
+fun SavingsOverviewCard(
+    wallets: List<Wallet>,
+    viewModel: FinanceViewModel,
+    isFresh: Boolean,
+    isId: Boolean
+) {
+    val cardShape = RoundedCornerShape(24.dp)
+    var showSavingsListDialog by remember { mutableStateOf(false) }
+
+    val savingsWallets = remember(wallets) {
+        wallets.filter { it.icon == "savings" || it.targetLimit != null }
+    }
+    val totalSavingsInPockets = remember(savingsWallets) { savingsWallets.sumOf { it.balance } }
+
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { showSavingsListDialog = true }
+            .then(
+                if (isFresh) Modifier.border(
+                    BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                    cardShape
+                ) else Modifier
+            ),
+        shape = cardShape,
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF43A047).copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_wallet_type_savings),
+                            contentDescription = null,
+                            tint = Color(0xFF2E7D32),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = if (isId) "Total Saku Tabungan" else "Savings Pockets Total",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (savingsWallets.isNotEmpty()) {
+                                if (isId) "${savingsWallets.size} Saku Terdaftar" else "${savingsWallets.size} Pockets Registered"
+                            } else {
+                                if (isId) "Belum ada saku" else "No pockets yet"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFF43A047).copy(alpha = 0.12f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = if (isId) "Lihat Daftar" else "View List",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFF2E7D32),
+                            fontWeight = FontWeight.Bold
+                        )
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = Color(0xFF2E7D32),
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+            }
+
+            // Big Prominent Savings Balance Display
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                color = Color(0xFF43A047).copy(alpha = 0.08f),
+                border = BorderStroke(1.dp, Color(0xFF43A047).copy(alpha = 0.2f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = if (isId) "Total Saldo Tabungan" else "Total Savings Balance",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = viewModel.formatRupiah(totalSavingsInPockets),
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Black,
+                            color = Color(0xFF2E7D32)
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF43A047).copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_wallet_type_savings),
+                            contentDescription = null,
+                            tint = Color(0xFF2E7D32),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+            }
+
+            // Preview of top 3 savings pockets if available
+            if (savingsWallets.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    savingsWallets.take(3).forEach { wallet ->
+                        val target = wallet.targetLimit
+                        val progress = if (target != null && target > 0) (wallet.balance / target).coerceIn(0.0, 1.0).toFloat() else 1f
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                                .padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF43A047))
+                                    )
+                                    Text(
+                                        text = wallet.name,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Text(
+                                    text = if (target != null && target > 0) {
+                                        "${viewModel.formatRupiah(wallet.balance)} / ${viewModel.formatRupiah(target)}"
+                                    } else {
+                                        viewModel.formatRupiah(wallet.balance)
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (target != null && target > 0) {
+                                LinearProgressIndicator(
+                                    progress = { progress },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(6.dp)
+                                        .clip(RoundedCornerShape(3.dp)),
+                                    color = Color(0xFF43A047),
+                                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    if (savingsWallets.size > 3) {
+                        Text(
+                            text = if (isId) "+${savingsWallets.size - 3} saku lainnya (ketuk untuk rincian)" else "+${savingsWallets.size - 3} more pockets (tap for details)",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            } else {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = if (isId) "Belum ada saku tabungan dibuat di menu Dompet." else "No savings pockets created yet in Wallets menu.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
+        }
+    }
+
+    if (showSavingsListDialog) {
+        SavingsPocketsListDialog(
+            savingsWallets = savingsWallets,
+            totalSavings = totalSavingsInPockets,
+            viewModel = viewModel,
+            isId = isId,
+            onDismiss = { showSavingsListDialog = false }
+        )
+    }
+}
+
+@Composable
+fun SavingsPocketsListDialog(
+    savingsWallets: List<Wallet>,
+    totalSavings: Double,
+    viewModel: FinanceViewModel,
+    isId: Boolean,
+    onDismiss: () -> Unit
+) {
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val screenHeight = configuration.screenHeightDp
+    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 520.dp
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .width(dialogWidth)
+                .heightIn(max = (screenHeight * 0.85).dp)
+                .padding(12.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF43A047).copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_wallet_type_savings),
+                                contentDescription = null,
+                                tint = Color(0xFF2E7D32),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = if (isId) "Daftar Saku Tabungan" else "Savings Pockets List",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "${savingsWallets.size} " + if (isId) "saku terdaftar di dompet" else "pockets in wallet",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
+                    }
+                }
+
+                // Summary Banner
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFF43A047).copy(alpha = 0.10f),
+                    border = BorderStroke(1.dp, Color(0xFF43A047).copy(alpha = 0.25f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = if (isId) "Total Dana Tabungan" else "Total Savings Balance",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = viewModel.formatRupiah(totalSavings),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFF2E7D32)
+                            )
+                        }
+                    }
+                }
+
+                if (savingsWallets.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_wallet_type_savings),
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = if (isId) "Belum ada saku tabungan." else "No savings pockets found.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (isId) "Tambahkan saku bertipe Tabungan di menu Dompet." else "Add a Savings pocket in the Wallets tab.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f, fill = false),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(savingsWallets, key = { it.id }) { wallet ->
+                            val target = wallet.targetLimit
+                            val hasTarget = target != null && target > 0
+                            val progress = if (hasTarget) (wallet.balance / target!!).coerceIn(0.0, 1.0).toFloat() else 1f
+                            val pct = if (hasTarget) ((wallet.balance / target!!) * 100).toInt() else 0
+                            val isAchieved = hasTarget && wallet.balance >= target!!
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(32.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color(0xFF43A047).copy(alpha = 0.2f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    painter = painterResource(id = R.drawable.ic_wallet_type_savings),
+                                                    contentDescription = null,
+                                                    tint = Color(0xFF2E7D32),
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                            Text(
+                                                text = wallet.name,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+
+                                        Text(
+                                            text = viewModel.formatRupiah(wallet.balance),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Black,
+                                            color = Color(0xFF2E7D32)
+                                        )
+                                    }
+
+                                    if (hasTarget) {
+                                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            LinearProgressIndicator(
+                                                progress = { progress },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(7.dp)
+                                                    .clip(RoundedCornerShape(3.5.dp)),
+                                                color = if (isAchieved) Color(0xFF2E7D32) else Color(0xFF43A047),
+                                                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                            )
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = if (isAchieved) {
+                                                        if (isId) "🎉 Target Tercapai!" else "🎉 Target Achieved!"
+                                                    } else {
+                                                        if (isId) "Kurang ${viewModel.formatRupiah(target!! - wallet.balance)}" else "${viewModel.formatRupiah(target!! - wallet.balance)} remaining"
+                                                    },
+                                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                                    color = if (isAchieved) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    fontWeight = if (isAchieved) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                                Text(
+                                                    text = "$pct% • Target ${viewModel.formatRupiah(target!!)}",
+                                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                            modifier = Modifier.align(Alignment.Start)
+                                        ) {
+                                            Text(
+                                                text = if (isId) "Tabungan Bebas (Tanpa Target Batas)" else "Open-ended (No Target Cap)",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text(if (isId) "Tutup" else "Close", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CategorySpendingStorageBarCard(
     expenseByCategory: List<CategorySpend>,
     totalExpense: Double,
     viewModel: FinanceViewModel,
@@ -730,7 +1250,14 @@ fun CategoryDonutChartCard(
     isId: Boolean
 ) {
     val cardShape = RoundedCornerShape(24.dp)
+    var showAllCategories by remember { mutableStateOf(false) }
     var selectedCategoryIndex by remember { mutableStateOf<Int?>(null) }
+
+    val displayedCategories = if (showAllCategories || expenseByCategory.size <= 6) {
+        expenseByCategory
+    } else {
+        expenseByCategory.take(6)
+    }
 
     ElevatedCard(
         modifier = Modifier
@@ -746,7 +1273,11 @@ fun CategoryDonutChartCard(
             containerColor = MaterialTheme.colorScheme.surface
         )
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -757,234 +1288,184 @@ fun CategoryDonutChartCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        Icons.Default.PieChart,
+                        Icons.Default.BarChart,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(22.dp)
                     )
                     Text(
-                        text = if (isId) "Visualisasi Donut Pengeluaran" else "Spending Donut Breakdown",
+                        text = if (isId) "Komposisi Pengeluaran" else "Spending Breakdown",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                 }
                 Text(
-                    text = if (isId) "Interaktif" else "Interactive",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
+                    text = viewModel.formatRupiah(totalExpense),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Donut Canvas + Center Information Box
+            // Storage-style Segmented Bar (like mobile phone storage indicator)
+            val barShape = RoundedCornerShape(8.dp)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(240.dp),
-                contentAlignment = Alignment.Center
+                    .height(16.dp)
+                    .clip(barShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
             ) {
-                val animationProgress by animateFloatAsState(
-                    targetValue = 1f,
-                    animationSpec = tween(durationMillis = 800),
-                    label = "donut_anim"
-                )
+                if (totalExpense > 0) {
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        val topItems = expenseByCategory.take(8)
+                        val otherItems = expenseByCategory.drop(8)
+                        val otherTotal = otherItems.sumOf { it.totalSpend }
 
-                Canvas(
-                    modifier = Modifier
-                        .size(220.dp)
-                        .pointerInput(expenseByCategory, totalExpense) {
-                            detectTapGestures { tapOffset ->
-                                val center = Offset(size.width / 2f, size.height / 2f)
-                                val dx = tapOffset.x - center.x
-                                val dy = tapOffset.y - center.y
-                                val distance = sqrt(dx * dx + dy * dy)
-                                val minDim = minOf(size.width.toFloat(), size.height.toFloat())
-                                val outerRadius = minDim / 2f
-                                val innerRadius = outerRadius * 0.58f
-
-                                if (distance in innerRadius..outerRadius) {
-                                    var touchAngle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
-                                    if (touchAngle < 0) touchAngle += 360f
-                                    // Offset by startAngle (-90 deg = top)
-                                    var relativeAngle = (touchAngle + 90f) % 360f
-
-                                    var cumulativeAngle = 0f
-                                    for ((index, item) in expenseByCategory.take(7).withIndex()) {
-                                        val sweep = if (totalExpense > 0) ((item.totalSpend / totalExpense) * 360f).toFloat() else 0f
-                                        if (relativeAngle >= cumulativeAngle && relativeAngle <= cumulativeAngle + sweep) {
-                                            selectedCategoryIndex = if (selectedCategoryIndex == index) null else index
-                                            break
-                                        }
-                                        cumulativeAngle += sweep
+                        topItems.forEachIndexed { index, item ->
+                            val weight = (item.totalSpend / totalExpense).toFloat().coerceAtLeast(0.005f)
+                            val color = ChartColorPalette[index % ChartColorPalette.size]
+                            Box(
+                                modifier = Modifier
+                                    .weight(weight)
+                                    .fillMaxHeight()
+                                    .background(color)
+                                    .clickable {
+                                        selectedCategoryIndex = if (selectedCategoryIndex == index) null else index
                                     }
-                                } else {
-                                    selectedCategoryIndex = null
-                                }
+                            )
+                            if (index < topItems.lastIndex || otherTotal > 0) {
+                                Spacer(
+                                    modifier = Modifier
+                                        .width(1.5.dp)
+                                        .fillMaxHeight()
+                                        .background(MaterialTheme.colorScheme.surface)
+                                )
                             }
                         }
-                ) {
-                    val strokeWidth = 36.dp.toPx()
-                    val diameter = size.minDimension - strokeWidth
-                    val topLeft = Offset((size.width - diameter) / 2f, (size.height - diameter) / 2f)
-                    val arcSize = Size(diameter, diameter)
-
-                    var startAngle = -90f
-                    val topCategories = expenseByCategory.take(7)
-                    val otherCategories = expenseByCategory.drop(7)
-                    val otherSum = otherCategories.sumOf { it.totalSpend }
-
-                    topCategories.forEachIndexed { index, item ->
-                        val sweepAngle = if (totalExpense > 0) {
-                            ((item.totalSpend / totalExpense).toFloat() * 360f) * animationProgress
-                        } else 0f
-
-                        val isSelected = selectedCategoryIndex == index
-                        val color = ChartColorPalette[index % ChartColorPalette.size]
-
-                        drawArc(
-                            color = color,
-                            startAngle = startAngle,
-                            sweepAngle = (sweepAngle - 2f).coerceAtLeast(0.5f),
-                            useCenter = false,
-                            topLeft = topLeft,
-                            size = arcSize,
-                            style = Stroke(
-                                width = if (isSelected) strokeWidth * 1.25f else strokeWidth,
-                                cap = StrokeCap.Round
+                        if (otherTotal > 0) {
+                            val otherWeight = (otherTotal / totalExpense).toFloat().coerceAtLeast(0.005f)
+                            Box(
+                                modifier = Modifier
+                                    .weight(otherWeight)
+                                    .fillMaxHeight()
+                                    .background(Color(0xFF78909C))
+                                    .clickable {
+                                        selectedCategoryIndex = if (selectedCategoryIndex == 8) null else 8
+                                    }
                             )
-                        )
-                        startAngle += sweepAngle
-                    }
-
-                    if (otherSum > 0) {
-                        val otherSweep = if (totalExpense > 0) {
-                            ((otherSum / totalExpense).toFloat() * 360f) * animationProgress
-                        } else 0f
-                        val isSelected = selectedCategoryIndex == 7
-                        drawArc(
-                            color = Color.Gray,
-                            startAngle = startAngle,
-                            sweepAngle = (otherSweep - 2f).coerceAtLeast(0.5f),
-                            useCenter = false,
-                            topLeft = topLeft,
-                            size = arcSize,
-                            style = Stroke(
-                                width = if (isSelected) strokeWidth * 1.25f else strokeWidth,
-                                cap = StrokeCap.Round
-                            )
-                        )
-                    }
-                }
-
-                // Center Label inside Donut Hole
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(horizontal = 24.dp)
-                ) {
-                    if (selectedCategoryIndex != null && selectedCategoryIndex!! < expenseByCategory.size) {
-                        val activeCat = expenseByCategory[selectedCategoryIndex!!]
-                        val pct = if (totalExpense > 0) ((activeCat.totalSpend / totalExpense) * 100).toInt() else 0
-                        Text(
-                            text = activeCat.category.name,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = ChartColorPalette[selectedCategoryIndex!! % ChartColorPalette.size],
-                            maxLines = 1
-                        )
-                        Text(
-                            text = "$pct%",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = viewModel.formatRupiah(activeCat.totalSpend),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    } else {
-                        Text(
-                            text = if (isId) "Total Beban" else "Total Spend",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = viewModel.formatRupiah(totalExpense),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = if (isId) "Ketuk grafik" else "Tap segment",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            // Sub-bar labels (Used vs Total Category Count)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (isId) "Total Beban: ${viewModel.formatRupiah(totalExpense)}" else "Total Used: ${viewModel.formatRupiah(totalExpense)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "${expenseByCategory.size} ${if (isId) "Kategori" else "Categories"}",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
-            // Legend Chips Row / Flow
-            val topLegends = expenseByCategory.take(6)
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                topLegends.chunked(2).forEach { rowPair ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Spacer(modifier = Modifier.height(2.dp))
+
+            // Category rows like phone storage items (Color dot, Name, Amount, Chevron)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                displayedCategories.forEachIndexed { index, item ->
+                    val color = ChartColorPalette[index % ChartColorPalette.size]
+                    val pct = if (totalExpense > 0) ((item.totalSpend / totalExpense) * 100).toInt() else 0
+                    val isSelected = selectedCategoryIndex == index
+
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                selectedCategoryIndex = if (isSelected) null else index
+                            },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) color.copy(alpha = 0.12f) else Color.Transparent
                     ) {
-                        rowPair.forEachIndexed { innerIdx, item ->
-                            val actualIdx = topLegends.indexOf(item)
-                            val isSelected = selectedCategoryIndex == actualIdx
-                            val pct = if (totalExpense > 0) ((item.totalSpend / totalExpense) * 100).toInt() else 0
-                            val color = ChartColorPalette[actualIdx % ChartColorPalette.size]
-
-                            Surface(
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 6.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .clickable {
-                                        selectedCategoryIndex = if (isSelected) null else actualIdx
-                                    },
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) color.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                border = if (isSelected) BorderStroke(1.5.dp, color) else null
+                                    .size(10.dp)
+                                    .clip(CircleShape)
+                                    .background(color)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = item.category.name,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                Text(
+                                    text = viewModel.formatRupiah(item.totalSpend),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = color.copy(alpha = 0.15f)
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(10.dp)
-                                            .clip(CircleShape)
-                                            .background(color)
+                                    Text(
+                                        text = "$pct%",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                        fontWeight = FontWeight.Bold,
+                                        color = color,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = item.category.name,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = "$pct% • ${viewModel.formatRupiah(item.totalSpend)}",
-                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
                                 }
+                                Icon(
+                                    imageVector = Icons.Default.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                    modifier = Modifier.size(16.dp)
+                                )
                             }
                         }
-                        if (rowPair.size == 1) {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
                     }
+                }
+            }
+
+            // Show More / Show Less toggle if more than 6 categories
+            if (expenseByCategory.size > 6) {
+                TextButton(
+                    onClick = { showAllCategories = !showAllCategories },
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                ) {
+                    Text(
+                        text = if (showAllCategories) {
+                            if (isId) "Tampilkan Lebih Sedikit" else "Show Less"
+                        } else {
+                            if (isId) "Lihat Semua (${expenseByCategory.size} Kategori)" else "View All (${expenseByCategory.size} Categories)"
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
         }

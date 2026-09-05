@@ -65,6 +65,8 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                 var showBackupDialog by remember { mutableStateOf(false) }
                 var showCategoryDialog by remember { mutableStateOf(false) }
                 var isTransactionsBulkMode by remember { mutableStateOf(false) }
+                var showArchivedDebtsDialog by remember { mutableStateOf(false) }
+                val archivedDebts by viewModel.archivedDebts.collectAsState()
 
                 fun navigateToTab(tabIndex: Int) {
                     if (selectedTab != tabIndex) {
@@ -85,6 +87,7 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                             tabStack.add(tabIndex)
                         }
                         selectedTab = tabIndex
+                        showArchivedDebtsDialog = false
                         if (tabIndex != 5) {
                             settingsSubmenu = null
                         }
@@ -92,6 +95,10 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                 }
 
                 fun handleBackNavigation(): Boolean {
+                    if (showArchivedDebtsDialog) {
+                        showArchivedDebtsDialog = false
+                        return true
+                    }
                     if (isTransactionsBulkMode) {
                         isTransactionsBulkMode = false
                         return true
@@ -104,6 +111,7 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                         tabStack.removeAt(tabStack.lastIndex)
                         val prevTab = tabStack.last()
                         selectedTab = prevTab
+                        showArchivedDebtsDialog = false
                         if (prevTab != 5) {
                             settingsSubmenu = null
                         }
@@ -113,6 +121,7 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                         tabStack.clear()
                         tabStack.add(0)
                         settingsSubmenu = null
+                        showArchivedDebtsDialog = false
                         return true
                     }
                     return false
@@ -124,6 +133,9 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                 LaunchedEffect(selectedTab) {
                     if (selectedTab != 2) {
                         isTransactionsBulkMode = false
+                    }
+                    if (selectedTab != 4) {
+                        showArchivedDebtsDialog = false
                     }
                 }
 
@@ -146,7 +158,7 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                         val uiStyle by viewModel.uiStyle.collectAsState()
                         val isFresh = uiStyle == "FRESH"
 
-                        val canNavigateBack = isTransactionsBulkMode || (selectedTab == 5 && settingsSubmenu != null) || tabStack.size > 1 || selectedTab != 0
+                        val canNavigateBack = showArchivedDebtsDialog || isTransactionsBulkMode || (selectedTab == 5 && settingsSubmenu != null) || tabStack.size > 1 || selectedTab != 0
                         BackHandler(enabled = canNavigateBack) {
                             handleBackNavigation()
                         }
@@ -263,6 +275,15 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                                                 onClick = {
                                                     showMenu = false
                                                     isTransactionsBulkMode = !isTransactionsBulkMode
+                                                }
+                                            )
+                                        }
+                                        if (selectedTab == 4) {
+                                            DropdownMenuItem(
+                                                text = { Text(if (isId) "Hutang Diarsipkan (${archivedDebts.size})" else "Archived Debts (${archivedDebts.size})") },
+                                                onClick = {
+                                                    showMenu = false
+                                                    showArchivedDebtsDialog = true
                                                 }
                                             )
                                         }
@@ -414,7 +435,11 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                                             onBulkModeChange = { isTransactionsBulkMode = it }
                                         )
                                         3 -> AnalyticsScreen(viewModel = viewModel)
-                                        4 -> DebtsBillsScreen(viewModel = viewModel)
+                                        4 -> DebtsBillsScreen(
+                                            viewModel = viewModel,
+                                            showArchivedDebtsDialog = showArchivedDebtsDialog,
+                                            onDismissArchivedDebtsDialog = { showArchivedDebtsDialog = false }
+                                        )
                                         5 -> SettingsScreen(
                                             viewModel = viewModel,
                                             activeCategory = settingsSubmenu,
