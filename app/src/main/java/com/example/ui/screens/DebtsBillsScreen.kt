@@ -1440,9 +1440,9 @@ fun BillsTabContent(
                             color = Color.White
                         )
                         Text(
-                            text = if (isId) "${bills.count { it.status == "LUNAS" }} Tagihan • Lihat Riwayat" else "${bills.count { it.status == "LUNAS" }} Bills • View History",
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
-                            color = Color.White.copy(alpha = 0.85f)
+                            text = if (isId) "${bills.count { it.status == "LUNAS" }} Tagihan" else "${bills.count { it.status == "LUNAS" }} Bills",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                            color = Color.White.copy(alpha = 0.75f)
                         )
                     }
                 }

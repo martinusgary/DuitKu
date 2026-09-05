@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.Category
 import com.example.data.model.Transaction
 import com.example.data.model.Wallet
+import com.example.ui.components.TransactionItemRow
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.ui.platform.LocalConfiguration
@@ -88,6 +89,7 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
     val isFresh = uiStyle == "FRESH"
 
     var selectedTransactionForDetail by remember { mutableStateOf<Transaction?>(null) }
+    var selectedCategoryForTransactions by remember { mutableStateOf<Category?>(null) }
 
     // Calculate analytics metrics
     val expenses = remember(transactions) { transactions.filter { it.type == "EXPENSE" } }
@@ -288,7 +290,10 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
                         totalExpense = totalExpenseAmount,
                         viewModel = viewModel,
                         isFresh = isFresh,
-                        isId = isId
+                        isId = isId,
+                        onCategoryClick = { category ->
+                            selectedCategoryForTransactions = category
+                        }
                     )
                 }
             }
@@ -495,52 +500,6 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
                     }
                 }
             }
-
-            // 3. Spending Breakdown Title
-            item {
-                Text(
-                    text = if (isId) "Distribusi Pengeluaran Kategori" else "Category Expense Distribution",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Black,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-            }
-
-            if (expenseByCategory.isEmpty()) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                Icons.Default.PieChart,
-                                contentDescription = null,
-                                modifier = Modifier.size(56.dp),
-                                tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f)
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                if (isId) "Belum ada transaksi pengeluaran yang tercatat." else "No expense transactions recorded yet.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            } else {
-                items(expenseByCategory, key = { it.category.id }) { spend ->
-                    val pct = if (totalExpenseAmount > 0) spend.totalSpend / totalExpenseAmount else 0.0
-                    CategorySpendProgressRow(
-                        spend = spend,
-                        percentage = pct,
-                        viewModel = viewModel,
-                        modifier = Modifier.animateItem()
-                    )
-                }
-            }
         }
 
         // --- Dialog 2: Transaction Details ---
@@ -653,6 +612,113 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
                 shape = RoundedCornerShape(28.dp)
             )
         }
+
+        // --- Category Specific Transactions Full Screen Drill-down ---
+        if (selectedCategoryForTransactions != null) {
+            val currentCategory = selectedCategoryForTransactions!!
+            val categoryTxs = remember(transactions, currentCategory) {
+                transactions.filter { it.categoryId == currentCategory.id }
+                    .sortedByDescending { it.date }
+            }
+            val totalCategorySpend = remember(categoryTxs) {
+                categoryTxs.filter { it.type == "EXPENSE" }.sumOf { it.amount }
+            }
+
+            BackHandler {
+                selectedCategoryForTransactions = null
+            }
+
+            Surface(
+                modifier = Modifier
+                    .fillMaxSize(),
+                color = MaterialTheme.colorScheme.background
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // Header Bar with Back Button
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 2.dp
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = { selectedCategoryForTransactions = null }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowBack,
+                                    contentDescription = if (isId) "Kembali ke Analytics" else "Back to Analytics",
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = currentCategory.name,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = if (isId) "Total: ${viewModel.formatRupiah(totalCategorySpend)} (${categoryTxs.size} transaksi)" else "Total: ${viewModel.formatRupiah(totalCategorySpend)} (${categoryTxs.size} transactions)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    if (categoryTxs.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(56.dp)
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = if (isId) "Belum ada transaksi untuk kategori ini." else "No transactions found for this category.",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 16.dp),
+                            contentPadding = PaddingValues(top = 16.dp, bottom = 32.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(categoryTxs, key = { it.id }) { tx ->
+                                val wallet = wallets.firstOrNull { it.id == tx.walletId }
+                                val targetWallet = wallets.firstOrNull { it.id == tx.targetWalletId }
+                                TransactionItemRow(
+                                    transaction = tx,
+                                    wallet = wallet,
+                                    targetWallet = targetWallet,
+                                    category = currentCategory,
+                                    viewModel = viewModel,
+                                    onDelete = {}
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -660,81 +726,6 @@ data class CategorySpend(
     val category: Category,
     val totalSpend: Double
 )
-
-@Composable
-fun CategorySpendProgressRow(
-    spend: CategorySpend,
-    percentage: Double,
-    viewModel: FinanceViewModel,
-    modifier: Modifier = Modifier
-) {
-    val numPercent = (percentage * 100).toInt()
-    
-    // Choose beautiful color shades according to category spend amount
-    val progressColor = when {
-        numPercent > 50 -> Color(0xFFC62828)   // Red
-        numPercent > 20 -> Color(0xFFEF6C00)   // Orange
-        numPercent > 10 -> Color(0xFF1976D2)   // Blue
-        else -> Color(0xFF43A047)               // Green
-    }
-
-    ElevatedCard(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = spend.category.name,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Text(
-                    text = "$numPercent%",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Black,
-                    color = progressColor
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            LinearProgressIndicator(
-                progress = { percentage.toFloat() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(RoundedCornerShape(4.dp)),
-                color = progressColor,
-                trackColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                Text(
-                    text = "Total: ${viewModel.formatRupiah(spend.totalSpend)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-        }
-    }
-}
 
 @Composable
 fun SavingsOverviewCard(
@@ -1247,11 +1238,11 @@ fun CategorySpendingStorageBarCard(
     totalExpense: Double,
     viewModel: FinanceViewModel,
     isFresh: Boolean,
-    isId: Boolean
+    isId: Boolean,
+    onCategoryClick: (Category) -> Unit
 ) {
     val cardShape = RoundedCornerShape(24.dp)
     var showAllCategories by remember { mutableStateOf(false) }
-    var selectedCategoryIndex by remember { mutableStateOf<Int?>(null) }
 
     val displayedCategories = if (showAllCategories || expenseByCategory.size <= 6) {
         expenseByCategory
@@ -1331,7 +1322,7 @@ fun CategorySpendingStorageBarCard(
                                     .fillMaxHeight()
                                     .background(color)
                                     .clickable {
-                                        selectedCategoryIndex = if (selectedCategoryIndex == index) null else index
+                                        onCategoryClick(item.category)
                                     }
                             )
                             if (index < topItems.lastIndex || otherTotal > 0) {
@@ -1351,7 +1342,9 @@ fun CategorySpendingStorageBarCard(
                                     .fillMaxHeight()
                                     .background(Color(0xFF78909C))
                                     .clickable {
-                                        selectedCategoryIndex = if (selectedCategoryIndex == 8) null else 8
+                                        if (otherItems.isNotEmpty()) {
+                                            onCategoryClick(otherItems.first().category)
+                                        }
                                     }
                             )
                         }
@@ -1385,16 +1378,15 @@ fun CategorySpendingStorageBarCard(
                 displayedCategories.forEachIndexed { index, item ->
                     val color = ChartColorPalette[index % ChartColorPalette.size]
                     val pct = if (totalExpense > 0) ((item.totalSpend / totalExpense) * 100).toInt() else 0
-                    val isSelected = selectedCategoryIndex == index
 
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                selectedCategoryIndex = if (isSelected) null else index
+                                onCategoryClick(item.category)
                             },
                         shape = RoundedCornerShape(12.dp),
-                        color = if (isSelected) color.copy(alpha = 0.12f) else Color.Transparent
+                        color = Color.Transparent
                     ) {
                         Row(
                             modifier = Modifier
