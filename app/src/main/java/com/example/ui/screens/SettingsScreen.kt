@@ -1124,6 +1124,35 @@ fun SettingsScreen(
                                         )
                                     }
 
+                                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                                    // Auto-lock status row
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                            Text(
+                                                text = if (isId) "Kunci Otomatis (5 Menit)" else "Auto-Lock (5 Minutes)",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = if (isId) "Aplikasi otomatis terkunci jika tidak ada aktivitas selama 5 menit." else "App automatically locks after 5 minutes of inactivity.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        Icon(
+                                            Icons.Default.Timer,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+
                                     Button(
                                         onClick = {
                                             prefs.edit().clear().apply()
@@ -1215,6 +1244,35 @@ fun SettingsScreen(
                                         shape = RoundedCornerShape(12.dp)
                                     ) {
                                         Text(Localization.getString("sec_btn_create", isId), fontWeight = FontWeight.Black)
+                                    }
+
+                                    Divider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                                    // Auto-close info for unregistered
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                            Text(
+                                                text = if (isId) "Penutupan Otomatis (5 Menit)" else "Auto-Close (5 Minutes)",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = if (isId) "Aplikasi otomatis ditutup jika tidak ada aktivitas selama 5 menit." else "App automatically closes after 5 minutes of inactivity.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        Icon(
+                                            Icons.Default.Timer,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
                                     }
                                 }
                             }

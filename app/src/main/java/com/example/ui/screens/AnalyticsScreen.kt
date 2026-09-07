@@ -13,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -36,17 +37,21 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import com.example.data.model.Category
 import com.example.data.model.Transaction
 import com.example.data.model.Wallet
 import com.example.ui.components.TransactionItemRow
+import com.example.ui.components.TransactionDetailDialog
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.ui.platform.LocalConfiguration
@@ -511,105 +516,13 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
                 wallets.firstOrNull { it.id == targetId }
             }
 
-            AlertDialog(
-                onDismissRequest = { selectedTransactionForDetail = null },
-                title = {
-                    Text(
-                        text = if (isId) "Detail Transaksi" else "Transaction Details",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Black
-                    )
-                },
-                text = {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            color = when (tx.type) {
-                                "EXPENSE" -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
-                                "INCOME" -> Color(0xFFE8F5E9)
-                                else -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                            }
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = when (tx.type) {
-                                        "EXPENSE" -> if (isId) "Pengeluaran" else "Expense"
-                                        "INCOME" -> if (isId) "Pemasukan" else "Income"
-                                        else -> "Transfer"
-                                    },
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = when (tx.type) {
-                                        "EXPENSE" -> Color(0xFFC62828)
-                                        "INCOME" -> Color(0xFF2E7D32)
-                                        else -> MaterialTheme.colorScheme.primary
-                                    }
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = viewModel.formatRupiah(tx.amount),
-                                    style = MaterialTheme.typography.headlineMedium,
-                                    fontWeight = FontWeight.Black,
-                                    color = when (tx.type) {
-                                        "EXPENSE" -> Color(0xFFC62828)
-                                        "INCOME" -> Color(0xFF2E7D32)
-                                        else -> MaterialTheme.colorScheme.onSurface
-                                    }
-                                )
-                            }
-                        }
-
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            DetailRow(label = if (isId) "Tanggal" else "Date", value = viewModel.formatDate(tx.date))
-
-                            if (category != null) {
-                                DetailRow(label = if (isId) "Kategori" else "Category", value = category.name)
-                            }
-
-                            if (tx.type == "TRANSFER" && targetWallet != null) {
-                                DetailRow(label = if (isId) "Dari Dompet" else "From Wallet", value = wallet?.name ?: "Unknown")
-                                DetailRow(label = if (isId) "Ke Dompet" else "To Wallet", value = targetWallet.name)
-                            } else {
-                                DetailRow(label = if (isId) "Dompet" else "Wallet", value = wallet?.name ?: "Unknown")
-                            }
-
-                            Spacer(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(1.dp)
-                                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
-                            )
-
-                            Column {
-                                Text(
-                                    text = if (isId) "Catatan / Deskripsi" else "Note / Description",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = tx.note.ifBlank { if (isId) "Tidak ada catatan." else "No description added." },
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = { selectedTransactionForDetail = null }) {
-                        Text(if (isId) "Tutup" else "Close", fontWeight = FontWeight.Bold)
-                    }
-                },
-                shape = RoundedCornerShape(28.dp)
+            TransactionDetailDialog(
+                transaction = tx,
+                wallet = wallet,
+                targetWallet = targetWallet,
+                category = category,
+                viewModel = viewModel,
+                onDismiss = { selectedTransactionForDetail = null }
             )
         }
 
@@ -617,7 +530,7 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
         if (selectedCategoryForTransactions != null) {
             val currentCategory = selectedCategoryForTransactions!!
             val categoryTxs = remember(transactions, currentCategory) {
-                transactions.filter { it.categoryId == currentCategory.id }
+                transactions.filter { it.type != "TRANSFER" && it.categoryId == currentCategory.id }
                     .sortedByDescending { it.date }
             }
             val totalCategorySpend = remember(categoryTxs) {
@@ -711,6 +624,7 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
                                     targetWallet = targetWallet,
                                     category = currentCategory,
                                     viewModel = viewModel,
+                                    forceShowAmount = true,
                                     onDelete = {}
                                 )
                             }
@@ -1470,6 +1384,41 @@ data class MonthlyBarData(
     val expense: Double
 )
 
+data class TrendPoint(
+    val shortLabel: String,
+    val fullLabel: String,
+    val income: Double,
+    val expense: Double
+) {
+    val cashFlow: Double get() = income + expense
+    val net: Double get() = income - expense
+}
+
+// Catmull-Rom spline path appender
+private fun appendCatmullRomSpline(path: Path, points: List<Offset>, baselineY: Float) {
+    if (points.size < 2) return
+    if (points.size == 2) {
+        val p0 = points[0]
+        val p1 = points[1]
+        val cx = (p0.x + p1.x) / 2f
+        path.cubicTo(cx, p0.y, cx, p1.y, p1.x, p1.y)
+        return
+    }
+    for (i in 0 until points.size - 1) {
+        val p0 = if (i > 0) points[i - 1] else points[i]
+        val p1 = points[i]
+        val p2 = points[i + 1]
+        val p3 = if (i + 2 < points.size) points[i + 2] else p2
+
+        val cp1X = p1.x + (p2.x - p0.x) / 6f
+        val cp1Y = (p1.y + (p2.y - p0.y) / 6f).coerceAtMost(baselineY)
+        val cp2X = p2.x - (p3.x - p1.x) / 6f
+        val cp2Y = (p2.y - (p3.y - p1.y) / 6f).coerceAtMost(baselineY)
+
+        path.cubicTo(cp1X, cp1Y, cp2X, cp2Y, p2.x, p2.y)
+    }
+}
+
 @Composable
 fun MonthlyCashFlowBarChartCard(
     transactions: List<Transaction>,
@@ -1484,30 +1433,36 @@ fun MonthlyCashFlowBarChartCard(
         listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
     }
 
-    // Compute last 6 months metrics
-    val last6MonthsData = remember(transactions) {
-        val result = mutableListOf<MonthlyBarData>()
+    var selectedPeriod by remember { mutableStateOf("30_DAYS") } // "30_DAYS" or "6_MONTHS"
+    var selectedFlowType by remember { mutableStateOf("ALL") } // "ALL", "EXPENSE", "INCOME"
+    var touchedPointIndex by remember { mutableStateOf<Int?>(null) }
+
+    // 30 Days daily data
+    val dailyData = remember(transactions) {
+        val result = mutableListOf<TrendPoint>()
         val cal = Calendar.getInstance()
-        // Start from 5 months ago to current month
-        for (i in 5 downTo 0) {
+        for (i in 29 downTo 0) {
             val targetCal = Calendar.getInstance().apply {
                 timeInMillis = cal.timeInMillis
-                add(Calendar.MONTH, -i)
+                add(Calendar.DAY_OF_YEAR, -i)
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
             }
-            val targetMonth = targetCal.get(Calendar.MONTH)
-            val targetYear = targetCal.get(Calendar.YEAR)
+            val startOfDay = targetCal.timeInMillis
+            val endOfDay = startOfDay + 86400000L - 1L
 
-            val monthTx = transactions.filter { tx ->
-                val txCal = Calendar.getInstance().apply { timeInMillis = tx.date }
-                txCal.get(Calendar.MONTH) == targetMonth && txCal.get(Calendar.YEAR) == targetYear
-            }
-
-            val inc = monthTx.filter { it.type == "INCOME" }.sumOf { it.amount }
-            val exp = monthTx.filter { it.type == "EXPENSE" }.sumOf { it.amount }
+            val dayTx = transactions.filter { it.date in startOfDay..endOfDay }
+            val inc = dayTx.filter { it.type == "INCOME" }.sumOf { it.amount }
+            val exp = dayTx.filter { it.type == "EXPENSE" }.sumOf { it.amount + it.adminFee }
+            val dayNum = targetCal.get(Calendar.DAY_OF_MONTH)
+            val m = targetCal.get(Calendar.MONTH)
 
             result.add(
-                MonthlyBarData(
-                    monthName = monthShortNames[targetMonth],
+                TrendPoint(
+                    shortLabel = "$dayNum ${monthShortNames[m]}",
+                    fullLabel = "$dayNum ${monthShortNames[m]} ${targetCal.get(Calendar.YEAR)}",
                     income = inc,
                     expense = exp
                 )
@@ -1516,160 +1471,402 @@ fun MonthlyCashFlowBarChartCard(
         result
     }
 
-    val maxAmount = remember(last6MonthsData) {
-        val maxVal = last6MonthsData.maxOfOrNull { maxOf(it.income, it.expense) } ?: 1.0
-        if (maxVal <= 0.0) 1.0 else maxVal
+    // 6 Months data
+    val monthlyData = remember(transactions) {
+        val result = mutableListOf<TrendPoint>()
+        val cal = Calendar.getInstance()
+        for (i in 5 downTo 0) {
+            val targetCal = Calendar.getInstance().apply {
+                timeInMillis = cal.timeInMillis
+                add(Calendar.MONTH, -i)
+            }
+            val m = targetCal.get(Calendar.MONTH)
+            val y = targetCal.get(Calendar.YEAR)
+
+            val monthTx = transactions.filter { tx ->
+                val txCal = Calendar.getInstance().apply { timeInMillis = tx.date }
+                txCal.get(Calendar.MONTH) == m && txCal.get(Calendar.YEAR) == y
+            }
+            val inc = monthTx.filter { it.type == "INCOME" }.sumOf { it.amount }
+            val exp = monthTx.filter { it.type == "EXPENSE" }.sumOf { it.amount + it.adminFee }
+
+            result.add(
+                TrendPoint(
+                    shortLabel = monthShortNames[m],
+                    fullLabel = "${monthShortNames[m]} $y",
+                    income = inc,
+                    expense = exp
+                )
+            )
+        }
+        result
     }
 
-    var selectedBarMonth by remember { mutableStateOf<MonthlyBarData?>(null) }
+    val activePoints = if (selectedPeriod == "30_DAYS") dailyData else monthlyData
+
+    fun getPointValue(pt: TrendPoint): Double {
+        return when (selectedFlowType) {
+            "EXPENSE" -> pt.expense
+            "INCOME" -> pt.income
+            else -> pt.cashFlow
+        }
+    }
+
+    val maxVal = remember(activePoints, selectedFlowType) {
+        val m = activePoints.maxOfOrNull { getPointValue(it) } ?: 1.0
+        if (m <= 0.0) 1.0 else m
+    }
+
+    val totalPeriodValue = remember(activePoints, selectedFlowType) {
+        activePoints.sumOf { getPointValue(it) }
+    }
+
+    val avgPeriodValue = remember(activePoints, selectedFlowType) {
+        if (activePoints.isNotEmpty()) totalPeriodValue / activePoints.size else 0.0
+    }
+
+    val activeTouchedPoint = touchedPointIndex?.let { idx ->
+        activePoints.getOrNull(idx)
+    }
+
+    // Dynamic theme accent styling
+    val themeAccent = MaterialTheme.colorScheme.primary
+    val accentGlow = themeAccent.copy(alpha = 0.28f)
+    val cardBackground = MaterialTheme.colorScheme.surface
+    val viewportBackground = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+    val viewportBorder = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+    val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f)
 
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .then(
-                if (isFresh) Modifier.border(
-                    BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
-                    cardShape
-                ) else Modifier
+            .border(
+                BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                cardShape
             ),
         shape = cardShape,
         colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = cardBackground
         )
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
+            // Header Row: Title only (green dot removed, top-right amount removed)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (isId) "TREN ARUS KAS" else "CASH FLOW TREND",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Black,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    letterSpacing = 0.5.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Filter Pills Row (Range: 30 Hari / 6 Bulan & Type: Arus Kas / Pengeluaran / Pemasukan)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        Icons.Default.BarChart,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                    Text(
-                        text = if (isId) "Tren Arus Kas (6 Bulan)" else "Cash Flow Trend (6 Months)",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
+                // Period Toggle Pills
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("30_DAYS" to if (isId) "30 Hari" else "30 Days", "6_MONTHS" to if (isId) "6 Bulan" else "6 Months").forEach { (periodKey, label) ->
+                        val isSelected = selectedPeriod == periodKey
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                            border = if (isSelected) BorderStroke(1.dp, themeAccent) else BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    selectedPeriod = periodKey
+                                    touchedPointIndex = null
+                                }
+                        ) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) themeAccent else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Flow Type Toggle Pills
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(
+                        "ALL" to if (isId) "Semua" else "All",
+                        "EXPENSE" to if (isId) "Keluar" else "Expense",
+                        "INCOME" to if (isId) "Masuk" else "Income"
+                    ).forEach { (typeKey, label) ->
+                        val isSelected = selectedFlowType == typeKey
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                            border = if (isSelected) BorderStroke(1.dp, themeAccent) else BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    selectedFlowType = typeKey
+                                    touchedPointIndex = null
+                                }
+                        ) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) themeAccent else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                            )
+                        }
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Legend indicators
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically
+            // Inner Recessed Graph Viewport (Monitor screen adapted to theme)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(175.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(viewportBackground)
+                    .border(BorderStroke(1.dp, viewportBorder), RoundedCornerShape(16.dp))
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(Color(0xFF2E7D32)))
-                    Text(if (isId) "Pemasukan" else "Income", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(Color(0xFFC62828)))
-                    Text(if (isId) "Pengeluaran" else "Expense", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                // Interactive gestures & canvas
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(activePoints) {
+                            detectTapGestures(
+                                onPress = { offset ->
+                                    val padX = 16.dp.toPx()
+                                    val usableW = size.width - 2 * padX
+                                    if (usableW > 0 && activePoints.size > 1) {
+                                        val frac = ((offset.x - padX) / usableW).coerceIn(0f, 1f)
+                                        val idx = (frac * (activePoints.size - 1)).roundToInt()
+                                        touchedPointIndex = idx
+                                        tryAwaitRelease()
+                                        touchedPointIndex = null
+                                    }
+                                }
+                            )
+                        }
+                        .pointerInput(activePoints) {
+                            detectDragGestures(
+                                onDragStart = { offset ->
+                                    val padX = 16.dp.toPx()
+                                    val usableW = size.width - 2 * padX
+                                    if (usableW > 0 && activePoints.size > 1) {
+                                        val frac = ((offset.x - padX) / usableW).coerceIn(0f, 1f)
+                                        val idx = (frac * (activePoints.size - 1)).roundToInt()
+                                        touchedPointIndex = idx
+                                    }
+                                },
+                                onDragEnd = { touchedPointIndex = null },
+                                onDragCancel = { touchedPointIndex = null },
+                                onDrag = { change, _ ->
+                                    val padX = 16.dp.toPx()
+                                    val usableW = size.width - 2 * padX
+                                    if (usableW > 0 && activePoints.size > 1) {
+                                        val frac = ((change.position.x - padX) / usableW).coerceIn(0f, 1f)
+                                        val idx = (frac * (activePoints.size - 1)).roundToInt()
+                                        touchedPointIndex = idx
+                                    }
+                                }
+                            )
+                        }
+                ) {
+                    val w = size.width
+                    val h = size.height
+                    val padX = 16.dp.toPx()
+                    val baselineY = h * 0.86f
+                    val topY = h * 0.14f
+
+                    // 1. Draw 5 Faint Horizontal Grid Lines
+                    val gridSteps = 4
+                    for (i in 0..gridSteps) {
+                        val gy = topY + (i.toFloat() / gridSteps) * (baselineY - topY)
+                        drawLine(
+                            color = gridColor,
+                            start = Offset(0f, gy),
+                            end = Offset(w, gy),
+                            strokeWidth = 1.dp.toPx()
+                        )
+                    }
+
+                    if (activePoints.isEmpty()) return@Canvas
+
+                    // 2. Project Points
+                    val points = activePoints.mapIndexed { index, pt ->
+                        val px = if (activePoints.size == 1) {
+                            w / 2f
+                        } else {
+                            padX + (index.toFloat() / (activePoints.size - 1)) * (w - 2 * padX)
+                        }
+                        val value = getPointValue(pt)
+                        val ratio = (value / maxVal).coerceIn(0.0, 1.0).toFloat()
+                        val py = baselineY - ratio * (baselineY - topY)
+                        Offset(px, py)
+                    }
+
+                    // 3. Draw Translucent Theme Gradient Fill Below Spline
+                    val fillPath = Path().apply {
+                        moveTo(points.first().x, baselineY)
+                        lineTo(points.first().x, points.first().y)
+                        appendCatmullRomSpline(this, points, baselineY)
+                        lineTo(points.last().x, baselineY)
+                        close()
+                    }
+                    drawPath(
+                        path = fillPath,
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                themeAccent.copy(alpha = 0.32f),
+                                themeAccent.copy(alpha = 0.02f)
+                            ),
+                            startY = topY,
+                            endY = baselineY
+                        )
+                    )
+
+                    // 4. Draw Smooth Waveform Line in Theme Accent
+                    val strokePath = Path().apply {
+                        moveTo(points.first().x, points.first().y)
+                        appendCatmullRomSpline(this, points, baselineY)
+                    }
+                    drawPath(
+                        path = strokePath,
+                        color = themeAccent,
+                        style = Stroke(
+                            width = 2.5.dp.toPx(),
+                            cap = StrokeCap.Round,
+                            join = StrokeJoin.Round
+                        )
+                    )
+
+                    // 5. Draw Interactive Indicator for Touched Point
+                    touchedPointIndex?.let { idx ->
+                        if (idx in points.indices) {
+                            val pt = points[idx]
+                            // Vertical guide line
+                            drawLine(
+                                color = themeAccent.copy(alpha = 0.4f),
+                                start = Offset(pt.x, topY),
+                                end = Offset(pt.x, baselineY),
+                                strokeWidth = 1.5.dp.toPx()
+                            )
+                            // Outer glow halo
+                            drawCircle(
+                                color = accentGlow,
+                                radius = 9.dp.toPx(),
+                                center = pt
+                            )
+                            // Inner core dot
+                            drawCircle(
+                                color = themeAccent,
+                                radius = 3.5.dp.toPx(),
+                                center = pt
+                            )
+                        }
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // Bar Chart Area
+            // X-Axis Date Reference Labels below graph viewport
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp),
+                    .padding(horizontal = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                last6MonthsData.forEach { data ->
-                    val isSelected = selectedBarMonth?.monthName == data.monthName
-                    val incomeRatio = (data.income / maxAmount).coerceIn(0.0, 1.0).toFloat()
-                    val expenseRatio = (data.expense / maxAmount).coerceIn(0.0, 1.0).toFloat()
-
-                    val animatedIncomeHeight by animateFloatAsState(
-                        targetValue = incomeRatio,
-                        animationSpec = tween(600),
-                        label = "inc_bar"
+                if (selectedPeriod == "30_DAYS") {
+                    Text(
+                        text = if (isId) "30 hari lalu" else "30 days ago",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    val animatedExpenseHeight by animateFloatAsState(
-                        targetValue = expenseRatio,
-                        animationSpec = tween(600),
-                        label = "exp_bar"
+                    Text(
+                        text = if (isId) "15 hari lalu" else "15 days ago",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable {
-                                selectedBarMonth = if (isSelected) null else data
-                            }
-                            .padding(horizontal = 2.dp)
-                    ) {
-                        // Bars container
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth(),
-                            contentAlignment = Alignment.BottomCenter
-                        ) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(3.dp),
-                                verticalAlignment = Alignment.Bottom,
-                                modifier = Modifier.fillMaxHeight()
-                            ) {
-                                // Income bar
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight(fraction = if (animatedIncomeHeight > 0.05f) animatedIncomeHeight else if (data.income > 0) 0.06f else 0.01f)
-                                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                        .background(
-                                            if (isSelected) Color(0xFF1B5E20) else Color(0xFF4CAF50)
-                                        )
-                                )
-
-                                // Expense bar
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight(fraction = if (animatedExpenseHeight > 0.05f) animatedExpenseHeight else if (data.expense > 0) 0.06f else 0.01f)
-                                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                        .background(
-                                            if (isSelected) Color(0xFFB71C1C) else Color(0xFFEF5350)
-                                        )
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
+                    Text(
+                        text = if (isId) "Hari ini" else "Today",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    activePoints.forEach { pt ->
                         Text(
-                            text = data.monthName,
+                            text = pt.shortLabel,
                             style = MaterialTheme.typography.labelSmall,
-                            fontWeight = if (isSelected) FontWeight.Black else FontWeight.Medium,
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
 
-            // Info popup banner for clicked bar
-            if (selectedBarMonth != null) {
-                Spacer(modifier = Modifier.height(14.dp))
-                val activeData = selectedBarMonth!!
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Bottom Inspector / Statistics Strip
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (activeTouchedPoint != null) {
+                    // Hovered Date Detail
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = activeTouchedPoint.fullLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Masuk: ${viewModel.formatRupiah(activeTouchedPoint.income)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF22C55E)
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = "Keluar: ${viewModel.formatRupiah(activeTouchedPoint.expense)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            val netVal = activeTouchedPoint.net
+                            Text(
+                                text = (if (netVal >= 0) "Surplus: +" else "Defisit: ") + viewModel.formatRupiah(netVal),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (netVal >= 0) Color(0xFF22C55E) else MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                } else {
+                    // Period Overview Metrics
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1679,31 +1876,41 @@ fun MonthlyCashFlowBarChartCard(
                     ) {
                         Column {
                             Text(
-                                text = "Bulan ${activeData.monthName}",
+                                text = if (isId) "Rata-rata" else "Average",
                                 style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = "Masuk: ${viewModel.formatRupiah(activeData.income)}",
+                                text = viewModel.formatRupiah(avgPeriodValue),
                                 style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF2E7D32)
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = if (isId) "Puncak" else "Peak",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = viewModel.formatRupiah(maxVal),
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = themeAccent
                             )
                         }
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
-                                text = "Keluar: ${viewModel.formatRupiah(activeData.expense)}",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFFC62828)
-                            )
-                            val diff = activeData.income - activeData.expense
-                            Text(
-                                text = (if (diff >= 0) "Surplus: +" else "Defisit: ") + viewModel.formatRupiah(diff),
+                                text = if (isId) "Total Periode" else "Period Total",
                                 style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = viewModel.formatRupiah(totalPeriodValue),
+                                style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Bold,
-                                color = if (diff >= 0) Color(0xFF2E7D32) else Color(0xFFC62828)
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }

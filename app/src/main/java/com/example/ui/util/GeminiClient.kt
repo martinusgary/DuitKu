@@ -32,10 +32,15 @@ object GeminiClient {
     data class ScanResult(
         val amount: Double,
         val type: String, // "EXPENSE" or "INCOME"
-        val note: String
+        val note: String,
+        val category: String = "" // Auto-detected category name
     )
 
-    suspend fun scanMultipleReceipts(context: Context, uris: List<Uri>): List<ScanResult> = withContext(Dispatchers.IO) {
+    suspend fun scanMultipleReceipts(
+        context: Context,
+        uris: List<Uri>,
+        availableCategories: List<String> = emptyList()
+    ): List<ScanResult> = withContext(Dispatchers.IO) {
         val apiKey = BuildConfig.GEMINI_API_KEY
         if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
             Log.e(TAG, "API Key is empty or still a placeholder.")
@@ -43,6 +48,16 @@ object GeminiClient {
         }
 
         val allResults = mutableListOf<ScanResult>()
+
+        val categoriesInstruction = if (availableCategories.isNotEmpty()) {
+            """
+            - category: Tentukan kategori yang paling cocok untuk struk ini. PILIH SALAH SATU nama kategori persis dari daftar berikut: [${availableCategories.joinToString(", ")}]. Contoh: jika nota restoran/kopi/makan pilih yang berhubungan dengan Makanan/Minuman, jika nota supermarket/minimarket/pasar/toko kelontong pilih Belanja Harian, jika bensin/parkir/kendaraan pilih Transportasi.
+            """.trimIndent()
+        } else {
+            """
+            - category: Tentukan kategori pengeluaran yang paling relevan (misal: "Makanan & Minuman", "Belanja Harian", "Transportasi", "Tagihan & Utilities", "Hiburan", "Lain-lain").
+            """.trimIndent()
+        }
 
         for (uri in uris) {
             val bitmap = loadOptimizedBitmap(context, uri) ?: continue
@@ -58,18 +73,21 @@ object GeminiClient {
                                     - amount: total belanja (Double)
                                     - type: tipe transaksi ("EXPENSE" atau "INCOME", biasanya EXPENSE)
                                     - note: WAJIB dalam format persis "Tempat: Barang" (Contoh: "Indomaret: Minyak, Gula, Roti" atau "Kopi Kenangan: Kopi Kenangan Mantan" atau "SPBU Pertamina: Pertalite"). Jika nama toko tidak terlihat, gunakan "Toko: Barang".
+                                    $categoriesInstruction
 
                                     Kembalikan tanggapan hanya dalam format JSON ARRAY seperti contoh berikut:
                                     [
                                       {
                                         "amount": 45000.0,
                                         "type": "EXPENSE",
-                                        "note": "Kopi Kenangan: Kopi Susu & Donat"
+                                        "note": "Kopi Kenangan: Kopi Susu & Donat",
+                                        "category": "Makanan & Minuman"
                                       },
                                       {
                                         "amount": 120000.0,
                                         "type": "EXPENSE",
-                                        "note": "Indomaret: Bahan Pokok & Camilan"
+                                        "note": "Indomaret: Bahan Pokok & Camilan",
+                                        "category": "Belanja Harian"
                                       }
                                     ]
                                     Harap pastikan jumlah/amount berupa nilai numerik biasa murni tanpa format Rp atau titik ribu.
@@ -95,7 +113,12 @@ object GeminiClient {
                 val systemInstructionObj = JSONObject().apply {
                     val partsArray = JSONArray().apply {
                         put(JSONObject().apply {
-                            put("text", "You are an expert Indonesian receipt analyzer. You detect all receipts in an image and return them as a raw, valid JSON Array containing objects with amount (Double), type (String), and note (String). Format note strictly as 'Tempat: Barang' (e.g. 'Indomaret: Minyak, Gula', 'Kopi Kenangan: Kopi Kenangan Mantan', 'SPBU Pertamina: Pertalite'). If merchant is unknown, use 'Toko: Barang'.")
+                            val sysCatText = if (availableCategories.isNotEmpty()) {
+                                " Also detect and classify each receipt into the best matching category from this list: ${availableCategories.joinToString(", ")}. Return the category in the 'category' field."
+                            } else {
+                                " Also classify each receipt into an appropriate category name in the 'category' field."
+                            }
+                            put("text", "You are an expert Indonesian receipt analyzer. You detect all receipts in an image and return them as a raw, valid JSON Array containing objects with amount (Double), type (String), note (String), and category (String). Format note strictly as 'Tempat: Barang' (e.g. 'Indomaret: Minyak, Gula', 'Kopi Kenangan: Kopi Kenangan Mantan', 'SPBU Pertamina: Pertalite'). If merchant is unknown, use 'Toko: Barang'.$sysCatText")
                         })
                     }
                     put("parts", partsArray)
@@ -187,7 +210,8 @@ object GeminiClient {
 
                     val type = parsedOutput.optString("type", "EXPENSE").uppercase()
                     val noteText = parsedOutput.optString("note", "Pindaan Nota")
-                    allResults.add(ScanResult(amount, type, noteText))
+                    val categoryName = parsedOutput.optString("category", "").trim()
+                    allResults.add(ScanResult(amount, type, noteText, categoryName))
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error scanning URI $uri", e)
@@ -196,7 +220,11 @@ object GeminiClient {
         allResults
     }
 
-    suspend fun scanReceipt(context: Context, uri: Uri): ScanResult? = withContext(Dispatchers.IO) {
+    suspend fun scanReceipt(
+        context: Context,
+        uri: Uri,
+        availableCategories: List<String> = emptyList()
+    ): ScanResult? = withContext(Dispatchers.IO) {
         val apiKey = BuildConfig.GEMINI_API_KEY
         if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
             Log.e(TAG, "API Key is empty or still a placeholder.")
@@ -207,6 +235,16 @@ object GeminiClient {
         val bitmap = loadOptimizedBitmap(context, uri) ?: throw Exception("Gagal memuat gambar nota.")
         val base64Image = bitmap.toResizedBase64()
 
+        val categoriesInstruction = if (availableCategories.isNotEmpty()) {
+            """
+            - category: Tentukan kategori yang paling cocok untuk struk ini. PILIH SALAH SATU nama kategori persis dari daftar berikut: [${availableCategories.joinToString(", ")}]. Contoh: jika nota restoran/kopi/makan pilih yang berhubungan dengan Makanan/Minuman, jika nota supermarket/minimarket/pasar/toko kelontong pilih Belanja Harian, jika bensin/parkir/kendaraan pilih Transportasi.
+            """.trimIndent()
+        } else {
+            """
+            - category: Tentukan kategori pengeluaran yang paling relevan (misal: "Makanan & Minuman", "Belanja Harian", "Transportasi", "Tagihan & Utilities", "Hiburan", "Lain-lain").
+            """.trimIndent()
+        }
+
         // 2. Prepare JSON payload matching standard Direct REST API specifications
         val payload = JSONObject().apply {
             val contentsArray = JSONArray().apply {
@@ -216,11 +254,13 @@ object GeminiClient {
                         val textPart = JSONObject().apply {
                             put("text", """
                                 Analisis foto nota / resi ini. Ekstrak nilai total belanja (amount), jenis transaksi (type: "EXPENSE" atau "INCOME", biasanya EXPENSE untuk belanja), dan catatan (note) WAJIB diformat persis sebagai "Tempat: Barang" (Contoh: "Indomaret: Minyak, Gula, Roti" atau "Kopi Kenangan: Kopi Susu Mantan" atau "SPBU Pertamina: Pertalite"). Jika nama tempat/toko tidak tertera, gunakan "Toko: Barang".
+                                $categoriesInstruction
                                 Sila kembalikan tanggapan hanya dalam format objek JSON seperti ini:
                                 {
                                   "amount": 45000.0,
                                   "type": "EXPENSE",
-                                  "note": "Kopi Kenangan: Kopi Susu & Donat"
+                                  "note": "Kopi Kenangan: Kopi Susu & Donat",
+                                  "category": "Makanan & Minuman"
                                 }
                                 Harap pastikan jumlah/amount diekstrak sebagai angka numerik biasa tanpa tanda titik ribu atau mata uang (misal 50000.0 bukannya Rp 50.000).
                                 Kembalikan HANYA teks JSON tersebut tanpa prefiks ```json atau format markdown penjelasan lainnya.
@@ -247,7 +287,12 @@ object GeminiClient {
             val systemInstructionObj = JSONObject().apply {
                 val partsArray = JSONArray().apply {
                     put(JSONObject().apply {
-                        put("text", "You are an expert Indonesian receipt analyzer. You return raw, valid JSON only containing amount (Double), type (String), and note (String). Format note strictly as 'Tempat: Barang' (e.g. 'Indomaret: Minyak, Gula', 'Kopi Kenangan: Kopi Susu', 'SPBU Pertamina: Pertamax'). If merchant is unknown, use 'Toko: Barang'.")
+                        val sysCatText = if (availableCategories.isNotEmpty()) {
+                            " Also detect and classify each receipt into the best matching category from this list: ${availableCategories.joinToString(", ")}. Return the category in the 'category' field."
+                        } else {
+                            " Also classify the receipt into an appropriate category name in the 'category' field."
+                        }
+                        put("text", "You are an expert Indonesian receipt analyzer. You return raw, valid JSON only containing amount (Double), type (String), note (String), and category (String). Format note strictly as 'Tempat: Barang' (e.g. 'Indomaret: Minyak, Gula', 'Kopi Kenangan: Kopi Susu', 'SPBU Pertamina: Pertamax'). If merchant is unknown, use 'Toko: Barang'.$sysCatText")
                     })
                 }
                 put("parts", partsArray)
@@ -346,8 +391,9 @@ object GeminiClient {
             
             val type = parsedOutput.optString("type", "EXPENSE").uppercase()
             val noteText = parsedOutput.optString("note", "Scan Nota")
+            val categoryName = parsedOutput.optString("category", "").trim()
 
-            ScanResult(amount, type, noteText)
+            ScanResult(amount, type, noteText, categoryName)
 
         } catch (e: Exception) {
             Log.e(TAG, "Error scanning receipt code", e)

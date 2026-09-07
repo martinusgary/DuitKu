@@ -41,8 +41,17 @@ import com.example.ui.screens.*
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.FinanceViewModel
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
 
 class MainActivity : androidx.fragment.app.FragmentActivity() {
+    private var lastUserInteractionTime = System.currentTimeMillis()
+
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        lastUserInteractionTime = System.currentTimeMillis()
+    }
+
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,6 +67,59 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                 val prefs = remember { context.getSharedPreferences("security_settings", android.content.Context.MODE_PRIVATE) }
                 var isRegistered by remember { mutableStateOf(prefs.getBoolean("is_registered", false)) }
                 var isAuthenticated by remember { mutableStateOf(!isRegistered) }
+
+                val transactions by viewModel.transactions.collectAsState()
+                val wallets by viewModel.wallets.collectAsState()
+
+                // Reset inactivity timer when data changes
+                LaunchedEffect(transactions, wallets) {
+                    lastUserInteractionTime = System.currentTimeMillis()
+                }
+
+                // Inactivity timeout: 5 minutes (300,000 ms)
+                val inactivityTimeoutMs = 5 * 60 * 1000L
+
+                // Auto-lock / auto-close when returning to the app if 5 minutes have elapsed in background
+                val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+                DisposableEffect(lifecycleOwner) {
+                    val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                        if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                            val elapsed = System.currentTimeMillis() - lastUserInteractionTime
+                            if (elapsed >= inactivityTimeoutMs) {
+                                val isReg = prefs.getBoolean("is_registered", false)
+                                if (isReg) {
+                                    isAuthenticated = false
+                                } else {
+                                    finish()
+                                }
+                            }
+                        }
+                    }
+                    lifecycleOwner.lifecycle.addObserver(observer)
+                    onDispose {
+                        lifecycleOwner.lifecycle.removeObserver(observer)
+                    }
+                }
+
+                // Periodic foreground timer check (while app is open and untouched for 5 minutes)
+                LaunchedEffect(isAuthenticated) {
+                    if (isAuthenticated) {
+                        lastUserInteractionTime = System.currentTimeMillis()
+                        while (true) {
+                            kotlinx.coroutines.delay(1000L)
+                            val elapsed = System.currentTimeMillis() - lastUserInteractionTime
+                            if (elapsed >= inactivityTimeoutMs) {
+                                val isReg = prefs.getBoolean("is_registered", false)
+                                if (isReg) {
+                                    isAuthenticated = false
+                                } else {
+                                    finish()
+                                }
+                                break
+                            }
+                        }
+                    }
+                }
 
                 val tabStack = remember { mutableStateListOf<Int>(0) }
                 var selectedTab by remember { mutableStateOf(0) }
@@ -139,22 +201,35 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                     }
                 }
 
-                AnimatedContent(
-                    targetState = isAuthenticated,
-                    transitionSpec = {
-                        (fadeIn(animationSpec = tween(400)) + scaleIn(initialScale = 0.95f, animationSpec = tween(400)))
-                            .togetherWith(fadeOut(animationSpec = tween(250)) + scaleOut(targetScale = 1.05f, animationSpec = tween(250)))
-                    },
-                    label = "AppAuthenticationTransition"
-                ) { authenticatedState ->
-                    if (!authenticatedState) {
-                        LoginScreen(
-                            viewModel = viewModel,
-                            onLoginSuccess = {
-                                isAuthenticated = true
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                                    lastUserInteractionTime = System.currentTimeMillis()
+                                }
                             }
-                        )
-                    } else {
+                        }
+                ) {
+                    AnimatedContent(
+                        targetState = isAuthenticated,
+                        transitionSpec = {
+                            (fadeIn(animationSpec = tween(400)) + scaleIn(initialScale = 0.95f, animationSpec = tween(400)))
+                                .togetherWith(fadeOut(animationSpec = tween(250)) + scaleOut(targetScale = 1.05f, animationSpec = tween(250)))
+                        },
+                        label = "AppAuthenticationTransition"
+                    ) { authenticatedState ->
+                        if (!authenticatedState) {
+                            LoginScreen(
+                                viewModel = viewModel,
+                                onLoginSuccess = {
+                                    lastUserInteractionTime = System.currentTimeMillis()
+                                    isAuthenticated = true
+                                }
+                            )
+                        } else {
                         val uiStyle by viewModel.uiStyle.collectAsState()
                         val isFresh = uiStyle == "FRESH"
 
@@ -461,4 +536,5 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
             }
         }
     }
+}
 }

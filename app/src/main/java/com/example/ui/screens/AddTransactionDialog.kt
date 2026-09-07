@@ -49,6 +49,45 @@ import com.example.ui.viewmodel.FinanceViewModel
 import kotlinx.coroutines.launch
 import java.io.File
 
+private fun matchReceiptCategory(detectedCategoryName: String, availableCategories: List<Category>): Int {
+    if (detectedCategoryName.isBlank()) return 0
+    val trimmed = detectedCategoryName.trim()
+    // 1. Exact match (case insensitive)
+    val exact = availableCategories.find { it.name.equals(trimmed, ignoreCase = true) }
+    if (exact != null) return exact.id
+
+    // 2. Substring match
+    val contains = availableCategories.find {
+        it.name.contains(trimmed, ignoreCase = true) ||
+        trimmed.contains(it.name, ignoreCase = true)
+    }
+    if (contains != null) return contains.id
+
+    // 3. Heuristics based on common Indonesian transaction categories
+    val lower = trimmed.lowercase()
+    val fallback = availableCategories.find { cat ->
+        val catLower = cat.name.lowercase()
+        when {
+            lower.contains("makan") || lower.contains("minum") || lower.contains("food") || lower.contains("resto") || lower.contains("cafe") || lower.contains("kopi") || lower.contains("warung") || lower.contains("kuliner") ->
+                catLower.contains("makan") || catLower.contains("minum")
+            lower.contains("belanja") || lower.contains("pasar") || lower.contains("supermarket") || lower.contains("mart") || lower.contains("sembako") || lower.contains("grocer") || lower.contains("harian") ->
+                catLower.contains("belanja")
+            lower.contains("transport") || lower.contains("bensin") || lower.contains("bbm") || lower.contains("spbu") || lower.contains("pertamina") || lower.contains("shell") || lower.contains("parkir") || lower.contains("ojek") || lower.contains("grab") || lower.contains("gojek") ->
+                catLower.contains("transport")
+            lower.contains("tagihan") || lower.contains("listrik") || lower.contains("pln") || lower.contains("pdam") || lower.contains("air") || lower.contains("pulsa") || lower.contains("internet") || lower.contains("wifi") || lower.contains("util") ->
+                catLower.contains("tagihan") || catLower.contains("util")
+            lower.contains("hiburan") || lower.contains("bioskop") || lower.contains("cinema") || lower.contains("game") || lower.contains("nonton") || lower.contains("rekreasi") ->
+                catLower.contains("hiburan")
+            lower.contains("kesehatan") || lower.contains("obat") || lower.contains("apotek") || lower.contains("dokter") || lower.contains("medis") ->
+                catLower.contains("sehat") || catLower.contains("medis") || catLower.contains("obat")
+            lower.contains("pendidikan") || lower.contains("sekolah") || lower.contains("kursus") || lower.contains("buku") ->
+                catLower.contains("didik") || catLower.contains("buku")
+            else -> false
+        }
+    }
+    return fallback?.id ?: 0
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTransactionDialog(
@@ -65,9 +104,10 @@ fun AddTransactionDialog(
     var enableAdminFee by remember { mutableStateOf(false) }
     var adminFeeStr by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf("EXPENSE") } // "INCOME", "EXPENSE", "TRANSFER"
-    var selectedWalletId by remember { mutableStateOf(wallets.firstOrNull()?.id ?: 0) }
-    var selectedTargetWalletId by remember { mutableStateOf(wallets.getOrNull(1)?.id ?: wallets.firstOrNull()?.id ?: 0) }
+    var selectedWalletId by remember { mutableStateOf(0) }
+    var selectedTargetWalletId by remember { mutableStateOf(0) }
     var selectedCategoryId by remember { mutableStateOf(0) }
+    var autoDetectedCategoryName by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var scannedReceipts by remember { mutableStateOf<List<GeminiClient.ScanResult>>(initialScannedReceipts) }
 
@@ -95,9 +135,10 @@ fun AddTransactionDialog(
             val uri = tempPhotoUriInsideDialog
             if (uri != null) {
                 isScanningInsideDialog = true
+                val expenseCategoryNames = categories.filter { it.type == "EXPENSE" }.map { it.name }
                 coroutineScope.launch {
                     try {
-                        val results = GeminiClient.scanMultipleReceipts(context, listOf(uri))
+                        val results = GeminiClient.scanMultipleReceipts(context, listOf(uri), expenseCategoryNames)
                         if (results.isNotEmpty()) {
                             if (results.size == 1) {
                                 val single = results.first()
@@ -106,8 +147,27 @@ fun AddTransactionDialog(
                                 if (single.type == "INCOME" || single.type == "EXPENSE") {
                                     selectedType = single.type
                                 }
+                                if (single.category.isNotBlank()) {
+                                    autoDetectedCategoryName = single.category
+                                    val matchedId = matchReceiptCategory(single.category, categories)
+                                    if (matchedId > 0) {
+                                        selectedCategoryId = matchedId
+                                    }
+                                }
+                                scannedReceipts = emptyList()
                             } else {
                                 scannedReceipts = results
+                                val firstReceipt = results.first()
+                                if (firstReceipt.type == "INCOME" || firstReceipt.type == "EXPENSE") {
+                                    selectedType = firstReceipt.type
+                                }
+                                if (firstReceipt.category.isNotBlank()) {
+                                    autoDetectedCategoryName = firstReceipt.category
+                                    val matchedId = matchReceiptCategory(firstReceipt.category, categories)
+                                    if (matchedId > 0) {
+                                        selectedCategoryId = matchedId
+                                    }
+                                }
                             }
                             Toast.makeText(context, if (isId) "Pendeteksian struk selesai!" else "Receipt detection completed!", Toast.LENGTH_SHORT).show()
                         } else {
@@ -158,9 +218,10 @@ fun AddTransactionDialog(
     ) { uris ->
         if (uris.isNotEmpty()) {
             isScanningInsideDialog = true
+            val expenseCategoryNames = categories.filter { it.type == "EXPENSE" }.map { it.name }
             coroutineScope.launch {
                 try {
-                    val results = GeminiClient.scanMultipleReceipts(context, uris)
+                    val results = GeminiClient.scanMultipleReceipts(context, uris, expenseCategoryNames)
                     if (results.isNotEmpty()) {
                         if (results.size == 1) {
                             val single = results.first()
@@ -169,8 +230,27 @@ fun AddTransactionDialog(
                             if (single.type == "INCOME" || single.type == "EXPENSE") {
                                 selectedType = single.type
                             }
+                            if (single.category.isNotBlank()) {
+                                autoDetectedCategoryName = single.category
+                                val matchedId = matchReceiptCategory(single.category, categories)
+                                if (matchedId > 0) {
+                                    selectedCategoryId = matchedId
+                                }
+                            }
+                            scannedReceipts = emptyList()
                         } else {
                             scannedReceipts = results
+                            val firstReceipt = results.first()
+                            if (firstReceipt.type == "INCOME" || firstReceipt.type == "EXPENSE") {
+                                selectedType = firstReceipt.type
+                            }
+                            if (firstReceipt.category.isNotBlank()) {
+                                autoDetectedCategoryName = firstReceipt.category
+                                val matchedId = matchReceiptCategory(firstReceipt.category, categories)
+                                if (matchedId > 0) {
+                                    selectedCategoryId = matchedId
+                                }
+                            }
                         }
                         Toast.makeText(context, if (isId) "Pendeteksian struk selesai!" else "Receipt detection completed!", Toast.LENGTH_SHORT).show()
                     } else {
@@ -189,12 +269,48 @@ fun AddTransactionDialog(
     val incomeCategoryList = remember(categories) { categories.filter { it.type == "INCOME" } }
     val expenseCategoryList = remember(categories) { categories.filter { it.type == "EXPENSE" } }
 
-    // Keep state of selected category ID matched with type
-    LaunchedEffect(selectedType, categories) {
-        if (selectedType == "INCOME") {
-            selectedCategoryId = incomeCategoryList.firstOrNull()?.id ?: 0
-        } else if (selectedType == "EXPENSE") {
-            selectedCategoryId = expenseCategoryList.firstOrNull()?.id ?: 0
+    // Auto-detect category on initial receipt scan load if launched with scanned receipts
+    LaunchedEffect(initialScannedReceipts) {
+        if (initialScannedReceipts.isNotEmpty()) {
+            if (initialScannedReceipts.size == 1) {
+                val single = initialScannedReceipts.first()
+                if (single.amount > 0.0) amountStr = single.amount.toInt().toString()
+                if (single.note.isNotBlank()) note = single.note
+                if (single.type == "INCOME" || single.type == "EXPENSE") {
+                    selectedType = single.type
+                }
+                if (single.category.isNotBlank()) {
+                    autoDetectedCategoryName = single.category
+                    val matchedId = matchReceiptCategory(single.category, categories)
+                    if (matchedId > 0) {
+                        selectedCategoryId = matchedId
+                    }
+                }
+                scannedReceipts = emptyList()
+            } else {
+                scannedReceipts = initialScannedReceipts
+                val firstReceipt = initialScannedReceipts.first()
+                if (firstReceipt.type == "INCOME" || firstReceipt.type == "EXPENSE") {
+                    selectedType = firstReceipt.type
+                }
+                if (firstReceipt.category.isNotBlank()) {
+                    autoDetectedCategoryName = firstReceipt.category
+                    val matchedId = matchReceiptCategory(firstReceipt.category, categories)
+                    if (matchedId > 0) {
+                        selectedCategoryId = matchedId
+                    }
+                }
+            }
+        }
+    }
+
+    // Keep category unselected by default, and reset whenever user switches type (transfer never has category)
+    var previousSelectedType by remember { mutableStateOf(selectedType) }
+    LaunchedEffect(selectedType) {
+        if (previousSelectedType != selectedType) {
+            previousSelectedType = selectedType
+            selectedCategoryId = 0
+            autoDetectedCategoryName = ""
         }
     }
 
@@ -440,6 +556,32 @@ fun AddTransactionDialog(
                                             tint = MaterialTheme.colorScheme.error,
                                             modifier = Modifier.size(18.dp)
                                         )
+                                    }
+                                }
+                                if (receipt.category.isNotBlank()) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.AutoAwesome,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "${if (isId) "Kategori AI" else "AI Category"}: ${receipt.category}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
                                     }
                                 }
                                 OutlinedTextField(
@@ -691,11 +833,30 @@ fun AddTransactionDialog(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = if (isId) "Dompet Asal:" else "Source Wallet:",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = if (isId) "Dompet Asal:" else "Source Wallet:",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (!isFullDebtActive && selectedWalletId == 0) {
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                                ) {
+                                    Text(
+                                        text = if (isId) "Wajib dipilih" else "Required",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
                         if (isFullDebtActive) {
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
@@ -730,7 +891,7 @@ fun AddTransactionDialog(
                                     formattedBalance = viewModel.formatRupiah(w.balance),
                                     onClick = {
                                         if (!isFullDebtActive) {
-                                            selectedWalletId = w.id
+                                            selectedWalletId = if (selectedWalletId == w.id) 0 else w.id
                                         }
                                     }
                                 )
@@ -741,7 +902,49 @@ fun AddTransactionDialog(
 
                 // 4. Specific to Transfer Destination Wallet
                 if (selectedType == "TRANSFER") {
-                    Text(if (isId) "Dompet Tujuan:" else "Destination Wallet:", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = if (isId) "Dompet Tujuan:" else "Destination Wallet:",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (selectedTargetWalletId == 0) {
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                                ) {
+                                    Text(
+                                        text = if (isId) "Wajib dipilih" else "Required",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            } else if (selectedWalletId > 0 && selectedWalletId == selectedTargetWalletId) {
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                                ) {
+                                    Text(
+                                        text = if (isId) "Harus beda dompet" else "Must differ",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         modifier = Modifier.fillMaxWidth()
@@ -752,7 +955,9 @@ fun AddTransactionDialog(
                                 isSelected = selectedTargetWalletId == w.id,
                                 isDisabled = false,
                                 formattedBalance = viewModel.formatRupiah(w.balance),
-                                onClick = { selectedTargetWalletId = w.id }
+                                onClick = {
+                                    selectedTargetWalletId = if (selectedTargetWalletId == w.id) 0 else w.id
+                                }
                             )
                         }
                     }
@@ -760,7 +965,60 @@ fun AddTransactionDialog(
 
                 // 5. Category Selection (Only for Income and Expense)
                 if (selectedType != "TRANSFER") {
-                    Text(if (isId) "Kategori:" else "Category:", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = if (isId) "Kategori:" else "Category:",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (selectedCategoryId == 0) {
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                                ) {
+                                    Text(
+                                        text = if (isId) "Wajib dipilih" else "Required",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            } else if (autoDetectedCategoryName.isNotBlank()) {
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.AutoAwesome,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(11.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Text(
+                                            text = if (isId) "Terdeteksi Otomatis" else "Auto Detected",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                     val listToShow = if (selectedType == "INCOME") incomeCategoryList else expenseCategoryList
                     
                     if (listToShow.isEmpty()) {
@@ -774,7 +1032,10 @@ fun AddTransactionDialog(
                                 SimpleCustomChip(
                                     text = cat.name,
                                     isSelected = selectedCategoryId == cat.id,
-                                    onClick = { selectedCategoryId = cat.id }
+                                    onClick = {
+                                        selectedCategoryId = if (selectedCategoryId == cat.id) 0 else cat.id
+                                        autoDetectedCategoryName = ""
+                                    }
                                 )
                             }
                         }
@@ -1170,6 +1431,67 @@ fun AddTransactionDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // Actions: Cancel & Save
+                val amountVal = amountStr.toDoubleOrNull() ?: 0.0
+                val adminFeeVal = if (enableAdminFee) (adminFeeStr.toDoubleOrNull() ?: 0.0) else 0.0
+
+                val isWalletValid = if (isFullDebtActive) {
+                    true
+                } else if (selectedType == "TRANSFER") {
+                    selectedWalletId > 0 && selectedTargetWalletId > 0 && selectedWalletId != selectedTargetWalletId
+                } else {
+                    selectedWalletId > 0
+                }
+
+                val hasScannedCategories = scannedReceipts.isNotEmpty() && scannedReceipts.all { it.category.isNotBlank() }
+                val isCategoryValid = if (selectedType == "TRANSFER") {
+                    true
+                } else if (hasScannedCategories) {
+                    true
+                } else {
+                    selectedCategoryId > 0
+                }
+
+                val hasAmountOrData = scannedReceipts.isNotEmpty() || (amountVal > 0.0) || (enableDebtOption && debtPersonName.trim().isNotEmpty())
+                val isSaveEnabled = isWalletValid && isCategoryValid && hasAmountOrData
+
+                val validationHint = when {
+                    amountVal <= 0.0 && scannedReceipts.isEmpty() && (!enableDebtOption || debtPersonName.trim().isEmpty()) ->
+                        if (isId) "Isi nominal transaksi terlebih dahulu" else "Enter transaction amount first"
+                    !isFullDebtActive && selectedWalletId == 0 ->
+                        if (isId) "Pilih dompet asal transaksi" else "Select a source wallet"
+                    selectedType == "TRANSFER" && selectedTargetWalletId == 0 ->
+                        if (isId) "Pilih dompet tujuan transfer" else "Select destination wallet"
+                    selectedType == "TRANSFER" && selectedWalletId == selectedTargetWalletId ->
+                        if (isId) "Dompet asal & tujuan tidak boleh sama" else "Source & destination wallets must differ"
+                    selectedType != "TRANSFER" && selectedCategoryId == 0 && !hasScannedCategories ->
+                        if (isId) "Pilih kategori transaksi" else "Select transaction category"
+                    else -> null
+                }
+
+                if (validationHint != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = validationHint,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1190,18 +1512,25 @@ fun AddTransactionDialog(
                     }
                     Button(
                         onClick = {
-                            val amountVal = amountStr.toDoubleOrNull() ?: 0.0
-                            val adminFeeVal = if (enableAdminFee) (adminFeeStr.toDoubleOrNull() ?: 0.0) else 0.0
+                            if (!isSaveEnabled) return@Button
 
                             if (scannedReceipts.isNotEmpty()) {
                                 // Save all scanned receipts
                                 for (receipt in scannedReceipts) {
                                     if (receipt.amount > 0.0) {
+                                        val receiptCatId = if (receipt.type == "TRANSFER") 0 else {
+                                            if (receipt.category.isNotBlank()) {
+                                                val matched = matchReceiptCategory(receipt.category, categories)
+                                                if (matched > 0) matched else selectedCategoryId
+                                            } else {
+                                                selectedCategoryId
+                                            }
+                                        }
                                         viewModel.addTransaction(
                                             amount = receipt.amount,
                                             type = receipt.type,
                                             walletId = selectedWalletId,
-                                            categoryId = selectedCategoryId,
+                                            categoryId = receiptCatId,
                                             note = receipt.note,
                                             date = System.currentTimeMillis(),
                                             targetWalletId = null
@@ -1211,10 +1540,11 @@ fun AddTransactionDialog(
                             } else {
                                 if (amountVal <= 0.0 && !enableDebtOption) return@Button
 
-                                if (selectedType == "TRANSFER" && selectedWalletId == selectedTargetWalletId) {
-                                    // Can't transfer to same wallet
+                                if (selectedType == "TRANSFER" && (selectedWalletId <= 0 || selectedTargetWalletId <= 0 || selectedWalletId == selectedTargetWalletId)) {
                                     return@Button
                                 }
+                                if (!isFullDebtActive && selectedWalletId <= 0) return@Button
+                                if (selectedType != "TRANSFER" && selectedCategoryId <= 0) return@Button
 
                                 // Check if user enabled Hutang / Split options
                                 if (enableDebtOption && debtPersonName.trim().isNotEmpty()) {
@@ -1323,7 +1653,7 @@ fun AddTransactionDialog(
                                         amount = amountVal,
                                         type = selectedType,
                                         walletId = selectedWalletId,
-                                        categoryId = selectedCategoryId,
+                                        categoryId = if (selectedType == "TRANSFER") 0 else selectedCategoryId,
                                         note = note,
                                         date = System.currentTimeMillis(),
                                         targetWalletId = if (selectedType == "TRANSFER") selectedTargetWalletId else null,
@@ -1333,9 +1663,7 @@ fun AddTransactionDialog(
                             }
                             onDismiss()
                         },
-                        enabled = (wallets.isNotEmpty() || (enableDebtOption && debtModeOption == "FULL_DEBT")) && (
-                            scannedReceipts.isNotEmpty() || amountStr.isNotEmpty() || (enableDebtOption && debtPersonName.isNotEmpty())
-                        ),
+                        enabled = isSaveEnabled,
                         modifier = Modifier.weight(1.4f).height(48.dp),
                         shape = RoundedCornerShape(12.dp)
                     ) {
@@ -1378,24 +1706,23 @@ private fun WalletGradientChip(
     }
 
     val chipShape = RoundedCornerShape(14.dp)
-    
+    val chipBorder = if (isSelected) {
+        BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+    } else if (isDisabled) {
+        BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+    } else {
+        BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+    }
+
     Card(
         modifier = Modifier
             .wrapContentWidth()
             .height(58.dp)
             .clip(chipShape)
             .clickable(enabled = !isDisabled) { onClick() }
-            .then(
-                if (isSelected) {
-                    Modifier.border(BorderStroke(2.dp, MaterialTheme.colorScheme.primary), chipShape)
-                } else if (isDisabled) {
-                    Modifier.border(BorderStroke(1.dp, Color.Gray.copy(alpha = 0.2f)), chipShape)
-                } else {
-                    Modifier.border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)), chipShape)
-                }
-            ),
+            .border(chipBorder, chipShape),
         shape = chipShape,
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 4.dp else 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 4.dp else 0.dp)
     ) {
         Box(
             modifier = Modifier
@@ -1403,8 +1730,15 @@ private fun WalletGradientChip(
                 .background(
                     if (isDisabled) {
                         Brush.horizontalGradient(listOf(Color(0xFF424242), Color(0xFF303030)))
-                    } else {
+                    } else if (isSelected) {
                         gradientBrush
+                    } else {
+                        Brush.horizontalGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.surfaceVariant,
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)
+                            )
+                        )
                     }
                 )
                 .padding(horizontal = 14.dp, vertical = 8.dp)
@@ -1418,13 +1752,16 @@ private fun WalletGradientChip(
                     modifier = Modifier
                         .size(28.dp)
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.25f)),
+                        .background(
+                            if (isSelected) Color.White.copy(alpha = 0.25f)
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f)
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         painter = iconPainter,
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -1436,16 +1773,16 @@ private fun WalletGradientChip(
                     Text(
                         text = wallet.name,
                         style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = formattedBalance,
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                        color = Color.White.copy(alpha = 0.9f),
-                        fontWeight = FontWeight.SemiBold,
+                        color = if (isSelected) Color.White.copy(alpha = 0.9f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                         maxLines = 1
                     )
                 }
@@ -1581,11 +1918,17 @@ private fun SimpleCustomChip(
         targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
         label = "chipContentColor"
     )
+    val chipBorder = if (isSelected) {
+        BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
+    } else {
+        BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+    }
     Surface(
         onClick = onClick,
         shape = chipShape,
         color = animatedBgColor,
         contentColor = animatedContentColor,
+        border = chipBorder,
         modifier = Modifier.padding(vertical = 4.dp)
     ) {
         Box(

@@ -39,8 +39,13 @@ class FinanceRepository(private val financeDao: FinanceDao) {
     }
 
     suspend fun insertTransaction(transaction: Transaction) = withContext(Dispatchers.IO) {
-        financeDao.insertTransaction(transaction)
-        adjustWalletBalance(transaction, isReversal = false)
+        val finalTransaction = if (transaction.type == "TRANSFER") {
+            transaction.copy(categoryId = 0)
+        } else {
+            transaction
+        }
+        financeDao.insertTransaction(finalTransaction)
+        adjustWalletBalance(finalTransaction, isReversal = false)
     }
 
     suspend fun deleteTransaction(transaction: Transaction, refund: Boolean) = withContext(Dispatchers.IO) {
@@ -51,12 +56,17 @@ class FinanceRepository(private val financeDao: FinanceDao) {
     }
 
     suspend fun updateTransaction(newTransaction: Transaction) = withContext(Dispatchers.IO) {
-        val oldTransaction = financeDao.getTransactionById(newTransaction.id)
+        val finalTransaction = if (newTransaction.type == "TRANSFER") {
+            newTransaction.copy(categoryId = 0)
+        } else {
+            newTransaction
+        }
+        val oldTransaction = financeDao.getTransactionById(finalTransaction.id)
         if (oldTransaction != null) {
             adjustWalletBalance(oldTransaction, isReversal = true)
         }
-        financeDao.updateTransaction(newTransaction)
-        adjustWalletBalance(newTransaction, isReversal = false)
+        financeDao.updateTransaction(finalTransaction)
+        adjustWalletBalance(finalTransaction, isReversal = false)
     }
 
     private suspend fun adjustWalletBalance(transaction: Transaction, isReversal: Boolean) {
@@ -151,6 +161,12 @@ class FinanceRepository(private val financeDao: FinanceDao) {
                 financeDao.insertCategory(c)
             }
         }
+        // Ensure transfers do not belong to any category
+        financeDao.sanitizeTransferCategories()
+    }
+
+    suspend fun sanitizeTransferCategories() = withContext(Dispatchers.IO) {
+        financeDao.sanitizeTransferCategories()
     }
 
     // --- EXPORT AND IMPORT JSON ---

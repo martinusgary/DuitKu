@@ -3,6 +3,7 @@ package com.example.ui.screens
 import androidx.compose.ui.res.painterResource
 import com.example.R
 import com.example.ui.components.CategoryVisuals
+import com.example.ui.components.TransactionDetailDialog
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -721,137 +722,16 @@ fun TransactionsScreen(
             wallets.firstOrNull { it.id == targetId }
         }
 
-        AlertDialog(
-            onDismissRequest = { selectedDetailTransaction = null },
-            title = {
-                Text(
-                    text = if (isId) "Rincian Transaksi" else "Transaction Details",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Black
-                )
-            },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        color = when (txn.type) {
-                            "EXPENSE" -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
-                            "INCOME" -> Color(0xFFE8F5E9)
-                            else -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                        }
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = when (txn.type) {
-                                    "EXPENSE" -> if (isId) "Pengeluaran" else "Expense"
-                                    "INCOME" -> if (isId) "Pemasukan" else "Income"
-                                    else -> "Transfer"
-                                },
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = when (txn.type) {
-                                    "EXPENSE" -> Color(0xFFC62828)
-                                    "INCOME" -> Color(0xFF2E7D32)
-                                    else -> MaterialTheme.colorScheme.primary
-                                }
-                            )
-                            val totalDetailAmount = if (txn.type == "EXPENSE" || txn.type == "TRANSFER") {
-                                txn.amount + txn.adminFee
-                            } else {
-                                txn.amount
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = viewModel.formatRupiah(totalDetailAmount),
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.Black,
-                                color = when (txn.type) {
-                                    "EXPENSE" -> Color(0xFFC62828)
-                                    "INCOME" -> Color(0xFF2E7D32)
-                                    else -> MaterialTheme.colorScheme.onSurface
-                                }
-                            )
-                        }
-                    }
-
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        TransactionRowItemDetail(label = if (isId) "Tanggal" else "Date", value = viewModel.formatDate(txn.date))
-
-                        if (categoryOfTx != null) {
-                            TransactionRowItemDetail(label = if (isId) "Kategori" else "Category", value = categoryOfTx.name)
-                        }
-
-                        if (txn.type == "TRANSFER" && targetWalletOfTx != null) {
-                            TransactionRowItemDetail(label = if (isId) "Dari Dompet" else "From Wallet", value = walletOfTx?.name ?: "Unknown")
-                            TransactionRowItemDetail(label = if (isId) "Ke Dompet" else "To Wallet", value = targetWalletOfTx.name)
-                        } else {
-                            TransactionRowItemDetail(label = if (isId) "Dompet" else "Wallet", value = walletOfTx?.name ?: "Unknown")
-                        }
-
-                        if (txn.adminFee > 0.0) {
-                            TransactionRowItemDetail(
-                                label = if (isId) "Nominal Transaksi" else "Base Amount",
-                                value = viewModel.formatRupiah(txn.amount)
-                            )
-                            TransactionRowItemDetail(
-                                label = if (isId) "Biaya Admin" else "Admin Fee",
-                                value = viewModel.formatRupiah(txn.adminFee)
-                            )
-                            val totalDeducted = txn.amount + txn.adminFee
-                            TransactionRowItemDetail(
-                                label = if (isId) "Total Transaksi (+Admin)" else "Total Deducted (+Admin)",
-                                value = viewModel.formatRupiah(totalDeducted)
-                            )
-                        }
-
-                        Spacer(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(1.dp)
-                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
-                        )
-
-                        Column {
-                            Text(
-                                text = if (isId) "Catatan / Deskripsi" else "Note / Description",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = txn.note.ifBlank { if (isId) "Tidak ada catatan." else "No description added." },
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextButton(
-                        onClick = { showDeleteConfirmForSingle = true }
-                    ) {
-                        Text(if (isId) "Hapus" else "Delete", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-                    }
-                    TextButton(onClick = { selectedDetailTransaction = null }) {
-                        Text(if (isId) "Tutup" else "Close", fontWeight = FontWeight.Bold)
-                    }
-                }
-            },
-            shape = RoundedCornerShape(28.dp)
+        TransactionDetailDialog(
+            transaction = txn,
+            wallet = walletOfTx,
+            targetWallet = targetWalletOfTx,
+            category = categoryOfTx,
+            viewModel = viewModel,
+            onDismiss = { selectedDetailTransaction = null },
+            onDelete = {
+                showDeleteConfirmForSingle = true
+            }
         )
     }
 

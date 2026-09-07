@@ -69,6 +69,9 @@ interface FinanceDao {
     @Delete
     suspend fun deleteTransaction(transaction: Transaction)
 
+    @Query("UPDATE transactions SET categoryId = 0 WHERE type = 'TRANSFER'")
+    suspend fun sanitizeTransferCategories()
+
     // --- DEBTS ---
     @Query("SELECT * FROM debts ORDER BY dueDate ASC")
     fun getAllDebts(): Flow<List<Debt>>

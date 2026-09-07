@@ -98,9 +98,10 @@ fun DashboardScreen(
             val uri = tempPhotoUri
             if (uri != null) {
                 isScanningReceipt = true
+                val expenseCategoryNames = categories.filter { it.type == "EXPENSE" }.map { it.name }
                 coroutineScope.launch {
                     try {
-                        val results = GeminiClient.scanMultipleReceipts(context, listOf(uri))
+                        val results = GeminiClient.scanMultipleReceipts(context, listOf(uri), expenseCategoryNames)
                         if (results.isNotEmpty()) {
                             initialScannedReceiptsForDialog = results
                             showAddDialog = true
@@ -155,9 +156,10 @@ fun DashboardScreen(
     ) { uris ->
         if (uris.isNotEmpty()) {
             isScanningReceipt = true
+            val expenseCategoryNames = categories.filter { it.type == "EXPENSE" }.map { it.name }
             coroutineScope.launch {
                 try {
-                    val results = GeminiClient.scanMultipleReceipts(context, uris)
+                    val results = GeminiClient.scanMultipleReceipts(context, uris, expenseCategoryNames)
                     if (results.isNotEmpty()) {
                         initialScannedReceiptsForDialog = results
                         showAddDialog = true

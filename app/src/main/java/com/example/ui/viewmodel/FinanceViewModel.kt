@@ -217,11 +217,12 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         adminFee: Double = 0.0
     ) {
         viewModelScope.launch {
+            val finalCategoryId = if (type == "TRANSFER") 0 else categoryId
             val tx = Transaction(
                 amount = amount,
                 date = date,
                 walletId = walletId,
-                categoryId = categoryId,
+                categoryId = finalCategoryId,
                 type = type,
                 note = note,
                 targetWalletId = targetWalletId,
