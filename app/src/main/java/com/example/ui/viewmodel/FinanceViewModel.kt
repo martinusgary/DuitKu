@@ -232,6 +232,12 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun updateTransaction(transaction: Transaction) {
+        viewModelScope.launch {
+            repository.updateTransaction(transaction)
+        }
+    }
+
     fun deleteTransaction(transaction: Transaction, refund: Boolean) {
         viewModelScope.launch {
             repository.deleteTransaction(transaction, refund)

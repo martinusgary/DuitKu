@@ -48,6 +48,12 @@ import com.example.ui.util.GeminiClient
 import com.example.ui.viewmodel.FinanceViewModel
 import kotlinx.coroutines.launch
 import java.io.File
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 private fun matchReceiptCategory(detectedCategoryName: String, availableCategories: List<Category>): Int {
     if (detectedCategoryName.isBlank()) return 0
@@ -123,7 +129,45 @@ fun AddTransactionDialog(
     var debtCustomAmountStr by remember { mutableStateOf("") } // Custom amount for LEND_FRIEND
     var debtDueDays by remember { mutableIntStateOf(7) } // 3, 7, 14, 30 days
 
+    var selectedDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+
     val context = LocalContext.current
+
+    val formattedSelectedDate = remember(selectedDateMillis, isId) {
+        try {
+            val sdf = SimpleDateFormat("dd MMMM yyyy, HH:mm", if (isId) Locale("id", "ID") else Locale.getDefault())
+            sdf.format(Date(selectedDateMillis))
+        } catch (_: Exception) {
+            viewModel.formatDate(selectedDateMillis)
+        }
+    }
+
+    val openDatePicker = {
+        val cal = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
+        DatePickerDialog(
+            context,
+            { _, y, m, d ->
+                cal.set(Calendar.YEAR, y)
+                cal.set(Calendar.MONTH, m)
+                cal.set(Calendar.DAY_OF_MONTH, d)
+                TimePickerDialog(
+                    context,
+                    { _, hour, min ->
+                        cal.set(Calendar.HOUR_OF_DAY, hour)
+                        cal.set(Calendar.MINUTE, min)
+                        selectedDateMillis = cal.timeInMillis
+                    },
+                    cal.get(Calendar.HOUR_OF_DAY),
+                    cal.get(Calendar.MINUTE),
+                    true
+                ).show()
+            },
+            cal.get(Calendar.YEAR),
+            cal.get(Calendar.MONTH),
+            cal.get(Calendar.DAY_OF_MONTH)
+        ).show()
+    }
+
     val coroutineScope = rememberCoroutineScope()
     var isScanningInsideDialog by remember { mutableStateOf(false) }
     var tempPhotoUriInsideDialog by remember { mutableStateOf<Uri?>(null) }
@@ -358,13 +402,57 @@ fun AddTransactionDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = if (isId) "Tambah Transaksi Baru" else "Add New Transaction",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Black
-                    )
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isId) "Tambah Transaksi Baru" else "Add New Transaction",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Black
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { openDatePicker() }
+                        ) {
+                            Icon(
+                                Icons.Default.CalendarToday,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = formattedSelectedDate,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        IconButton(
+                            onClick = { openDatePicker() },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.CalendarMonth,
+                                contentDescription = if (isId) "Ubah Tanggal" else "Change Date",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp)) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
 
@@ -1042,6 +1130,58 @@ fun AddTransactionDialog(
                     }
                 }
 
+                // Date Selection Row (Compact with small icon button)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { openDatePicker() }
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.CalendarToday,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = if (isId) "Tanggal Transaksi" else "Transaction Date",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = formattedSelectedDate,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                        IconButton(
+                            onClick = { openDatePicker() },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.CalendarMonth,
+                                contentDescription = if (isId) "Ubah Tanggal" else "Change Date",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+
                 // 6. Notes Input (only show if no scanned receipts are active)
                 if (scannedReceipts.isEmpty()) {
                     OutlinedTextField(
@@ -1532,7 +1672,7 @@ fun AddTransactionDialog(
                                             walletId = selectedWalletId,
                                             categoryId = receiptCatId,
                                             note = receipt.note,
-                                            date = System.currentTimeMillis(),
+                                            date = selectedDateMillis,
                                             targetWalletId = null
                                         )
                                     }
@@ -1569,7 +1709,7 @@ fun AddTransactionDialog(
                                                     walletId = 0,
                                                     categoryId = selectedCategoryId,
                                                     note = if (note.isNotBlank()) "$note (Hutang ke ${debtPersonName.trim()})" else "Hutang ke ${debtPersonName.trim()}",
-                                                    date = System.currentTimeMillis(),
+                                                    date = selectedDateMillis,
                                                     targetWalletId = null,
                                                     adminFee = adminFeeVal
                                                 )
@@ -1600,7 +1740,7 @@ fun AddTransactionDialog(
                                                     walletId = selectedWalletId,
                                                     categoryId = selectedCategoryId,
                                                     note = if (note.isNotBlank()) "$note (Bayar dari dompet)" else "Bayar belanja (dari dompet)",
-                                                    date = System.currentTimeMillis(),
+                                                    date = selectedDateMillis,
                                                     targetWalletId = null,
                                                     adminFee = adminFeeVal
                                                 )
@@ -1614,7 +1754,7 @@ fun AddTransactionDialog(
                                                     walletId = 0,
                                                     categoryId = selectedCategoryId,
                                                     note = if (note.isNotBlank()) "$note (Sisa hutang ke ${debtPersonName.trim()})" else "Sisa hutang ke ${debtPersonName.trim()}",
-                                                    date = System.currentTimeMillis(),
+                                                    date = selectedDateMillis,
                                                     targetWalletId = null,
                                                     adminFee = 0.0
                                                 )
@@ -1640,7 +1780,7 @@ fun AddTransactionDialog(
                                                     walletId = selectedWalletId,
                                                     categoryId = selectedCategoryId,
                                                     note = if (note.isNotBlank()) "$note (Talangi ${debtPersonName.trim()})" else "Talangi ${debtPersonName.trim()}",
-                                                    date = System.currentTimeMillis(),
+                                                    date = selectedDateMillis,
                                                     targetWalletId = null,
                                                     adminFee = adminFeeVal
                                                 )
@@ -1655,7 +1795,7 @@ fun AddTransactionDialog(
                                         walletId = selectedWalletId,
                                         categoryId = if (selectedType == "TRANSFER") 0 else selectedCategoryId,
                                         note = note,
-                                        date = System.currentTimeMillis(),
+                                        date = selectedDateMillis,
                                         targetWalletId = if (selectedType == "TRANSFER") selectedTargetWalletId else null,
                                         adminFee = adminFeeVal
                                     )

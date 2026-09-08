@@ -13,7 +13,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,22 +48,38 @@ fun TransactionDetailDialog(
     val appLang by viewModel.appLanguage.collectAsState()
     val isId = appLang == "id"
 
+    var currentTx by remember(transaction) { mutableStateOf(transaction) }
+    var showEditDialog by remember { mutableStateOf(false) }
+
+    val allWallets by viewModel.wallets.collectAsState(emptyList())
+    val allCategories by viewModel.categories.collectAsState(emptyList())
+
+    val activeWallet = remember(allWallets, currentTx.walletId, wallet) {
+        allWallets.firstOrNull { it.id == currentTx.walletId } ?: wallet
+    }
+    val activeTargetWallet = remember(allWallets, currentTx.targetWalletId, targetWallet) {
+        currentTx.targetWalletId?.let { tid -> allWallets.firstOrNull { it.id == tid } } ?: targetWallet
+    }
+    val activeCategory = remember(allCategories, currentTx.categoryId, category) {
+        allCategories.firstOrNull { it.id == currentTx.categoryId } ?: category
+    }
+
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp
     val screenHeight = configuration.screenHeightDp
     val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 480.dp
 
-    val formattedExactDate = remember(transaction.date, isId) {
+    val formattedExactDate = remember(currentTx.date, isId) {
         try {
             val sdf = SimpleDateFormat("dd MMMM yyyy, HH:mm", if (isId) Locale("id", "ID") else Locale.getDefault())
-            sdf.format(Date(transaction.date))
+            sdf.format(Date(currentTx.date))
         } catch (_: Exception) {
-            viewModel.formatDate(transaction.date)
+            viewModel.formatDate(currentTx.date)
         }
     }
 
-    // Preserve color accents for EXPENSE, INCOME, and TRANSFER
-    val (bannerBgColor, accentColor, typeLabel) = when (transaction.type) {
+    // Preserve color accents for EXPENSE, INCOME, and TRANSFER banner
+    val (bannerBgColor, accentColor, typeLabel) = when (currentTx.type) {
         "EXPENSE" -> Triple(
             MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f),
             Color(0xFFC62828),
@@ -79,21 +97,32 @@ fun TransactionDetailDialog(
         )
     }
 
-    val totalDisplayAmount = if (transaction.type == "EXPENSE" || transaction.type == "TRANSFER") {
-        transaction.amount + transaction.adminFee
+    val totalDisplayAmount = if (currentTx.type == "EXPENSE" || currentTx.type == "TRANSFER") {
+        currentTx.amount + currentTx.adminFee
     } else {
-        transaction.amount
+        currentTx.amount
     }
 
     val installmentText = when {
-        transaction.installmentNumber != null -> {
-            if (isId) "Pembayaran / Cicilan ke-${transaction.installmentNumber}" else "Installment / Payment #${transaction.installmentNumber}"
+        currentTx.installmentNumber != null -> {
+            if (isId) "Pembayaran / Cicilan ke-${currentTx.installmentNumber}" else "Installment / Payment #${currentTx.installmentNumber}"
         }
-        transaction.note.contains("ke-", ignoreCase = true) -> {
-            val part = transaction.note.substringAfter("ke-").substringBefore(":")
+        currentTx.note.contains("ke-", ignoreCase = true) -> {
+            val part = currentTx.note.substringAfter("ke-").substringBefore(":")
             if (isId) "Pembayaran ke-$part" else "Payment #$part"
         }
         else -> null
+    }
+
+    if (showEditDialog) {
+        EditTransactionDialog(
+            transaction = currentTx,
+            viewModel = viewModel,
+            onDismiss = { showEditDialog = false },
+            onUpdated = { updated ->
+                currentTx = updated
+            }
+        )
     }
 
     Dialog(
@@ -163,7 +192,7 @@ fun TransactionDetailDialog(
                     }
                 }
 
-                // Detail Rows
+                // Detail Rows - Icons now styled to match theme
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -172,46 +201,41 @@ fun TransactionDetailDialog(
                     DetailRowItem(
                         icon = Icons.Default.CalendarToday,
                         label = if (isId) "Tanggal Transaksi" else "Transaction Date",
-                        value = formattedExactDate,
-                        accentColor = accentColor
+                        value = formattedExactDate
                     )
 
                     // 2. Category (Only for non-transfer and if category exists)
-                    if (transaction.type != "TRANSFER" && category != null) {
+                    if (currentTx.type != "TRANSFER" && activeCategory != null) {
                         DetailRowItem(
                             icon = Icons.Default.Category,
                             label = if (isId) "Kategori" else "Category",
-                            value = category.name,
-                            accentColor = accentColor
+                            value = activeCategory.name
                         )
                     }
 
                     // 3. Wallet / Method
-                    if (transaction.type == "TRANSFER") {
-                        val sourceName = wallet?.name ?: (if (isId) "Dompet Asal" else "Source Wallet")
-                        val targetName = targetWallet?.name ?: (if (isId) "Dompet Tujuan" else "Destination Wallet")
+                    if (currentTx.type == "TRANSFER") {
+                        val sourceName = activeWallet?.name ?: (if (isId) "Dompet Asal" else "Source Wallet")
+                        val targetName = activeTargetWallet?.name ?: (if (isId) "Dompet Tujuan" else "Destination Wallet")
                         DetailRowItem(
                             icon = Icons.Default.SwapHoriz,
                             label = if (isId) "Transfer Antar Dompet" else "Wallet Transfer",
-                            value = "$sourceName → $targetName",
-                            accentColor = accentColor
+                            value = "$sourceName → $targetName"
                         )
                     } else {
                         DetailRowItem(
                             icon = Icons.Default.AccountBalanceWallet,
                             label = if (isId) "Metode Dompet" else "Wallet Account",
-                            value = wallet?.name ?: (if (isId) "Dompet Utama" else "Primary Wallet"),
-                            accentColor = accentColor
+                            value = activeWallet?.name ?: (if (isId) "Dompet Utama" else "Primary Wallet")
                         )
                     }
 
                     // 4. Admin Fee (if any)
-                    if (transaction.adminFee > 0.0) {
+                    if (currentTx.adminFee > 0.0) {
                         DetailRowItem(
                             icon = Icons.Default.Receipt,
                             label = if (isId) "Biaya Admin" else "Admin Fee",
-                            value = "${viewModel.formatRupiah(transaction.adminFee)} (Pokok: ${viewModel.formatRupiah(transaction.amount)})",
-                            accentColor = accentColor
+                            value = "${viewModel.formatRupiah(currentTx.adminFee)} (Pokok: ${viewModel.formatRupiah(currentTx.amount)})"
                         )
                     }
 
@@ -220,31 +244,29 @@ fun TransactionDetailDialog(
                         DetailRowItem(
                             icon = Icons.Default.Repeat,
                             label = if (isId) "Urutan Cicilan" else "Installment Info",
-                            value = installmentText,
-                            accentColor = accentColor
+                            value = installmentText
                         )
                     }
 
                     // 6. Notes / Description
-                    if (transaction.note.isNotBlank()) {
+                    if (currentTx.note.isNotBlank()) {
                         DetailRowItem(
                             icon = Icons.Default.Notes,
                             label = if (isId) "Catatan Transaksi" else "Transaction Note",
-                            value = transaction.note,
-                            accentColor = accentColor
+                            value = currentTx.note
                         )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // Bottom Buttons
-                if (onDelete != null) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                // Bottom Buttons: Delete (optional), Edit, and Close
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (onDelete != null) {
                         OutlinedButton(
                             onClick = onDelete,
                             colors = ButtonDefaults.outlinedButtonColors(
@@ -252,30 +274,39 @@ fun TransactionDetailDialog(
                             ),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
                             shape = RoundedCornerShape(12.dp),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.DeleteOutline,
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(if (isId) "Hapus" else "Delete", fontWeight = FontWeight.Bold)
                         }
-
-                        Button(
-                            onClick = onDismiss,
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp),
-                            contentPadding = PaddingValues(vertical = 12.dp)
-                        ) {
-                            Text(if (isId) "Tutup" else "Close", fontWeight = FontWeight.Bold)
-                        }
                     }
-                } else {
+
+                    OutlinedButton(
+                        onClick = { showEditDialog = true },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.primary
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(if (isId) "Edit" else "Edit", fontWeight = FontWeight.Bold)
+                    }
+
                     Button(
                         onClick = onDismiss,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp),
                         contentPadding = PaddingValues(vertical = 12.dp)
                     ) {
@@ -292,7 +323,8 @@ private fun DetailRowItem(
     icon: ImageVector,
     label: String,
     value: String,
-    accentColor: Color
+    iconTint: Color = MaterialTheme.colorScheme.primary,
+    iconBgColor: Color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -303,14 +335,14 @@ private fun DetailRowItem(
             modifier = Modifier
                 .size(36.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)),
+                .background(iconBgColor),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 modifier = Modifier.size(18.dp),
-                tint = accentColor
+                tint = iconTint
             )
         }
         Column(modifier = Modifier.weight(1f)) {

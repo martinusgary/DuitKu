@@ -567,6 +567,7 @@ fun DashboardScreen(
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(12.dp))
                                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
+                                        .clickable { onNavigateToTab(1) }
                                         .padding(horizontal = 12.dp, vertical = 6.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
@@ -574,13 +575,13 @@ fun DashboardScreen(
                                     Text(
                                         text = if (isId) "${wallets.size} Akun Terhubung" else "${wallets.size} Connected accounts",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.primary,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Text(
                                         text = if (isId) "Lihat Rincian →" else "View Details →",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.primary,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }

@@ -420,19 +420,6 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                                     }
                                 )
                                 NavigationBarItem(
-                                    selected = selectedTab == 1,
-                                    onClick = { navigateToTab(1) },
-                                    icon = { Icon(painterResource(id = R.drawable.ic_wallet_custom), contentDescription = "Wallets", modifier = Modifier.size(24.dp)) },
-                                    label = {
-                                        Text(
-                                            text = if (isId) "Dompet" else "Wallets",
-                                            style = labelStyle,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                )
-                                NavigationBarItem(
                                     selected = selectedTab == 2,
                                     onClick = { navigateToTab(2) },
                                     icon = { Icon(painterResource(id = R.drawable.ic_receipt_custom), contentDescription = "Transactions", modifier = Modifier.size(24.dp)) },
