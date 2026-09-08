@@ -383,11 +383,12 @@ fun AddTransactionDialog(
     ) {
         Card(
             modifier = Modifier
-                .fillMaxWidth(0.95f)
-                .widthIn(max = 520.dp)
+                .width(dialogWidth)
                 .heightIn(max = (screenHeight * 0.90).dp)
-                .padding(vertical = 12.dp),
-            shape = RoundedCornerShape(24.dp)
+                .padding(16.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
         ) {
             Column(
                 modifier = Modifier
