@@ -38,8 +38,11 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.example.R
+import com.example.ui.util.DownloadState
+import com.example.ui.util.UpdateChecker
 import com.example.ui.util.UpdateResult
 import com.example.ui.viewmodel.FinanceViewModel
+import kotlinx.coroutines.launch
 import java.io.File
 
 @Composable
@@ -444,8 +447,18 @@ fun DashboardUpdateDialog(
     context: Context,
     onDismiss: () -> Unit
 ) {
+    val coroutineScope = rememberCoroutineScope()
+    var downloadState by remember { mutableStateOf<DownloadState>(DownloadState.Idle) }
+    val isApkDirectUrl = remember(update.downloadUrl) {
+        update.downloadUrl.endsWith(".apk", ignoreCase = true)
+    }
+
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            if (downloadState !is DownloadState.Downloading) {
+                onDismiss()
+            }
+        },
         title = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -475,6 +488,129 @@ fun DashboardUpdateDialog(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
+
+                // In-App Download Progress / State Box
+                when (val state = downloadState) {
+                    is DownloadState.Downloading -> {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = if (isId) "Mengunduh pembaruan..." else "Downloading update...",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    if (state.progressPercent >= 0) {
+                                        Text(
+                                            text = "${state.progressPercent}%",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+
+                                if (state.progressPercent >= 0) {
+                                    LinearProgressIndicator(
+                                        progress = { state.progressPercent / 100f },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(8.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                    )
+                                } else {
+                                    LinearProgressIndicator(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(8.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                    )
+                                }
+
+                                val mbDownloaded = String.format(java.util.Locale.US, "%.1f", state.bytesDownloaded / (1024f * 1024f))
+                                val mbTotal = if (state.totalBytes > 0) {
+                                    String.format(java.util.Locale.US, "%.1f MB", state.totalBytes / (1024f * 1024f))
+                                } else {
+                                    "..."
+                                }
+                                Text(
+                                    text = "$mbDownloaded MB / $mbTotal",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                    is DownloadState.Completed -> {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Text(
+                                    text = if (isId) "✓ Unduhan selesai! Ketuk untuk memasang." else "✓ Download complete! Tap to install.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+                    }
+                    is DownloadState.Error -> {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = if (isId) "Gagal mengunduh berkas" else "Download failed",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                                Text(
+                                    text = state.message,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                        }
+                    }
+                    else -> {}
+                }
                 
                 if (update.releaseNotes.isNotEmpty()) {
                     Text(
@@ -485,7 +621,7 @@ fun DashboardUpdateDialog(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 150.dp),
+                            .heightIn(max = 140.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                         ),
@@ -508,23 +644,70 @@ fun DashboardUpdateDialog(
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    try {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(update.downloadUrl))
-                        context.startActivity(intent)
-                    } catch (e: Exception) {
-                        Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+            when (val state = downloadState) {
+                is DownloadState.Downloading -> {
+                    Button(
+                        onClick = {},
+                        enabled = false
+                    ) {
+                        Text(if (isId) "Mengunduh..." else "Downloading...")
                     }
-                    onDismiss()
                 }
-            ) {
-                Text(if (isId) "Unduh & Perbarui" else "Download & Update", fontWeight = FontWeight.Bold)
+                is DownloadState.Completed -> {
+                    Button(
+                        onClick = {
+                            UpdateChecker.installApk(context, state.file)
+                        }
+                    ) {
+                        Text(if (isId) "Pasang Pembaruan" else "Install Update", fontWeight = FontWeight.Bold)
+                    }
+                }
+                else -> {
+                    Button(
+                        onClick = {
+                            if (isApkDirectUrl) {
+                                coroutineScope.launch {
+                                    val downloadedFile = UpdateChecker.downloadApk(
+                                        context = context,
+                                        downloadUrl = update.downloadUrl,
+                                        versionName = update.latestVersionName,
+                                        onProgress = { newState ->
+                                            downloadState = newState
+                                        }
+                                    )
+                                    if (downloadedFile != null && downloadedFile.exists()) {
+                                        UpdateChecker.installApk(context, downloadedFile)
+                                    }
+                                }
+                            } else {
+                                // Fallback if no direct .apk URL found in release assets
+                                try {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(update.downloadUrl))
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                                }
+                                onDismiss()
+                            }
+                        }
+                    ) {
+                        Text(
+                            text = if (isApkDirectUrl) {
+                                if (isId) "Unduh & Pasang" else "Download & Install"
+                            } else {
+                                if (isId) "Buka Halaman Rilis" else "Open Release Page"
+                            },
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(if (isId) "Nanti" else "Later")
+            if (downloadState !is DownloadState.Downloading) {
+                TextButton(onClick = onDismiss) {
+                    Text(if (isId) "Nanti" else "Later")
+                }
             }
         }
     )

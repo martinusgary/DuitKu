@@ -1,13 +1,20 @@
 package com.example.ui.util
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.util.Log
+import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
+import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
 
 sealed class UpdateResult {
@@ -21,6 +28,13 @@ sealed class UpdateResult {
     data class Error(val message: String) : UpdateResult()
 }
 
+sealed class DownloadState {
+    object Idle : DownloadState()
+    data class Downloading(val progressPercent: Int, val bytesDownloaded: Long, val totalBytes: Long) : DownloadState()
+    data class Completed(val file: File) : DownloadState()
+    data class Error(val message: String) : DownloadState()
+}
+
 object UpdateChecker {
     private const val TAG = "UpdateChecker"
     
@@ -29,8 +43,10 @@ object UpdateChecker {
     private const val DEFAULT_REPO = "DuitKu"
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
         .build()
 
     private fun cleanVersion(version: String): String {
@@ -148,6 +164,139 @@ object UpdateChecker {
         } catch (e: Exception) {
             Log.e(TAG, "Error checking for updates", e)
             return@withContext UpdateResult.Error(e.message ?: "Gagal memeriksa pembaruan dari GitHub")
+        }
+    }
+
+    /**
+     * Downloads the APK file directly to the application cache with progress callback.
+     */
+    suspend fun downloadApk(
+        context: Context,
+        downloadUrl: String,
+        versionName: String,
+        onProgress: (DownloadState) -> Unit
+    ): File? = withContext(Dispatchers.IO) {
+        try {
+            val safeVersion = versionName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+            val fileName = "DuitKu-$safeVersion.apk"
+            val targetDir = context.getExternalFilesDir("updates") ?: context.cacheDir
+            if (!targetDir.exists()) {
+                targetDir.mkdirs()
+            }
+            val targetFile = File(targetDir, fileName)
+            if (targetFile.exists()) {
+                targetFile.delete()
+            }
+
+            val request = Request.Builder()
+                .url(downloadUrl)
+                .header("User-Agent", "DuitKu-Android-Updater")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    val errMsg = "HTTP error code ${response.code}"
+                    withContext(Dispatchers.Main) {
+                        onProgress(DownloadState.Error(errMsg))
+                    }
+                    return@withContext null
+                }
+
+                val body = response.body ?: run {
+                    withContext(Dispatchers.Main) {
+                        onProgress(DownloadState.Error("Respon kosong dari server"))
+                    }
+                    return@withContext null
+                }
+
+                val totalBytes = body.contentLength()
+                val inputStream = body.byteStream()
+                val outputStream = FileOutputStream(targetFile)
+
+                val buffer = ByteArray(8 * 1024)
+                var bytesRead: Int
+                var totalBytesRead: Long = 0
+                var lastPercent = -1
+
+                inputStream.use { input ->
+                    outputStream.use { output ->
+                        while (input.read(buffer).also { bytesRead = it } != -1) {
+                            output.write(buffer, 0, bytesRead)
+                            totalBytesRead += bytesRead
+                            val percent = if (totalBytes > 0) {
+                                ((totalBytesRead * 100) / totalBytes).toInt().coerceIn(0, 100)
+                            } else {
+                                -1
+                            }
+                            if (percent != lastPercent) {
+                                lastPercent = percent
+                                withContext(Dispatchers.Main) {
+                                    onProgress(DownloadState.Downloading(percent, totalBytesRead, totalBytes))
+                                }
+                            }
+                        }
+                        output.flush()
+                    }
+                }
+
+                withContext(Dispatchers.Main) {
+                    onProgress(DownloadState.Completed(targetFile))
+                }
+                return@withContext targetFile
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error downloading APK: ${e.message}", e)
+            withContext(Dispatchers.Main) {
+                onProgress(DownloadState.Error(e.message ?: "Gagal mengunduh berkas APK"))
+            }
+            return@withContext null
+        }
+    }
+
+    /**
+     * Triggers the Android package installer for the downloaded APK file.
+     */
+    fun installApk(context: Context, apkFile: File) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (!context.packageManager.canRequestPackageInstalls()) {
+                    val settingsIntent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                        data = Uri.parse("package:${context.packageName}")
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(settingsIntent)
+                    return
+                }
+            }
+
+            val apkUri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                apkFile
+            )
+
+            val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(apkUri, "application/vnd.android.package-archive")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+            }
+            context.startActivity(installIntent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error launching installer: ${e.message}", e)
+            // Fallback: try opening with generic intent
+            try {
+                val apkUri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    apkFile
+                )
+                val fallbackIntent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
+                    data = apkUri
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                }
+                context.startActivity(fallbackIntent)
+            } catch (fallbackError: Exception) {
+                Log.e(TAG, "Fallback installer failed: ${fallbackError.message}", fallbackError)
+            }
         }
     }
 }
