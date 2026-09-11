@@ -64,7 +64,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     private fun getSavedTheme(): String {
         val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
-        return prefs.getString("app_theme", "CLASSIC") ?: "CLASSIC"
+        val defaultTheme = if (com.google.android.material.color.DynamicColors.isDynamicColorAvailable()) "DYNAMIC" else "CLASSIC"
+        return prefs.getString("app_theme", defaultTheme) ?: defaultTheme
     }
 
     fun setAppTheme(theme: String) {

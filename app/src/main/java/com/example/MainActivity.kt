@@ -43,6 +43,7 @@ import com.example.ui.viewmodel.FinanceViewModel
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
+import com.google.android.material.color.DynamicColors
 
 class MainActivity : androidx.fragment.app.FragmentActivity() {
     private var lastUserInteractionTime = System.currentTimeMillis()
@@ -54,6 +55,9 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Apply Material You dynamic color support to match system wallpaper colors if available
+        DynamicColors.applyToActivityIfAvailable(this)
+
         super.onCreate(savedInstanceState)
         
         // Setup full-bleed edge-to-edge drawing
