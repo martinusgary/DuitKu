@@ -37,7 +37,8 @@ data class Transaction(
     val adminFee: Double = 0.0,
     val debtId: Int? = null, // linked debt if payment is installment
     val billId: Int? = null, // linked bill if payment is for bill
-    val installmentNumber: Int? = null // sequence of installment (e.g. 1, 2, 3...)
+    val installmentNumber: Int? = null, // sequence of installment (e.g. 1, 2, 3...)
+    val isDailyBudget: Boolean = true // Flag to include in dynamic daily budget calculation
 )
 
 @Entity(tableName = "debts")

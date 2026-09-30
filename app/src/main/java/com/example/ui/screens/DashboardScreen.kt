@@ -80,6 +80,11 @@ fun DashboardScreen(
     val isFresh = currentStyle == "FRESH"
     val userGreetingName by viewModel.userGreetingName.collectAsState()
     val updateResult by viewModel.updateResult.collectAsState()
+    val todayRemainingDailyBudget by viewModel.todayRemainingDailyBudget.collectAsState(initial = 0.0)
+    val todayStartOfDayBudget by viewModel.todayStartOfDayBudget.collectAsState(initial = 0.0)
+    val todayVariableExpenseSum by viewModel.todayVariableExpenseSum.collectAsState(initial = 0.0)
+    val monthlyVariableBudget by viewModel.monthlyVariableBudget.collectAsState()
+    val monthlyVariableExpenseSoFar by viewModel.monthlyVariableExpenseSum.collectAsState(initial = 0.0)
 
     var showAddDialog by remember { mutableStateOf(false) }
     var showUpdateDialog by remember { mutableStateOf(false) }
@@ -586,6 +591,80 @@ fun DashboardScreen(
                                     )
                                 }
                             }
+                        }
+                    }
+                }
+            }
+
+            // 1.5. Dynamic Daily Budget Indicator (Simple Box Pill with thin progress bar without percentage text)
+            item {
+                // Today's budget fraction: how much of today's start-of-day allocated budget has been consumed by today's expenses
+                val todayBudgetFraction = if (todayStartOfDayBudget > 0.0) {
+                    (todayVariableExpenseSum / todayStartOfDayBudget).coerceIn(0.0, 1.0).toFloat()
+                } else if (monthlyVariableBudget > 0.0 && todayRemainingDailyBudget <= 0.0) {
+                    1.0f
+                } else {
+                    0f
+                }
+
+                // Status color:
+                // - Gray: Not configured
+                // - Error Red: Limit reached/exceeded (remaining <= 0 or fraction >= 100%)
+                // - Warning Amber/Orange: Approaching limit (spent >= 80% or remaining <= 20%)
+                // - Primary: Safe normal condition
+                val budgetIndicatorColor = when {
+                    monthlyVariableBudget <= 0.0 -> MaterialTheme.colorScheme.outline
+                    todayRemainingDailyBudget <= 0.0 || todayBudgetFraction >= 1.0f -> MaterialTheme.colorScheme.error
+                    todayBudgetFraction >= 0.80f -> Color(0xFFF59E0B) // Amber warning
+                    else -> MaterialTheme.colorScheme.primary
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(budgetIndicatorColor)
+                            )
+                            Text(
+                                text = if (monthlyVariableBudget <= 0.0) {
+                                    if (isId) "Batas Hari Ini: Belum diatur" else "Today's Limit: Not set"
+                                } else {
+                                    "Today's Limit: ${viewModel.formatRupiah(todayRemainingDailyBudget)}"
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        // Thin percentage progress bar without any percentage label text
+                        if (monthlyVariableBudget > 0.0) {
+                            LinearProgressIndicator(
+                                progress = { todayBudgetFraction },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(3.dp)
+                                    .clip(RoundedCornerShape(2.dp)),
+                                color = budgetIndicatorColor,
+                                trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                            )
                         }
                     }
                 }

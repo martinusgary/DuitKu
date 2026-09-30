@@ -2,6 +2,9 @@ package com.example.ui.viewmodel
 
 import android.app.Application
 import android.content.Context
+import androidx.datastore.preferences.core.doublePreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.database.FinanceDatabase
@@ -15,9 +18,36 @@ import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
 
+private val Context.dataStore by preferencesDataStore(name = "finance_preferences")
+
 class FinanceViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: FinanceRepository
+
+    companion object {
+        val KEY_MONTHLY_VARIABLE_BUDGET = doublePreferencesKey("monthly_variable_budget")
+    }
+
+    // Jetpack DataStore Flow for Monthly Variable Budget
+    val monthlyVariableBudget: StateFlow<Double> = getApplication<Application>()
+        .dataStore
+        .data
+        .map { preferences ->
+            preferences[KEY_MONTHLY_VARIABLE_BUDGET] ?: 0.0
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0.0
+        )
+
+    fun setMonthlyVariableBudget(amount: Double) {
+        viewModelScope.launch {
+            getApplication<Application>().dataStore.edit { preferences ->
+                preferences[KEY_MONTHLY_VARIABLE_BUDGET] = amount.coerceAtLeast(0.0)
+            }
+        }
+    }
 
     val wallets: StateFlow<List<Wallet>>
     val categories: StateFlow<List<Category>>
@@ -185,8 +215,12 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     // --- METRICS CALCULATION ---
 
+    /**
+     * Total Balance:
+     * Calculates the sum of all wallets except those categorized as savings (icon == "savings").
+     */
     val totalBalance: Flow<Double> = wallets.map { list ->
-        list.sumOf { it.balance }
+        list.filter { it.icon != "savings" }.sumOf { it.balance }
     }
 
     val monthlyIncomeSum: Flow<Double> = transactions.map { list ->
@@ -205,6 +239,81 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             }
     }
 
+    /**
+     * Total Variable Expenses This Month:
+     * Only calculates expenses with isDailyBudget == true.
+     */
+    val monthlyVariableExpenseSum: Flow<Double> = transactions.map { list ->
+        list.filter { it.type == "EXPENSE" && it.isDailyBudget && isCurrentMonth(it.date) }
+            .sumOf { it.amount + it.adminFee }
+    }
+
+    /**
+     * Total Variable Expenses Today:
+     * Expenses made today with isDailyBudget == true.
+     */
+    val todayVariableExpenseSum: Flow<Double> = transactions.map { list ->
+        list.filter { it.type == "EXPENSE" && it.isDailyBudget && isToday(it.date) }
+            .sumOf { it.amount + it.adminFee }
+    }
+
+    /**
+     * Dynamic Today's Remaining Budget:
+     * 1. Start of day budget: calculated from (Monthly Budget - Prior Days' Variable Expenses) / Remaining Days (including today).
+     * 2. Decreases dynamically as expenses are recorded today: (Start of day budget - Today's Variable Expenses).
+     * 3. Resets automatically every new day because isToday() and isPriorDaysInCurrentMonth() update with the system calendar date.
+     */
+    val todayRemainingDailyBudget: Flow<Double> = combine(
+        monthlyVariableBudget,
+        transactions
+    ) { allocatedBudget, txList ->
+        if (allocatedBudget <= 0.0) return@combine 0.0
+
+        val cal = Calendar.getInstance()
+        val currentDay = cal.get(Calendar.DAY_OF_MONTH)
+        val maxDaysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+        val remainingDays = (maxDaysInMonth - currentDay + 1).coerceAtLeast(1)
+
+        // Expenses in current month prior to today
+        val priorDaysExpenses = txList
+            .filter { it.type == "EXPENSE" && it.isDailyBudget && isPriorDaysInCurrentMonth(it.date) }
+            .sumOf { it.amount + it.adminFee }
+
+        // Start-of-day baseline limit for today (resets daily based on remaining budget pool)
+        val remainingBudgetPoolAtStartOfDay = (allocatedBudget - priorDaysExpenses).coerceAtLeast(0.0)
+        val startOfDayBudget = remainingBudgetPoolAtStartOfDay / remainingDays
+
+        // Expenses recorded today
+        val todayExpenses = txList
+            .filter { it.type == "EXPENSE" && it.isDailyBudget && isToday(it.date) }
+            .sumOf { it.amount + it.adminFee }
+
+        // Remaining dynamic limit for today
+        (startOfDayBudget - todayExpenses).coerceAtLeast(0.0)
+    }
+
+    /**
+     * Start-of-day baseline limit allocated for today (useful for progress bar calculation)
+     */
+    val todayStartOfDayBudget: Flow<Double> = combine(
+        monthlyVariableBudget,
+        transactions
+    ) { allocatedBudget, txList ->
+        if (allocatedBudget <= 0.0) return@combine 0.0
+
+        val cal = Calendar.getInstance()
+        val currentDay = cal.get(Calendar.DAY_OF_MONTH)
+        val maxDaysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+        val remainingDays = (maxDaysInMonth - currentDay + 1).coerceAtLeast(1)
+
+        val priorDaysExpenses = txList
+            .filter { it.type == "EXPENSE" && it.isDailyBudget && isPriorDaysInCurrentMonth(it.date) }
+            .sumOf { it.amount + it.adminFee }
+
+        val remainingBudgetPoolAtStartOfDay = (allocatedBudget - priorDaysExpenses).coerceAtLeast(0.0)
+        remainingBudgetPoolAtStartOfDay / remainingDays
+    }
+
     // --- TRANSACTION OPERATIONS ---
 
     fun addTransaction(
@@ -215,7 +324,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         note: String,
         date: Long,
         targetWalletId: Int? = null,
-        adminFee: Double = 0.0
+        adminFee: Double = 0.0,
+        isDailyBudget: Boolean = true
     ) {
         viewModelScope.launch {
             val finalCategoryId = if (type == "TRANSFER") 0 else categoryId
@@ -227,7 +337,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 type = type,
                 note = note,
                 targetWalletId = targetWalletId,
-                adminFee = adminFee
+                adminFee = adminFee,
+                isDailyBudget = isDailyBudget
             )
             repository.insertTransaction(tx)
         }
@@ -530,5 +641,21 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val txCal = Calendar.getInstance()
         txCal.timeInMillis = timestamp
         return txCal.get(Calendar.MONTH) == currentMonth && txCal.get(Calendar.YEAR) == currentYear
+    }
+
+    private fun isToday(timestamp: Long): Boolean {
+        val today = Calendar.getInstance()
+        val txCal = Calendar.getInstance().apply { timeInMillis = timestamp }
+        return txCal.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
+               txCal.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR)
+    }
+
+    private fun isPriorDaysInCurrentMonth(timestamp: Long): Boolean {
+        val today = Calendar.getInstance()
+        val txCal = Calendar.getInstance().apply { timeInMillis = timestamp }
+        val isSameYear = txCal.get(Calendar.YEAR) == today.get(Calendar.YEAR)
+        val isSameMonth = txCal.get(Calendar.MONTH) == today.get(Calendar.MONTH)
+        val isPriorDay = txCal.get(Calendar.DAY_OF_MONTH) < today.get(Calendar.DAY_OF_MONTH)
+        return isSameYear && isSameMonth && isPriorDay
     }
 }

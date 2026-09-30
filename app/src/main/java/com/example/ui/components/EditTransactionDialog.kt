@@ -72,6 +72,7 @@ fun EditTransactionDialog(
     var selectedCategoryId by remember { mutableStateOf(transaction.categoryId) }
     var note by remember { mutableStateOf(transaction.note) }
     var selectedDateMillis by remember { mutableStateOf(transaction.date) }
+    var isDailyBudget by remember { mutableStateOf(transaction.isDailyBudget) }
     var enableAdminFee by remember { mutableStateOf(transaction.adminFee > 0.0) }
     var adminFeeStr by remember {
         mutableStateOf(
@@ -329,6 +330,27 @@ fun EditTransactionDialog(
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                 )
                             }
+                        }
+                    }
+
+                    // Include in Daily Budget Toggle (only for EXPENSE)
+                    if (selectedType == "EXPENSE") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Include in Daily Budget",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Switch(
+                                checked = isDailyBudget,
+                                onCheckedChange = { isDailyBudget = it }
+                            )
                         }
                     }
                 }
@@ -607,7 +629,8 @@ fun EditTransactionDialog(
                                 note = note.trim(),
                                 date = selectedDateMillis,
                                 targetWalletId = if (selectedType == "TRANSFER") selectedTargetWalletId else null,
-                                adminFee = parsedAdminFee
+                                adminFee = parsedAdminFee,
+                                isDailyBudget = if (selectedType == "EXPENSE") isDailyBudget else true
                             )
 
                             viewModel.updateTransaction(updatedTransaction)

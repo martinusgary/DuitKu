@@ -64,6 +64,15 @@ fun SettingsScreen(
     val greetingName by viewModel.userGreetingName.collectAsState()
     var nameInputState by remember(greetingName) { mutableStateOf(greetingName) }
 
+    val monthlyVariableBudget by viewModel.monthlyVariableBudget.collectAsState()
+    var budgetInputState by remember(monthlyVariableBudget) {
+        mutableStateOf(
+            if (monthlyVariableBudget <= 0.0) ""
+            else if (monthlyVariableBudget % 1.0 == 0.0) monthlyVariableBudget.toLong().toString()
+            else monthlyVariableBudget.toString()
+        )
+    }
+
     var passwordInput by remember { mutableStateOf("") }
     var confirmPasswordInput by remember { mutableStateOf("") }
 
@@ -262,7 +271,7 @@ fun SettingsScreen(
                                 )
                                 
                                 Text(
-                                    text = if (isId) "Akun Lokal & Keamanan" else "Local Account & Security",
+                                    text = if (isId) "Akun Lokal, Anggaran & Cadangan" else "Local Account, Budget & Backup",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -565,6 +574,65 @@ fun SettingsScreen(
                                                 viewModel.setUserGreetingName(trimmed)
                                                 Toast.makeText(context, if (isId) "Nama sapaan diperbarui!" else "Greeting name updated!", Toast.LENGTH_SHORT).show()
                                             }
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.height(56.dp)
+                                    ) {
+                                        Text(if (isId) "Simpan" else "Save")
+                                    }
+                                }
+                            }
+                        }
+
+                        // A.2. Monthly Variable Budget (DataStore Editable)
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                            ),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = if (isId) "Anggaran Variabel Bulanan" else "Monthly Variable Budget",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = if (isId) "Batas anggaran belanja variabel per bulan untuk kalkulasi batas harian dinamis." else "Monthly variable budget used to dynamically calculate your daily spending limit.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedTextField(
+                                        value = budgetInputState,
+                                        onValueChange = { input ->
+                                            if (input.all { it.isDigit() }) budgetInputState = input
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        singleLine = true,
+                                        prefix = { Text("Rp ") },
+                                        placeholder = { Text("0") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                    Button(
+                                        onClick = {
+                                            val amount = budgetInputState.toDoubleOrNull() ?: 0.0
+                                            viewModel.setMonthlyVariableBudget(amount)
+                                            Toast.makeText(
+                                                context,
+                                                if (isId) "Anggaran bulanan disimpan!" else "Monthly budget saved!",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
                                         },
                                         shape = RoundedCornerShape(12.dp),
                                         modifier = Modifier.height(56.dp)

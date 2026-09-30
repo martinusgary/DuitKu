@@ -239,6 +239,19 @@ fun TransactionDetailDialog(
                         )
                     }
 
+                    // 4b. Daily Budget Status
+                    if (currentTx.type == "EXPENSE") {
+                        DetailRowItem(
+                            icon = Icons.Default.CalendarToday,
+                            label = if (isId) "Anggaran Harian" else "Daily Budget",
+                            value = if (currentTx.isDailyBudget) {
+                                if (isId) "Termasuk (Variabel)" else "Included (Variable)"
+                            } else {
+                                if (isId) "Dikecualikan (Manual)" else "Excluded (Manual)"
+                            }
+                        )
+                    }
+
                     // 5. Installment Info (if linked)
                     if (installmentText != null) {
                         DetailRowItem(

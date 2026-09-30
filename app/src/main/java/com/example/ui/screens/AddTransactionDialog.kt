@@ -114,6 +114,7 @@ fun AddTransactionDialog(
     var selectedTargetWalletId by remember { mutableStateOf(0) }
     var selectedCategoryId by remember { mutableStateOf(0) }
     var autoDetectedCategoryName by remember { mutableStateOf("") }
+    var isDailyBudget by remember { mutableStateOf(true) }
     var note by remember { mutableStateOf("") }
     var scannedReceipts by remember { mutableStateOf<List<GeminiClient.ScanResult>>(initialScannedReceipts) }
 
@@ -714,6 +715,27 @@ fun AddTransactionDialog(
                         singleLine = true,
                         placeholder = { Text("0") }
                     )
+
+                    // Include in Daily Budget Toggle (only for EXPENSE)
+                    if (selectedType == "EXPENSE") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Include in Daily Budget",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Switch(
+                                checked = isDailyBudget,
+                                onCheckedChange = { isDailyBudget = it }
+                            )
+                        }
+                    }
 
                     // 2b. Admin Fee Section (Modeled after Debt & Split collapsible toggle card)
                     Card(
@@ -1746,7 +1768,8 @@ fun AddTransactionDialog(
                                         note = note,
                                         date = selectedDateMillis,
                                         targetWalletId = if (selectedType == "TRANSFER") selectedTargetWalletId else null,
-                                        adminFee = adminFeeVal
+                                        adminFee = adminFeeVal,
+                                        isDailyBudget = if (selectedType == "EXPENSE") isDailyBudget else true
                                     )
                                 }
                             }
