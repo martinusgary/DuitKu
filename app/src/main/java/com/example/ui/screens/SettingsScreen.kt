@@ -597,13 +597,13 @@ fun SettingsScreen(
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Text(
-                                    text = if (isId) "Anggaran Variabel Bulanan" else "Monthly Variable Budget",
+                                    text = if (isId) "Anggaran Harian (Daily Budget)" else "Daily Budget Limit",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary
                                 )
                                 Text(
-                                    text = if (isId) "Batas anggaran belanja variabel per bulan untuk kalkulasi batas harian dinamis." else "Monthly variable budget used to dynamically calculate your daily spending limit.",
+                                    text = if (isId) "Batas anggaran belanja harian kamu. Akan otomatis di-reset setiap hari baru." else "Your daily spending budget limit. Resets automatically every new day.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -627,10 +627,10 @@ fun SettingsScreen(
                                     Button(
                                         onClick = {
                                             val amount = budgetInputState.toDoubleOrNull() ?: 0.0
-                                            viewModel.setMonthlyVariableBudget(amount)
+                                            viewModel.setDailyVariableBudget(amount)
                                             Toast.makeText(
                                                 context,
-                                                if (isId) "Anggaran bulanan disimpan!" else "Monthly budget saved!",
+                                                if (isId) "Anggaran harian disimpan!" else "Daily budget saved!",
                                                 Toast.LENGTH_SHORT
                                             ).show()
                                         },
