@@ -70,16 +70,24 @@ class QuickAddNotificationReceiver : BroadcastReceiver() {
                 withTimeout(15_000L) {
                     processTransactionInBackground(appContext, userQuery, isId)
                 }
+
+                // Keep summary visible for 2.5 seconds, then auto-reset to default idle state
+                kotlinx.coroutines.delay(2500L)
+                QuickAddNotificationHelper.resetToDefaultInput(appContext)
             } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
                 QuickAddNotificationHelper.showErrorNotification(
                     appContext,
                     if (isId) "Koneksi terputus. Silakan coba lagi." else "Connection timed out. Please try again."
                 )
+                kotlinx.coroutines.delay(2500L)
+                QuickAddNotificationHelper.resetToDefaultInput(appContext)
             } catch (e: Exception) {
                 QuickAddNotificationHelper.showErrorNotification(
                     appContext,
                     if (isId) "Data tidak dapat diproses: ${e.localizedMessage ?: "Kesalahan input"}" else "Could not process data: ${e.localizedMessage ?: "Input error"}"
                 )
+                kotlinx.coroutines.delay(2500L)
+                QuickAddNotificationHelper.resetToDefaultInput(appContext)
             } finally {
                 // Always finish pendingResult to prevent ANR and release system wakelocks
                 pendingResult.finish()

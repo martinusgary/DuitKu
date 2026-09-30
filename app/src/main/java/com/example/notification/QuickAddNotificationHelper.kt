@@ -46,8 +46,10 @@ object QuickAddNotificationHelper {
 
     /**
      * Builds and shows the interactive Quick Add notification in status bar & lockscreen.
+     * If [customStatusText] is provided, it displays that text (e.g. recent transaction summary)
+     * while keeping the remote input action alive and notification pinned (ongoing).
      */
-    fun showQuickAddInputNotification(context: Context) {
+    fun showQuickAddInputNotification(context: Context, customStatusText: String? = null) {
         createNotificationChannel(context)
 
         val isId = context.getSharedPreferences("security_settings", Context.MODE_PRIVATE)
@@ -78,24 +80,36 @@ object QuickAddNotificationHelper {
             .setAuthenticationRequired(false)
             .build()
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val defaultSubtext = if (isId) "Ketik transaksi langsung dari notifikasi." else "Type transactions directly from notification."
+        val titleText = if (customStatusText != null) {
+            if (isId) "Transaksi Dicatat" else "Transaction Recorded"
+        } else {
+            if (isId) "Pencatatan Cepat" else "Quick Add"
+        }
+        val contentText = customStatusText ?: defaultSubtext
+
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle(if (isId) "Pencatatan Cepat" else "Quick Add")
-            .setContentText(if (isId) "Ketik transaksi langsung dari notifikasi." else "Type transactions directly from notification.")
-            .setOngoing(true)
+            .setContentTitle(titleText)
+            .setContentText(contentText)
+            .setOngoing(true) // ALWAYS pinned like WhatsApp, never dismissed by OS
             .setPriority(NotificationCompat.PRIORITY_LOW) // Silent priority
             .setSilent(true) // Explicitly silent
             .addAction(replyAction)
             .setAutoCancel(false)
-            .build()
+
+        if (customStatusText != null) {
+            builder.setStyle(NotificationCompat.BigTextStyle().bigText(customStatusText))
+        }
 
         try {
-            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
+            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, builder.build())
         } catch (_: SecurityException) {}
     }
 
     /**
      * Updates notification to Processing / Loading state while AI evaluates.
+     * Retains ongoing = true so it never disappears during computation.
      */
     fun showProcessingNotification(context: Context) {
         val isId = context.getSharedPreferences("security_settings", Context.MODE_PRIVATE)
@@ -117,61 +131,30 @@ object QuickAddNotificationHelper {
     }
 
     /**
-     * Shows Success state with summary and auto-resets / dismisses.
+     * WhatsApp-style Success update:
+     * Immediately keeps the notification pinned (ongoing = true) with the RemoteInput active,
+     * showing the transaction summary.
      */
     fun showSuccessNotification(context: Context, summary: String) {
-        val prefs = context.getSharedPreferences("security_settings", Context.MODE_PRIVATE)
-        val isId = prefs.getString("app_language", "en") == "id"
-        val isQuickAddEnabled = prefs.getBoolean("quick_add_notif_enabled", false)
-
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_upload_done)
-            .setContentTitle(if (isId) "Transaksi Berhasil Dicatat" else "Transaction Recorded")
-            .setContentText(summary)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(summary))
-            .setOngoing(false)
-            .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setSilent(true)
-            .setTimeoutAfter(4000)
-            .build()
-
-        try {
-            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
-            // If user still has quick add enabled, restore the input notification after brief feedback
-            if (isQuickAddEnabled) {
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                    val stillEnabled = context.getSharedPreferences("security_settings", Context.MODE_PRIVATE)
-                        .getBoolean("quick_add_notif_enabled", false)
-                    if (stillEnabled) {
-                        showQuickAddInputNotification(context)
-                    }
-                }, 4200)
-            }
-        } catch (_: SecurityException) {}
+        // Immediately show the summary while keeping the notification alive with RemoteInput
+        showQuickAddInputNotification(context, customStatusText = summary)
     }
 
     /**
-     * Shows Error state with reason.
+     * Resets the notification content back to default idle text.
+     */
+    fun resetToDefaultInput(context: Context) {
+        val prefs = context.getSharedPreferences("security_settings", Context.MODE_PRIVATE)
+        val isQuickAddEnabled = prefs.getBoolean("quick_add_notif_enabled", false)
+        if (isQuickAddEnabled) {
+            showQuickAddInputNotification(context, customStatusText = null)
+        }
+    }
+
+    /**
+     * Shows Error state with reason while keeping ongoing = true with RemoteInput.
      */
     fun showErrorNotification(context: Context, errorMessage: String) {
-        val isId = context.getSharedPreferences("security_settings", Context.MODE_PRIVATE)
-            .getString("app_language", "en") == "id"
-
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_notify_error)
-            .setContentTitle(if (isId) "Gagal Mencatat Transaksi" else "Transaction Failed")
-            .setContentText(errorMessage)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(errorMessage))
-            .setOngoing(false)
-            .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setSilent(true)
-            .setTimeoutAfter(6000)
-            .build()
-
-        try {
-            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
-        } catch (_: SecurityException) {}
+        showQuickAddInputNotification(context, customStatusText = errorMessage)
     }
 }
