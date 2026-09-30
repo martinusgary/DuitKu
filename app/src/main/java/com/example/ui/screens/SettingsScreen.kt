@@ -643,6 +643,106 @@ fun SettingsScreen(
                             }
                         }
 
+                        // NLP Quick Add via Notification Card
+                        var isQuickAddEnabled by remember {
+                            mutableStateOf(prefs.getBoolean("quick_add_notif_enabled", false))
+                        }
+
+                        val notifLauncher = rememberLauncherForActivityResult(
+                            contract = ActivityResultContracts.RequestPermission()
+                        ) { granted ->
+                            if (granted) {
+                                isQuickAddEnabled = true
+                                prefs.edit().putBoolean("quick_add_notif_enabled", true).apply()
+                                com.example.notification.QuickAddNotificationHelper.showQuickAddInputNotification(context)
+                                Toast.makeText(context, if (isId) "Pencatatan cepat aktif di bilah status" else "Quick add enabled in status bar", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, if (isId) "Izin notifikasi ditolak" else "Notification permission denied", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (isQuickAddEnabled) MaterialTheme.colorScheme.primaryContainer
+                                            else MaterialTheme.colorScheme.surfaceVariant
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.Bolt,
+                                        contentDescription = "Quick Add",
+                                        tint = if (isQuickAddEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (isId) "Pencatatan Cepat Notifikasi" else "Quick Add Notification",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = if (isQuickAddEnabled) {
+                                            if (isId) "Aktif di bilah status." else "Active in status bar."
+                                        } else {
+                                            if (isId) "Catat transaksi langsung dari bilah status." else "Record transactions directly from status bar."
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                if (isQuickAddEnabled) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            isQuickAddEnabled = false
+                                            prefs.edit().putBoolean("quick_add_notif_enabled", false).apply()
+                                            com.example.notification.QuickAddNotificationHelper.cancelQuickAddNotification(context)
+                                            Toast.makeText(context, if (isId) "Pencatatan cepat dinonaktifkan" else "Quick add disabled", Toast.LENGTH_SHORT).show()
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            contentColor = MaterialTheme.colorScheme.error
+                                        )
+                                    ) {
+                                        Text(if (isId) "Nonaktifkan" else "Disable")
+                                    }
+                                } else {
+                                    Button(
+                                        onClick = {
+                                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                                                notifLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                                            } else {
+                                                isQuickAddEnabled = true
+                                                prefs.edit().putBoolean("quick_add_notif_enabled", true).apply()
+                                                com.example.notification.QuickAddNotificationHelper.showQuickAddInputNotification(context)
+                                                Toast.makeText(context, if (isId) "Pencatatan cepat aktif di bilah status" else "Quick add enabled in status bar", Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Text(if (isId) "Aktifkan" else "Enable")
+                                    }
+                                }
+                            }
+                        }
+
                         // B. 100% Local Storage Notice
                         Card(
                             colors = CardDefaults.cardColors(
