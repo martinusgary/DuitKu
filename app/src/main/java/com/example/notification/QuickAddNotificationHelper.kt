@@ -93,7 +93,8 @@ object QuickAddNotificationHelper {
             .setContentTitle(titleText)
             .setContentText(contentText)
             .setOngoing(true) // ALWAYS pinned like TeraBox / WhatsApp, never dismissed by OS
-            .setShowWhen(false) // Hides the timestamp so it looks clean and static
+            .setShowWhen(false) // Instructs system to not display timestamp
+            .setWhen(0L) // Crucial for ColorOS / Realme UI / OxygenOS / MIUI to completely remove "Now"
             .setPriority(NotificationCompat.PRIORITY_LOW) // Silent priority
             .setSilent(true) // Explicitly silent
             .addAction(replyAction)
@@ -123,6 +124,7 @@ object QuickAddNotificationHelper {
             .setProgress(0, 0, true)
             .setOngoing(true)
             .setShowWhen(false)
+            .setWhen(0L)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setSilent(true)
             .build()
