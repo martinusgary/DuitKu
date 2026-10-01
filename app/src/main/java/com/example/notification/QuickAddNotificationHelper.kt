@@ -92,7 +92,8 @@ object QuickAddNotificationHelper {
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(titleText)
             .setContentText(contentText)
-            .setOngoing(true) // ALWAYS pinned like WhatsApp, never dismissed by OS
+            .setOngoing(true) // ALWAYS pinned like TeraBox / WhatsApp, never dismissed by OS
+            .setShowWhen(false) // Hides the timestamp so it looks clean and static
             .setPriority(NotificationCompat.PRIORITY_LOW) // Silent priority
             .setSilent(true) // Explicitly silent
             .addAction(replyAction)
@@ -121,6 +122,7 @@ object QuickAddNotificationHelper {
             .setContentText(if (isId) "Menyimpan data transaksi..." else "Saving transaction data...")
             .setProgress(0, 0, true)
             .setOngoing(true)
+            .setShowWhen(false)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setSilent(true)
             .build()
