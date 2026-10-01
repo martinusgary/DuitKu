@@ -44,7 +44,19 @@ class QuickAddNotificationReceiver : BroadcastReceiver() {
     )
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != QuickAddNotificationHelper.ACTION_REPLY) return
+        val action = intent.action
+
+        // If user or OS attempted to swipe/dismiss while feature is still enabled in Settings, immediately restore it
+        if (action == QuickAddNotificationHelper.ACTION_DISMISSED) {
+            val prefs = context.getSharedPreferences("security_settings", Context.MODE_PRIVATE)
+            val isQuickAddEnabled = prefs.getBoolean("quick_add_notif_enabled", false)
+            if (isQuickAddEnabled) {
+                QuickAddNotificationHelper.showQuickAddInputNotification(context)
+            }
+            return
+        }
+
+        if (action != QuickAddNotificationHelper.ACTION_REPLY) return
 
         // 1. Extract text from RemoteInput
         val remoteInputBundle = RemoteInput.getResultsFromIntent(intent)

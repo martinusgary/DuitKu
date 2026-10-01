@@ -1,5 +1,6 @@
 package com.example.notification
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -18,6 +19,7 @@ object QuickAddNotificationHelper {
     const val NOTIFICATION_ID = 2026
     const val KEY_TEXT_REPLY = "key_quick_add_text_reply"
     const val ACTION_REPLY = "com.example.duitku.ACTION_QUICK_ADD_REPLY"
+    const val ACTION_DISMISSED = "com.example.duitku.ACTION_QUICK_ADD_DISMISSED"
 
     fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -80,6 +82,16 @@ object QuickAddNotificationHelper {
             .setAuthenticationRequired(false)
             .build()
 
+        val deleteIntent = Intent(context, QuickAddNotificationReceiver::class.java).apply {
+            action = ACTION_DISMISSED
+        }
+        val deletePendingIntent = PendingIntent.getBroadcast(
+            context,
+            1,
+            deleteIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+
         val defaultSubtext = if (isId) "Ketik transaksi langsung dari notifikasi." else "Type transactions directly from notification."
         val titleText = if (customStatusText != null) {
             if (isId) "Transaksi Dicatat" else "Transaction Recorded"
@@ -99,13 +111,19 @@ object QuickAddNotificationHelper {
             .setSilent(true) // Explicitly silent
             .addAction(replyAction)
             .setAutoCancel(false)
+            .setDeleteIntent(deletePendingIntent) // Auto-restores if user/system tries to swipe
 
         if (customStatusText != null) {
             builder.setStyle(NotificationCompat.BigTextStyle().bigText(customStatusText))
         }
 
+        val notification = builder.build().apply {
+            // Low-level OS flags to prevent dismissal on OEM systems
+            flags = flags or Notification.FLAG_ONGOING_EVENT or Notification.FLAG_NO_CLEAR
+        }
+
         try {
-            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, builder.build())
+            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
         } catch (_: SecurityException) {}
     }
 
