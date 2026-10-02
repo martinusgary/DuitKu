@@ -51,7 +51,18 @@ class QuickAddNotificationReceiver : BroadcastReceiver() {
             val prefs = context.getSharedPreferences("security_settings", Context.MODE_PRIVATE)
             val isQuickAddEnabled = prefs.getBoolean("quick_add_notif_enabled", false)
             if (isQuickAddEnabled) {
-                QuickAddNotificationHelper.showQuickAddInputNotification(context)
+                val appContext = context.applicationContext
+                val isId = appContext.getSharedPreferences("security_settings", Context.MODE_PRIVATE)
+                    .getString("app_language", "en") == "id"
+                val pendingResult = goAsync()
+                CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                    try {
+                        val budgetBadge = QuickAddNotificationHelper.getRemainingDailyBudgetInfo(appContext, isId)
+                        QuickAddNotificationHelper.showQuickAddInputNotification(appContext, budgetBadge = budgetBadge)
+                    } finally {
+                        pendingResult.finish()
+                    }
+                }
             }
             return
         }
@@ -78,28 +89,32 @@ class QuickAddNotificationReceiver : BroadcastReceiver() {
 
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
-                // Strict 15-second hard timeout for battery saving & fast fail
-                withTimeout(15_000L) {
+                // Generous 25-second timeout for complex multi-transaction reasoning
+                withTimeout(25_000L) {
                     processTransactionInBackground(appContext, userQuery, isId)
                 }
 
-                // Keep summary visible for 2.5 seconds, then auto-reset to default idle state
+                // Keep summary visible for 2.5 seconds, then auto-reset to default idle state with fresh realtime budget
                 kotlinx.coroutines.delay(2500L)
-                QuickAddNotificationHelper.resetToDefaultInput(appContext)
+                val budgetBadge = QuickAddNotificationHelper.getRemainingDailyBudgetInfo(appContext, isId)
+                QuickAddNotificationHelper.resetToDefaultInput(appContext, budgetBadge = budgetBadge)
             } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
                 QuickAddNotificationHelper.showErrorNotification(
                     appContext,
                     if (isId) "Koneksi terputus. Silakan coba lagi." else "Connection timed out. Please try again."
                 )
-                kotlinx.coroutines.delay(2500L)
-                QuickAddNotificationHelper.resetToDefaultInput(appContext)
+                kotlinx.coroutines.delay(3500L)
+                val budgetBadge = QuickAddNotificationHelper.getRemainingDailyBudgetInfo(appContext, isId)
+                QuickAddNotificationHelper.resetToDefaultInput(appContext, budgetBadge = budgetBadge)
             } catch (e: Exception) {
+                val errorMsg = e.localizedMessage ?: (if (isId) "Kesalahan input" else "Input error")
                 QuickAddNotificationHelper.showErrorNotification(
                     appContext,
-                    if (isId) "Data tidak dapat diproses: ${e.localizedMessage ?: "Kesalahan input"}" else "Could not process data: ${e.localizedMessage ?: "Input error"}"
+                    if (isId) "Gagal memproses: $errorMsg" else "Failed to process: $errorMsg"
                 )
-                kotlinx.coroutines.delay(2500L)
-                QuickAddNotificationHelper.resetToDefaultInput(appContext)
+                kotlinx.coroutines.delay(4000L)
+                val budgetBadge = QuickAddNotificationHelper.getRemainingDailyBudgetInfo(appContext, isId)
+                QuickAddNotificationHelper.resetToDefaultInput(appContext, budgetBadge = budgetBadge)
             } finally {
                 // Always finish pendingResult to prevent ANR and release system wakelocks
                 pendingResult.finish()
@@ -127,10 +142,11 @@ class QuickAddNotificationReceiver : BroadcastReceiver() {
         val currentTimeIso = isoFormat.format(now)
         val currentTimeReadable = readableFormat.format(now)
 
-        // 3. Construct System Prompt
+        // 3. Construct System Prompt that handles single or multiple combined transactions
         val systemPrompt = """
-            You are a strict Indonesian financial parser assistant for the "DuitKu" app.
+            You are an expert Indonesian financial assistant for the "DuitKu" app.
             Your job is to parse the user's natural language input into a JSON array of transactions.
+            User may input SINGLE or MULTIPLE transactions in a single sentence connected by 'lalu', 'kemudian', 'dan', 'setelah itu', etc.
 
             CONTEXT:
             - Current Time: $currentTimeReadable ($currentTimeIso)
@@ -140,16 +156,25 @@ class QuickAddNotificationReceiver : BroadcastReceiver() {
             - Default Wallet: $defaultWallet
 
             RULES:
-            1. Output MUST BE a pure valid JSON array only: [{"type":"EXPENSE"|"INCOME"|"TRANSFER", "amount": 25000, "wallet":"$defaultWallet", "source_wallet":null, "dest_wallet":null, "category":"Makanan & Minuman", "note":"Beli nasi goreng", "timestamp":"$currentTimeIso"}]
-            2. Match wallet and category to the available lists if possible. If no match, choose the closest logical one.
-            3. For amount, parse informal Indonesian expressions (e.g. '25rb' -> 25000, '1.5jt' -> 1500000, '50k' -> 50000, 'cepek' -> 100000, 'goceng' -> 5000).
-            4. Do not include markdown ticks or explanation. Return pure JSON array.
+            1. Output MUST ALWAYS be a valid JSON array only: [ {...}, {...} ]
+            2. Each transaction object fields:
+               - "type": "EXPENSE" | "INCOME" | "TRANSFER"
+               - "amount": number (MUST be greater than 0. If user forgot amount for something like esteh/kopi, give reasonable standard estimate like 5000 or 10000).
+               - "wallet": string (for EXPENSE or INCOME, match against Available Wallets)
+               - "source_wallet": string or null (for TRANSFER, source account)
+               - "dest_wallet": string or null (for TRANSFER, destination account)
+               - "category": string (match against Available Categories)
+               - "note": string (clean concise description)
+            3. For amount parsing, handle informal Indonesian slang:
+               '25rb' -> 25000, '1.5jt' -> 1500000, '50k' -> 50000, 'cepek' -> 100000, 'goceng' -> 5000, 'ceban' -> 10000, 'noban' -> 20000.
+            4. If user says "transfer dari A ke B" without amount, check if another amount is mentioned or estimate.
+            5. Return PURE JSON array only. NO markdown ticks, NO conversational commentary.
         """.trimIndent()
 
-        // 4. Gemini AI REST API with responseMimeType = "application/json" and gemini-2.5-flash
+        // 4. Gemini AI REST API
         val apiKey = BuildConfig.GEMINI_API_KEY
         if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
-            throw IllegalStateException("API Key Gemini belum disetel di Secrets")
+            throw IllegalStateException(if (isId) "Kunci API Gemini belum disetel" else "Gemini API key is not configured")
         }
 
         val payload = JSONObject().apply {
@@ -194,8 +219,11 @@ class QuickAddNotificationReceiver : BroadcastReceiver() {
 
         val response = httpClient.newCall(request).execute()
         if (!response.isSuccessful) {
-            val errBody = response.body?.string() ?: ""
-            throw IllegalStateException("AI Error ${response.code}: $errBody")
+            val code = response.code
+            if (code == 429) {
+                throw IllegalStateException(if (isId) "Kuota AI penuh (429). Tunggu beberapa detik." else "AI Rate limit reached (429). Please wait a moment.")
+            }
+            throw IllegalStateException("AI Error $code")
         }
 
         val respBody = response.body?.string() ?: throw IllegalStateException("Empty AI response")
@@ -204,22 +232,43 @@ class QuickAddNotificationReceiver : BroadcastReceiver() {
         val content = candidates?.optJSONObject(0)?.optJSONObject("content")
         val parts = content?.optJSONArray("parts")
         val rawText = parts?.optJSONObject(0)?.optString("text")?.trim()
-            ?: throw IllegalStateException("Format balasan AI tidak sesuai")
+            ?: throw IllegalStateException(if (isId) "Format balasan AI tidak sesuai" else "Invalid AI response structure")
 
-        // 5. Parse JSON array
+        // 5. Robust JSON Parser (handles array [...], object {...}, or wrapped {"transactions": [...]})
         val cleanedJson = rawText.removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
-        val jsonArray = JSONArray(cleanedJson)
+        val jsonArray = when {
+            cleanedJson.startsWith("[") -> JSONArray(cleanedJson)
+            cleanedJson.startsWith("{") -> {
+                val obj = JSONObject(cleanedJson)
+                when {
+                    obj.has("transactions") -> obj.optJSONArray("transactions") ?: JSONArray().put(obj)
+                    obj.has("data") -> obj.optJSONArray("data") ?: JSONArray().put(obj)
+                    else -> JSONArray().put(obj)
+                }
+            }
+            else -> throw IllegalArgumentException(if (isId) "Teks tidak dapat dikenali sebagai transaksi" else "Could not recognize transaction structure")
+        }
+
         if (jsonArray.length() == 0) {
-            throw IllegalArgumentException("Tidak ada transaksi yang terdeteksi dari teks Anda.")
+            throw IllegalArgumentException(if (isId) "Tidak ada transaksi yang terdeteksi dari teks Anda." else "No transactions detected.")
         }
 
         val parsedItems = mutableListOf<ParsedTx>()
         for (i in 0 until jsonArray.length()) {
-            val obj = jsonArray.getJSONObject(i)
+            val obj = jsonArray.optJSONObject(i) ?: continue
+            var amt = obj.optDouble("amount", 0.0)
+            if (amt <= 0.0) {
+                // If amount is missing/zero, try to detect any numbers from userInput as fallback
+                val numbers = Regex("""\d+""").findAll(userInput).map { it.value.toDoubleOrNull() ?: 0.0 }.toList()
+                if (numbers.isNotEmpty()) {
+                    amt = numbers.getOrNull(i) ?: numbers.first()
+                }
+            }
+
             parsedItems.add(
                 ParsedTx(
                     type = obj.optString("type", "EXPENSE").uppercase(),
-                    amount = obj.optDouble("amount", 0.0),
+                    amount = amt,
                     wallet = obj.optString("wallet").takeIf { it.isNotBlank() },
                     source_wallet = obj.optString("source_wallet").takeIf { it.isNotBlank() },
                     dest_wallet = obj.optString("dest_wallet").takeIf { it.isNotBlank() },
@@ -230,8 +279,11 @@ class QuickAddNotificationReceiver : BroadcastReceiver() {
         }
 
         // 6. Map and Insert directly into Room Database & Update Wallet Balance
-        val rupiahFormat = NumberFormat.getCurrencyInstance(Locale("id", "ID"))
+        val rupiahFormat = NumberFormat.getCurrencyInstance(Locale("id", "ID")).apply {
+            maximumFractionDigits = 0
+        }
         val summaryBuilder = StringBuilder()
+        var insertedCount = 0
 
         for (item in parsedItems) {
             if (item.amount <= 0) continue
@@ -263,7 +315,9 @@ class QuickAddNotificationReceiver : BroadcastReceiver() {
 
                 val srcName = srcWallet?.name ?: "Dompet"
                 val dstName = dstWallet?.name ?: "Tujuan"
-                summaryBuilder.append("Transfer ${rupiahFormat.format(item.amount)}: $srcName ke $dstName\n")
+                val formattedAmt = rupiahFormat.format(item.amount).replace("Rp", "Rp ")
+                summaryBuilder.append("Transfer $formattedAmt: $srcName → $dstName\n")
+                insertedCount++
             } else {
                 val matchedWallet = wallets.find { it.name.equals(item.wallet, ignoreCase = true) }
                     ?: wallets.firstOrNull()
@@ -291,14 +345,24 @@ class QuickAddNotificationReceiver : BroadcastReceiver() {
 
                 val sign = if (item.type == "INCOME") "+" else "-"
                 val wName = matchedWallet?.name ?: "Cash"
-                summaryBuilder.append("${item.note ?: "Transaksi"}: $sign${rupiahFormat.format(item.amount)} ($wName)\n")
+                val formattedAmt = rupiahFormat.format(item.amount).replace("Rp", "Rp ")
+                summaryBuilder.append("${item.note ?: "Transaksi"}: $sign$formattedAmt ($wName)\n")
+                insertedCount++
             }
         }
 
-        // 7. Show success feedback on notification and auto-dismiss
+        if (insertedCount == 0) {
+            throw IllegalArgumentException(if (isId) "Nominal belum dicantumkan. Contoh: beli esteh 5rb lalu transfer 50rb" else "Missing amount. Example: buy tea 5k then transfer 50k")
+        }
+
+        // 7. Calculate fresh remaining daily budget synchronously (zero battery drain)
+        val budgetBadge = QuickAddNotificationHelper.getRemainingDailyBudgetInfo(context, isId)
+
+        // 8. Show success feedback on notification with updated remaining daily limit
         QuickAddNotificationHelper.showSuccessNotification(
             context,
-            summaryBuilder.toString().trim()
+            summaryBuilder.toString().trim(),
+            budgetBadge = budgetBadge
         )
     }
 }

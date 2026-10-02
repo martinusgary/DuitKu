@@ -628,6 +628,13 @@ fun SettingsScreen(
                                         onClick = {
                                             val amount = budgetInputState.toDoubleOrNull() ?: 0.0
                                             viewModel.setDailyVariableBudget(amount)
+                                            coroutineScope.launch {
+                                                val isQuickAdd = prefs.getBoolean("quick_add_notif_enabled", false)
+                                                if (isQuickAdd) {
+                                                    val budgetBadge = com.example.notification.QuickAddNotificationHelper.getRemainingDailyBudgetInfo(context, isId)
+                                                    com.example.notification.QuickAddNotificationHelper.showQuickAddInputNotification(context, budgetBadge = budgetBadge)
+                                                }
+                                            }
                                             Toast.makeText(
                                                 context,
                                                 if (isId) "Anggaran harian disimpan!" else "Daily budget saved!",
@@ -654,7 +661,10 @@ fun SettingsScreen(
                             if (granted) {
                                 isQuickAddEnabled = true
                                 prefs.edit().putBoolean("quick_add_notif_enabled", true).apply()
-                                com.example.notification.QuickAddNotificationHelper.showQuickAddInputNotification(context)
+                                coroutineScope.launch {
+                                    val budgetBadge = com.example.notification.QuickAddNotificationHelper.getRemainingDailyBudgetInfo(context, isId)
+                                    com.example.notification.QuickAddNotificationHelper.showQuickAddInputNotification(context, budgetBadge = budgetBadge)
+                                }
                                 Toast.makeText(context, if (isId) "Pencatatan cepat aktif di bilah status" else "Quick add enabled in status bar", Toast.LENGTH_SHORT).show()
                             } else {
                                 Toast.makeText(context, if (isId) "Izin notifikasi ditolak" else "Notification permission denied", Toast.LENGTH_SHORT).show()
@@ -731,7 +741,10 @@ fun SettingsScreen(
                                             } else {
                                                 isQuickAddEnabled = true
                                                 prefs.edit().putBoolean("quick_add_notif_enabled", true).apply()
-                                                com.example.notification.QuickAddNotificationHelper.showQuickAddInputNotification(context)
+                                                coroutineScope.launch {
+                                                    val budgetBadge = com.example.notification.QuickAddNotificationHelper.getRemainingDailyBudgetInfo(context, isId)
+                                                    com.example.notification.QuickAddNotificationHelper.showQuickAddInputNotification(context, budgetBadge = budgetBadge)
+                                                }
                                                 Toast.makeText(context, if (isId) "Pencatatan cepat aktif di bilah status" else "Quick add enabled in status bar", Toast.LENGTH_SHORT).show()
                                             }
                                         },

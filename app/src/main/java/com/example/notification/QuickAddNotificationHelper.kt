@@ -10,8 +10,19 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.RemoteInput
+import androidx.datastore.preferences.core.doublePreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
 import com.example.R
+import com.example.data.database.FinanceDatabase
 import com.example.receiver.QuickAddNotificationReceiver
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.map
+import java.text.NumberFormat
+import java.util.Calendar
+import java.util.Locale
+
+private val Context.dataStore by preferencesDataStore(name = "finance_preferences")
+private val KEY_MONTHLY_VARIABLE_BUDGET = doublePreferencesKey("monthly_variable_budget")
 
 object QuickAddNotificationHelper {
 
@@ -47,11 +58,52 @@ object QuickAddNotificationHelper {
     }
 
     /**
+     * Efficiently reads daily budget limit and today's expenses from Room DB and DataStore.
+     * ZERO battery impact: No background services, no repeating alarms, no loops.
+     * Evaluated synchronously only when notification is rendered or updated.
+     */
+    suspend fun getRemainingDailyBudgetInfo(context: Context, isId: Boolean): String? {
+        return try {
+            val dailyBudget = context.dataStore.data.map { it[KEY_MONTHLY_VARIABLE_BUDGET] ?: 0.0 }.firstOrNull() ?: 0.0
+            if (dailyBudget <= 0.0) return null
+
+            val calendar = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            val startOfDay = calendar.timeInMillis
+            calendar.add(Calendar.DAY_OF_YEAR, 1)
+            val endOfDay = calendar.timeInMillis
+
+            val database = FinanceDatabase.getDatabase(context)
+            val allTxs = database.financeDao().getAllTransactionsDirect()
+            val todayExpenses = allTxs.filter {
+                it.type == "EXPENSE" && it.isDailyBudget && it.date in startOfDay until endOfDay
+            }.sumOf { it.amount + it.adminFee }
+
+            val remaining = (dailyBudget - todayExpenses).coerceAtLeast(0.0)
+            val rupiahFormat = NumberFormat.getCurrencyInstance(Locale("id", "ID")).apply {
+                maximumFractionDigits = 0
+            }
+            val formatted = rupiahFormat.format(remaining).replace("Rp", "Rp ")
+            if (isId) "Sisa limit harian: $formatted" else "Remaining daily limit: $formatted"
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
      * Builds and shows the interactive Quick Add notification in status bar & lockscreen.
      * If [customStatusText] is provided, it displays that text (e.g. recent transaction summary)
      * while keeping the remote input action alive and notification pinned (ongoing).
      */
-    fun showQuickAddInputNotification(context: Context, customStatusText: String? = null) {
+    fun showQuickAddInputNotification(
+        context: Context,
+        customStatusText: String? = null,
+        budgetBadge: String? = null
+    ) {
         createNotificationChannel(context)
 
         val isId = context.getSharedPreferences("security_settings", Context.MODE_PRIVATE)
@@ -93,12 +145,29 @@ object QuickAddNotificationHelper {
         )
 
         val defaultSubtext = if (isId) "Ketik transaksi langsung dari notifikasi." else "Type transactions directly from notification."
+        
+        // Header / Title: Keep clean without budget
         val titleText = if (customStatusText != null) {
             if (isId) "Transaksi Dicatat" else "Transaction Recorded"
         } else {
             if (isId) "Pencatatan Cepat" else "Quick Add"
         }
-        val contentText = customStatusText ?: defaultSubtext
+
+        // Body Content: Place remaining daily budget limit in the body
+        val contentText = when {
+            customStatusText != null && !budgetBadge.isNullOrBlank() -> {
+                "$customStatusText\n$budgetBadge"
+            }
+            customStatusText != null -> {
+                customStatusText
+            }
+            !budgetBadge.isNullOrBlank() -> {
+                "$budgetBadge\n$defaultSubtext"
+            }
+            else -> {
+                defaultSubtext
+            }
+        }
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
@@ -113,9 +182,8 @@ object QuickAddNotificationHelper {
             .setAutoCancel(false)
             .setDeleteIntent(deletePendingIntent) // Auto-restores if user/system tries to swipe
 
-        if (customStatusText != null) {
-            builder.setStyle(NotificationCompat.BigTextStyle().bigText(customStatusText))
-        }
+        // BigTextStyle ensures multi-line body (custom text + budget badge) is fully visible
+        builder.setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
 
         val notification = builder.build().apply {
             // Low-level OS flags to prevent dismissal on OEM systems
@@ -155,21 +223,21 @@ object QuickAddNotificationHelper {
     /**
      * WhatsApp-style Success update:
      * Immediately keeps the notification pinned (ongoing = true) with the RemoteInput active,
-     * showing the transaction summary.
+     * showing the transaction summary and updated budget badge.
      */
-    fun showSuccessNotification(context: Context, summary: String) {
+    fun showSuccessNotification(context: Context, summary: String, budgetBadge: String? = null) {
         // Immediately show the summary while keeping the notification alive with RemoteInput
-        showQuickAddInputNotification(context, customStatusText = summary)
+        showQuickAddInputNotification(context, customStatusText = summary, budgetBadge = budgetBadge)
     }
 
     /**
-     * Resets the notification content back to default idle text.
+     * Resets the notification content back to default idle text with current budget badge.
      */
-    fun resetToDefaultInput(context: Context) {
+    fun resetToDefaultInput(context: Context, budgetBadge: String? = null) {
         val prefs = context.getSharedPreferences("security_settings", Context.MODE_PRIVATE)
         val isQuickAddEnabled = prefs.getBoolean("quick_add_notif_enabled", false)
         if (isQuickAddEnabled) {
-            showQuickAddInputNotification(context, customStatusText = null)
+            showQuickAddInputNotification(context, customStatusText = null, budgetBadge = budgetBadge)
         }
     }
 

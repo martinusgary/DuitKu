@@ -129,6 +129,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val prefs = getApplication<Application>().getSharedPreferences("security_settings", Context.MODE_PRIVATE)
         prefs.edit().putString("app_language", lang).apply()
         appLanguage.value = lang
+        refreshQuickAddNotificationIfActive()
     }
 
     private val _updateResult = MutableStateFlow<UpdateResult?>(null)
@@ -313,18 +314,21 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
                 isDailyBudget = isDailyBudget
             )
             repository.insertTransaction(tx)
+            refreshQuickAddNotificationIfActive()
         }
     }
 
     fun updateTransaction(transaction: Transaction) {
         viewModelScope.launch {
             repository.updateTransaction(transaction)
+            refreshQuickAddNotificationIfActive()
         }
     }
 
     fun deleteTransaction(transaction: Transaction, refund: Boolean) {
         viewModelScope.launch {
             repository.deleteTransaction(transaction, refund)
+            refreshQuickAddNotificationIfActive()
         }
     }
 
@@ -332,6 +336,19 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             list.forEach { transaction ->
                 repository.deleteTransaction(transaction, refund)
+            }
+            refreshQuickAddNotificationIfActive()
+        }
+    }
+
+    private fun refreshQuickAddNotificationIfActive() {
+        val context = getApplication<Application>()
+        val prefs = context.getSharedPreferences("security_settings", Context.MODE_PRIVATE)
+        if (prefs.getBoolean("quick_add_notif_enabled", false)) {
+            val isId = prefs.getString("app_language", "en") == "id"
+            viewModelScope.launch {
+                val budgetBadge = com.example.notification.QuickAddNotificationHelper.getRemainingDailyBudgetInfo(context, isId)
+                com.example.notification.QuickAddNotificationHelper.showQuickAddInputNotification(context, budgetBadge = budgetBadge)
             }
         }
     }
