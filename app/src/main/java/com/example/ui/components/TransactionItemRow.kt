@@ -23,6 +23,7 @@ import com.example.R
 import com.example.data.model.Category
 import com.example.data.model.Transaction
 import com.example.data.model.Wallet
+import com.example.ui.theme.*
 import com.example.ui.viewmodel.FinanceViewModel
 
 @Composable
@@ -45,16 +46,17 @@ fun TransactionItemRow(
     var showDetailsDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
-    val cardShape = RoundedCornerShape(24.dp)
-    ElevatedCard(
+    val cardShape = RoundedCornerShape(20.dp)
+    Card(
         modifier = modifier
             .fillMaxWidth()
             .clip(cardShape)
             .clickable { showDetailsDialog = true },
         shape = cardShape,
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+        colors = CardDefaults.cardColors(
+            containerColor = CardBg
+        ),
+        border = BorderStroke(1.dp, CardBorder)
     ) {
         Row(
             modifier = Modifier
@@ -75,9 +77,9 @@ fun TransactionItemRow(
 
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(visualInfo.backgroundColor),
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(visualInfo.backgroundColor.copy(alpha = 0.25f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -103,6 +105,7 @@ fun TransactionItemRow(
                         text = labelText,
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -111,7 +114,7 @@ fun TransactionItemRow(
                         Text(
                             text = transaction.note,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = TextSecondary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -123,17 +126,17 @@ fun TransactionItemRow(
                     ) {
                         Text(
                             text = "${viewModel.formatDate(transaction.date)} • ${wallet?.name ?: (if (isId) "Dompet" else "Wallet")}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                            color = TextSecondary.copy(alpha = 0.8f)
                         )
                     }
                 }
             }
 
             val priceColor = when (transaction.type) {
-                "INCOME" -> Color(0xFF2E7D32)
-                "EXPENSE" -> Color(0xFFC62828)
-                else -> Color(0xFF1565C0)
+                "INCOME" -> AccentGreen
+                "EXPENSE" -> AccentRed
+                else -> AccentBlue
             }
             val prefix = when (transaction.type) {
                 "INCOME" -> "+"

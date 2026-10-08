@@ -13,37 +13,31 @@ import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme =
   darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80,
-    background = DarkBackground,
-    surface = DarkSurface,
-    onBackground = Color(0xFFE6E1E5),
-    onSurface = Color(0xFFE6E1E5)
+    primary = AccentBlue,
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFF1E3A8A),
+    onPrimaryContainer = Color(0xFFDBEAFE),
+    secondary = AccentIndigo,
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFF312E81),
+    onSecondaryContainer = Color(0xFFE0E7FF),
+    tertiary = AccentTeal,
+    onTertiary = Color.White,
+    tertiaryContainer = Color(0xFF134E4A),
+    onTertiaryContainer = Color(0xFFCCFBF1),
+    background = DarkBg,
+    onBackground = TextPrimary,
+    surface = CardBg,
+    onSurface = TextPrimary,
+    surfaceVariant = Color(0xFF1E293B),
+    onSurfaceVariant = TextSecondary,
+    outline = CardBorder,
+    outlineVariant = Color(0xFF334155),
+    error = AccentRed,
+    onError = Color.White
   )
 
-private val LightColorScheme =
-  lightColorScheme(
-    primary = PrimaryPurple,
-    onPrimary = OnPrimaryWhite,
-    primaryContainer = PrimaryContainer,
-    onPrimaryContainer = OnPrimaryContainer,
-    secondary = SecondaryPurple,
-    onSecondary = OnSecondaryWhite,
-    secondaryContainer = SecondaryContainer,
-    onSecondaryContainer = OnSecondaryContainer,
-    tertiary = TertiaryWarm,
-    onTertiary = OnTertiaryWhite,
-    tertiaryContainer = TertiaryContainer,
-    onTertiaryContainer = OnTertiaryContainer,
-    background = AppBackground,
-    onBackground = AppOnBackground,
-    surface = AppBackground,
-    onSurface = AppOnBackground,
-    surfaceVariant = SurfaceVariantColor,
-    onSurfaceVariant = OnSurfaceVariantColor,
-    error = ErrorColor
-  )
+private val LightColorScheme = DarkColorScheme // Default to Modern Dark palette as specified
 
 private val MintLightColorScheme = lightColorScheme(
     primary = Color(0xFF00B1A9), // Gopay Indigo / Teal Mint style

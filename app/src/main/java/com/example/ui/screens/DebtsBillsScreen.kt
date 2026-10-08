@@ -1,1470 +1,347 @@
 package com.example.ui.screens
 
-import androidx.compose.ui.res.painterResource
-import com.example.R
+import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.example.R
 import com.example.data.model.Bill
 import com.example.data.model.Debt
-import com.example.data.model.Transaction
 import com.example.data.model.Wallet
-import com.example.ui.components.DebtBillPaymentDetailDialog
+import com.example.ui.components.AddDebtLoanModal
+import com.example.ui.components.AddRecurringBillModal
+import com.example.ui.theme.*
 import com.example.ui.viewmodel.FinanceViewModel
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebtsBillsScreen(
     viewModel: FinanceViewModel,
     showArchivedDebtsDialog: Boolean = false,
     onDismissArchivedDebtsDialog: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     val debts by viewModel.debts.collectAsState()
     val activeDebts by viewModel.activeDebts.collectAsState()
-    val archivedDebts by viewModel.archivedDebts.collectAsState()
     val bills by viewModel.bills.collectAsState()
     val wallets by viewModel.wallets.collectAsState()
     val appLang by viewModel.appLanguage.collectAsState()
     val isId = appLang == "id"
-    val uiStyle by viewModel.uiStyle.collectAsState()
-    val isFresh = uiStyle == "FRESH"
 
-    var showAddDebtDialog by remember { mutableStateOf(false) }
-    var showAddBillDialog by remember { mutableStateOf(false) }
+    // 0 = Debts & Loans, 1 = Bills
+    var selectedSubtab by remember { mutableStateOf(0) }
 
-    val pagerState = rememberPagerState(pageCount = { 2 })
-    val coroutineScope = rememberCoroutineScope()
+    var showAddDebtModal by remember { mutableStateOf(false) }
+    var showAddBillModal by remember { mutableStateOf(false) }
 
-    Column(
+    // Pay Bill selection wallet dialog
+    var selectedBillToPay by remember { mutableStateOf<Bill?>(null) }
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(DarkBg)
     ) {
-        val configuration = LocalConfiguration.current
-        val screenWidthDp = configuration.screenWidthDp
-        val showIcons = screenWidthDp >= 380 || !isId
-        val tabTextStyle = if (screenWidthDp < 360 || (isId && screenWidthDp < 400)) {
-            MaterialTheme.typography.bodySmall
-        } else {
-            MaterialTheme.typography.bodyMedium
-        }
-
-        // Sub-navigation tab row (Modern Segmented Control)
-        val controlShape = RoundedCornerShape(16.dp)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-                .background(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    shape = controlShape
-                )
-                .padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            val isDebtsSelected = pagerState.currentPage == 0
-            
-            // Debts & Loans
-            val debtsTabShape = RoundedCornerShape(12.dp)
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .background(
-                        color = if (isDebtsSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                        shape = debtsTabShape
-                    )
-                    .clip(debtsTabShape)
-                    .clickable {
-                        coroutineScope.launch {
-                            pagerState.animateScrollToPage(0)
-                        }
-                    }
-                    .padding(vertical = 12.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    if (showIcons) {
-                        Icon(
-                            imageVector = Icons.Default.CompareArrows,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = if (isDebtsSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                    }
-                    Text(
-                        text = if (isId) "Hutang & Piutang" else "Debts & Loans",
-                        color = if (isDebtsSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = tabTextStyle,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-            
-            // Bills
-            val billsTabShape = RoundedCornerShape(12.dp)
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .background(
-                        color = if (!isDebtsSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                        shape = billsTabShape
-                    )
-                    .clip(billsTabShape)
-                    .clickable {
-                        coroutineScope.launch {
-                            pagerState.animateScrollToPage(1)
-                        }
-                    }
-                    .padding(vertical = 12.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    if (showIcons) {
-                        Icon(
-                            imageVector = Icons.Default.Receipt,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = if (!isDebtsSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                    }
-                    Text(
-                        text = if (isId) "Tagihan" else "Bills",
-                        color = if (!isDebtsSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = tabTextStyle,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-        }
-
-        HorizontalPager(
-            state = pagerState,
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .weight(1f)
-        ) { page ->
-            when (page) {
-                0 -> {
-                    DebtsTabContent(
-                        debts = debts,
-                        activeDebts = activeDebts,
-                        archivedDebts = archivedDebts,
-                        wallets = wallets,
-                        viewModel = viewModel,
-                        onAddClick = { showAddDebtDialog = true }
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // 1. Segmented Control Switcher
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(CardBg)
+                    .border(1.dp, CardBorder, RoundedCornerShape(14.dp))
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Tab: Debts & Loans
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(42.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (selectedSubtab == 0) AccentBlue else Color.Transparent)
+                        .clickable { selectedSubtab = 0 },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (isId) "Utang & Pinjaman" else "Debts & Loans",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = if (selectedSubtab == 0) FontWeight.Bold else FontWeight.Medium
+                        ),
+                        color = if (selectedSubtab == 0) Color.White else TextSecondary
                     )
                 }
-                1 -> {
-                    BillsTabContent(
-                        bills = bills,
-                        wallets = wallets,
+
+                // Tab: Bills
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(42.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (selectedSubtab == 1) AccentBlue else Color.Transparent)
+                        .clickable { selectedSubtab = 1 },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (isId) "Tagihan Rutin" else "Bills",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = if (selectedSubtab == 1) FontWeight.Bold else FontWeight.Medium
+                        ),
+                        color = if (selectedSubtab == 1) Color.White else TextSecondary
+                    )
+                }
+            }
+
+            // Content Container with crossfade
+            Crossfade(targetState = selectedSubtab, label = "DebtsBillsSubtabTransition") { tabIndex ->
+                if (tabIndex == 0) {
+                    // 3. Subtab Debts & Loans View
+                    DebtsAndLoansView(
+                        debts = activeDebts,
                         viewModel = viewModel,
-                        onAddClick = { showAddBillDialog = true }
+                        onAddDebtClick = { showAddDebtModal = true },
+                        isId = isId
+                    )
+                } else {
+                    // 2. Subtab Bills View
+                    BillsView(
+                        bills = bills,
+                        viewModel = viewModel,
+                        onAddBillClick = { showAddBillModal = true },
+                        onPayBillClick = { bill -> selectedBillToPay = bill },
+                        isId = isId
                     )
                 }
             }
         }
     }
 
-    if (showAddDebtDialog) {
-        AddDebtDialog(
+    if (showAddDebtModal) {
+        AddDebtLoanModal(
             viewModel = viewModel,
-            onDismiss = { showAddDebtDialog = false }
+            onDismiss = { showAddDebtModal = false }
         )
     }
 
-    if (showAddBillDialog) {
-        AddBillDialog(
+    if (showAddBillModal) {
+        AddRecurringBillModal(
             viewModel = viewModel,
-            onDismiss = { showAddBillDialog = false }
+            onDismiss = { showAddBillModal = false }
         )
     }
 
-    if (showArchivedDebtsDialog) {
-        ArchivedDebtsDialog(
-            archivedDebts = archivedDebts,
-            wallets = wallets,
-            viewModel = viewModel,
-            onDismiss = onDismissArchivedDebtsDialog
+    // Pay Bill Wallet Selection Dialog
+    selectedBillToPay?.let { bill ->
+        AlertDialog(
+            onDismissRequest = { selectedBillToPay = null },
+            containerColor = CardBg,
+            shape = RoundedCornerShape(20.dp),
+            title = {
+                Text(
+                    text = if (isId) "Bayar Tagihan: ${bill.name}" else "Pay Bill: ${bill.name}",
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = if (isId) "Pilih dompet sumber pembayaran:" else "Select payment source wallet:",
+                        color = TextSecondary,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    wallets.forEach { w ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(DarkBg)
+                                .clickable {
+                                    viewModel.payBill(bill, w.id)
+                                    selectedBillToPay = null
+                                    Toast.makeText(context, if (isId) "Tagihan ${bill.name} berhasil dibayar!" else "Bill ${bill.name} marked paid!", Toast.LENGTH_SHORT).show()
+                                }
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(w.name, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                            Text(viewModel.formatRupiah(w.balance), color = AccentTeal, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { selectedBillToPay = null }) {
+                    Text(if (isId) "Batal" else "Cancel", color = TextSecondary)
+                }
+            }
         )
     }
 }
 
-// ==========================================
-// 1. HUTANG CONTENT & DIALOGS
-// ==========================================
-
+/**
+ * Subtab Bills View:
+ * Grid Card: Unpaid Bills (Orange) & Paid Bills (Blue).
+ * List Tagihan Berulang (Recurring Bills List) dengan tombol aksi "Mark Paid" / "Reset" dan ikon hapus.
+ */
 @Composable
-fun DebtsTabContent(
-    debts: List<Debt>,
-    activeDebts: List<Debt>,
-    archivedDebts: List<Debt>,
-    wallets: List<Wallet>,
+fun BillsView(
+    bills: List<Bill>,
     viewModel: FinanceViewModel,
-    onAddClick: () -> Unit
+    onAddBillClick: () -> Unit,
+    onPayBillClick: (Bill) -> Unit,
+    isId: Boolean
 ) {
-    val appLang by viewModel.appLanguage.collectAsState()
-    val isId = appLang == "id"
+    val unpaidBills = remember(bills) { bills.filter { it.status != "LUNAS" } }
+    val paidBills = remember(bills) { bills.filter { it.status == "LUNAS" } }
 
-    val totalHutang = remember(activeDebts) { activeDebts.filter { it.type == "HUTANG" }.sumOf { it.remainingAmount } }
-    val totalPiutang = remember(activeDebts) { activeDebts.filter { it.type == "PIUTANG" }.sumOf { it.remainingAmount } }
-
-    var selectedDebtForPay by remember { mutableStateOf<Debt?>(null) }
-    var selectedDebtForDelete by remember { mutableStateOf<Debt?>(null) }
-    var selectedDebtForDetail by remember { mutableStateOf<Debt?>(null) }
-    var selectedTransactionForDetail by remember { mutableStateOf<Transaction?>(null) }
-
-    val displayedList = activeDebts
+    val unpaidTotal = remember(unpaidBills) { unpaidBills.sumOf { it.amount } }
+    val paidTotal = remember(paidBills) { paidBills.sumOf { it.amount } }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
+        modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Summary Cards with Rich Gradients
+        // Grid Card: Unpaid Bills (Orange) & Paid Bills (Blue)
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Hutang Gradient Card
+            // Unpaid Bills (Orange)
             Card(
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                border = BorderStroke(1.dp, CardBorder)
             ) {
-                Box(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Brush.horizontalGradient(listOf(Color(0xFF8E24AA), Color(0xFF5E35B1))))
-                        .padding(14.dp)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Column {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(AccentOrange.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White.copy(alpha = 0.2f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
-                            }
-                            Text(
-                                text = if (isId) "Hutang Saya" else "My Debts",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White.copy(alpha = 0.9f),
-                                fontWeight = FontWeight.Bold
-                            )
+                            Icon(Icons.Default.HourglassBottom, contentDescription = null, tint = AccentOrange, modifier = Modifier.size(16.dp))
                         }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = viewModel.formatRupiah(totalHutang),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Black,
-                            color = Color.White
-                        )
-                        Text(
-                            text = if (isId) "Wajib Dibayar" else "To Pay",
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                            color = Color.White.copy(alpha = 0.75f)
-                        )
+                        Text(if (isId) "Belum Dibayar" else "Unpaid Bills", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                     }
+                    Text(
+                        text = viewModel.formatRupiah(unpaidTotal),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 17.sp),
+                        color = AccentOrange,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "${unpaidBills.size} ${if (isId) "Tagihan" else "Bills"}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary
+                    )
                 }
             }
 
-            // Piutang Gradient Card
+            // Paid Bills (Blue)
             Card(
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                border = BorderStroke(1.dp, CardBorder)
             ) {
-                Box(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Brush.horizontalGradient(listOf(Color(0xFF00897B), Color(0xFF00695C))))
-                        .padding(14.dp)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Column {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(AccentBlue.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White.copy(alpha = 0.2f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Default.ArrowDownward, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
-                            }
-                            Text(
-                                text = if (isId) "Piutang Saya" else "My Loans",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White.copy(alpha = 0.9f),
-                                fontWeight = FontWeight.Bold
-                            )
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(16.dp))
                         }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = viewModel.formatRupiah(totalPiutang),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Black,
-                            color = Color.White
-                        )
-                        Text(
-                            text = if (isId) "Untuk Ditagih" else "To Collect",
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                            color = Color.White.copy(alpha = 0.75f)
-                        )
+                        Text(if (isId) "Sudah Dibayar" else "Paid Bills", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                     }
+                    Text(
+                        text = viewModel.formatRupiah(paidTotal),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 17.sp),
+                        color = AccentBlue,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "${paidBills.size} ${if (isId) "Tagihan" else "Bills"}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary
+                    )
                 }
             }
         }
 
+        // Section Header with Add Bill Button
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = if (isId) "Daftar Hutang & Piutang Aktif" else "Active Debt & Loan List",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Button(onClick = onAddClick) {
-                Icon(painterResource(id = R.drawable.ic_add_custom), contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(if (isId) "Tambah Catatan" else "Add Note")
-            }
-        }
-
-        if (displayedList.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        painterResource(id = R.drawable.ic_debts_custom),
-                        contentDescription = null,
-                        modifier = Modifier.size(48.dp),
-                        tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = if (isId) "Tidak ada catatan hutang/piutang aktif." else "No active debt/loan records found.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(displayedList, key = { it.id }) { debt ->
-                    DebtCardRow(
-                        debt = debt,
-                        viewModel = viewModel,
-                        onDetailClick = { selectedDebtForDetail = debt },
-                        onPayClick = { selectedDebtForPay = debt },
-                        onDeleteClick = { selectedDebtForDelete = debt },
-                        modifier = Modifier.animateItem()
-                    )
-                }
-            }
-        }
-    }
-
-    if (selectedDebtForPay != null) {
-        PayDebtInstallmentDialog(
-            debt = selectedDebtForPay!!,
-            wallets = wallets,
-            viewModel = viewModel,
-            onDismiss = { selectedDebtForPay = null }
-        )
-    }
-
-    if (selectedDebtForDetail != null) {
-        DebtDetailDialog(
-            debt = selectedDebtForDetail!!,
-            wallets = wallets,
-            viewModel = viewModel,
-            onDismiss = { selectedDebtForDetail = null },
-            onPayClick = {
-                val d = selectedDebtForDetail
-                selectedDebtForDetail = null
-                selectedDebtForPay = d
-            },
-            onTransactionClick = { txn ->
-                selectedTransactionForDetail = txn
-            }
-        )
-    }
-
-    if (selectedTransactionForDetail != null) {
-        val w = wallets.firstOrNull { it.id == selectedTransactionForDetail!!.walletId }
-        DebtBillPaymentDetailDialog(
-            transaction = selectedTransactionForDetail!!,
-            wallet = w,
-            viewModel = viewModel,
-            onDismiss = { selectedTransactionForDetail = null }
-        )
-    }
-
-    if (selectedDebtForDelete != null) {
-        AlertDialog(
-            onDismissRequest = { selectedDebtForDelete = null },
-            title = { Text(if (isId) "Hapus Catatan?" else "Delete Record?") },
-            text = { Text(if (isId) "Hapus catatan hutang/piutang ini? Saldo dompet tidak berubah." else "Delete this debt/loan record? Wallet balance will not change.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.deleteDebt(selectedDebtForDelete!!)
-                        selectedDebtForDelete = null
-                    }
-                ) {
-                    Text(if (isId) "Hapus" else "Delete", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { selectedDebtForDelete = null }) {
-                    Text(if (isId) "Batal" else "Cancel")
-                }
-            }
-        )
-    }
-}
-
-@Composable
-fun DebtCardRow(
-    debt: Debt,
-    viewModel: FinanceViewModel,
-    onDetailClick: () -> Unit,
-    onPayClick: () -> Unit,
-    onDeleteClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val appLang by viewModel.appLanguage.collectAsState()
-    val isId = appLang == "id"
-
-    val isHutang = debt.type == "HUTANG"
-    val colorAccent = if (isHutang) MaterialTheme.colorScheme.error else Color(0xFF2E7D32)
-    val percentageFinished = if (debt.totalAmount > 0) {
-        ((debt.totalAmount - debt.remainingAmount) / debt.totalAmount).coerceIn(0.0, 1.0)
-    } else {
-        1.0
-    }
-
-    val strictDateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
-    val formattedDueDate = remember(debt.dueDate) { strictDateFormatter.format(Date(debt.dueDate)) }
-
-    val cardShape = RoundedCornerShape(24.dp)
-    ElevatedCard(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(cardShape)
-            .clickable { onDetailClick() },
-        shape = cardShape,
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(colorAccent.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            if (isHutang) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
-                            contentDescription = null,
-                            tint = colorAccent,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(
-                                text = debt.personName,
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Bold
-                            )
-                            if (debt.isArchived) {
-                                Surface(
-                                    color = Color(0xFF2E7D32).copy(alpha = 0.15f),
-                                    shape = RoundedCornerShape(6.dp)
-                                ) {
-                                    Text(
-                                        text = if (isId) "ARSIP" else "ARCHIVED",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = Color(0xFF2E7D32),
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
-                            }
-                        }
-                        Text(
-                            text = if (isHutang) {
-                                if (isId) "Hutang Saya" else "My Debt"
-                            } else {
-                                if (isId) "Piutang Saya" else "My Loan"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colorAccent,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
-                IconButton(onClick = onDeleteClick) {
-                    Icon(Icons.Default.Delete, contentDescription = if (isId) "Hapus" else "Delete", tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text(if (isId) "Sisa Saldo" else "Remaining Amount", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        viewModel.formatRupiah(debt.remainingAmount),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Black,
-                        color = colorAccent
-                    )
-                }
-
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(if (isId) "Jatuh Tempo" else "Due Date", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        formattedDueDate,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-
-            if (debt.notes.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = if (isId) "Catatan: ${debt.notes}" else "Note: ${debt.notes}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Progress bar and status
-            LinearProgressIndicator(
-                progress = { percentageFinished.toFloat() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(CircleShape),
-                color = colorAccent,
-                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                text = if (isId) "Daftar Tagihan Berulang" else "Recurring Bills List",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = TextPrimary
             )
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    if (isId) "Lunas: ${(percentageFinished * 100).toInt()}%" else "Paid: ${(percentageFinished * 100).toInt()}%",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                if (debt.remainingAmount > 0) {
-                    Button(
-                        onClick = onPayClick,
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 2.dp),
-                        modifier = Modifier.height(32.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = colorAccent)
-                    ) {
-                        Text(if (isId) "Bayar Cicilan" else "Record Installment", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                    }
-                } else {
-                    SuggestionChip(
-                        onClick = onDetailClick,
-                        label = { Text(if (isId) "LUNAS (Lihat)" else "PAID (View)", fontWeight = FontWeight.Black) },
-                        border = null,
-                        colors = SuggestionChipDefaults.suggestionChipColors(
-                            containerColor = Color(0xFFE8F5E9),
-                            labelColor = Color(0xFF2E7D32)
-                        )
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun DebtDetailDialog(
-    debt: Debt,
-    wallets: List<Wallet>,
-    viewModel: FinanceViewModel,
-    onDismiss: () -> Unit,
-    onPayClick: () -> Unit,
-    onTransactionClick: (Transaction) -> Unit
-) {
-    val appLang by viewModel.appLanguage.collectAsState()
-    val isId = appLang == "id"
-    val allTransactions by viewModel.transactions.collectAsState()
-
-    val debtTransactions = remember(debt, allTransactions) {
-        allTransactions.filter {
-            it.debtId == debt.id || (it.note.contains("Cicilan") && it.note.contains(debt.personName))
-        }.sortedByDescending { it.date }
-    }
-
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp
-    val screenHeight = configuration.screenHeightDp
-    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 520.dp
-
-    val isHutang = debt.type == "HUTANG"
-    val colorAccent = if (isHutang) MaterialTheme.colorScheme.error else Color(0xFF2E7D32)
-
-    val strictDateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
-    val formattedDueDate = remember(debt.dueDate) { strictDateFormatter.format(Date(debt.dueDate)) }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Card(
-            modifier = Modifier
-                .width(dialogWidth)
-                .heightIn(max = (screenHeight * 0.88).dp)
-                .padding(12.dp),
-            shape = RoundedCornerShape(24.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = if (isId) "Rincian & Riwayat Cicilan" else "Debt Details & History",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = debt.personName,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Black
-                        )
-                    }
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
-                    }
-                }
-
-                Box(
-                    modifier = Modifier
-                        .weight(1f, fill = false)
-                        .fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        // Summary banner
-                        Surface(
-                            color = colorAccent.copy(alpha = 0.1f),
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = if (isHutang) (if (isId) "Tipe: Hutang Saya" else "Type: My Debt") else (if (isId) "Tipe: Piutang Saya" else "Type: My Loan"),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = colorAccent
-                                    )
-                                    Text(
-                                        text = if (debt.isArchived) (if (isId) "Status: Lunas (Arsip)" else "Status: Paid (Archived)") else (if (isId) "Status: Aktif" else "Status: Active"),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (debt.isArchived) Color(0xFF2E7D32) else colorAccent
-                                    )
-                                }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column {
-                                        Text(if (isId) "Total Pinjaman" else "Total Amount", style = MaterialTheme.typography.labelSmall)
-                                        Text(viewModel.formatRupiah(debt.totalAmount), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                    }
-                                    Column(horizontalAlignment = Alignment.End) {
-                                        Text(if (isId) "Sisa Tagihan" else "Remaining", style = MaterialTheme.typography.labelSmall)
-                                        Text(viewModel.formatRupiah(debt.remainingAmount), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = colorAccent)
-                                    }
-                                }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = if (isId) "Target Jatuh Tempo: $formattedDueDate" else "Target Due Date: $formattedDueDate",
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                }
-                                if (debt.notes.isNotBlank()) {
-                                    Text(
-                                        text = if (isId) "Catatan: ${debt.notes}" else "Note: ${debt.notes}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-
-                        // Installment Transactions Section
-                        Text(
-                            text = if (isId) "Riwayat Pembayaran Cicilan (${debtTransactions.size})" else "Installment Payment History (${debtTransactions.size})",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = if (isId) "Ketuk transaksi di bawah untuk rincian tanggal, metode (via), dan cicilan." else "Tap any transaction below to view date, method (via), and installment details.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        if (debtTransactions.isEmpty()) {
-                            Surface(
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Box(
-                                    modifier = Modifier.padding(16.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = if (isId) "Belum ada transaksi cicilan tercatat." else "No installment payments recorded yet.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        } else {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                debtTransactions.forEachIndexed { index, txn ->
-                                    val wallet = wallets.firstOrNull { it.id == txn.walletId }
-                                    val seqNum = txn.installmentNumber ?: (debtTransactions.size - index)
-                                    Surface(
-                                        onClick = { onTransactionClick(txn) },
-                                        shape = RoundedCornerShape(14.dp),
-                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(12.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                            ) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(32.dp)
-                                                        .clip(CircleShape)
-                                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Icon(
-                                                        Icons.Default.ReceiptLong,
-                                                        contentDescription = null,
-                                                        tint = MaterialTheme.colorScheme.primary,
-                                                        modifier = Modifier.size(18.dp)
-                                                    )
-                                                }
-                                                Column {
-                                                    Text(
-                                                        text = if (isId) "Pembayaran Cicilan ke-$seqNum" else "Installment Payment #$seqNum",
-                                                        style = MaterialTheme.typography.bodyMedium,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                    Text(
-                                                        text = "Via: ${wallet?.name ?: (if (isId) "Dompet" else "Wallet")} • ${viewModel.formatDate(txn.date)}",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    )
-                                                }
-                                            }
-                                            Column(horizontalAlignment = Alignment.End) {
-                                                Text(
-                                                    text = viewModel.formatRupiah(txn.amount),
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    fontWeight = FontWeight.Black,
-                                                    color = Color(0xFF2E7D32)
-                                                )
-                                                Text(
-                                                    text = if (isId) "Ketuk rincian" else "Tap detail",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.primary
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Dialog bottom actions
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (debt.isArchived) {
-                        OutlinedButton(
-                            onClick = {
-                                viewModel.unarchiveDebt(debt)
-                                onDismiss()
-                            }
-                        ) {
-                            Text(if (isId) "Pulihkan ke Aktif" else "Restore to Active")
-                        }
-                    } else if (debt.remainingAmount > 0) {
-                        Button(
-                            onClick = onPayClick,
-                            colors = ButtonDefaults.buttonColors(containerColor = colorAccent)
-                        ) {
-                            Text(if (isId) "Bayar Cicilan" else "Record Payment", fontWeight = FontWeight.Bold)
-                        }
-                    } else {
-                        Spacer(modifier = Modifier.width(4.dp))
-                    }
-
-                    TextButton(onClick = onDismiss) {
-                        Text(if (isId) "Tutup" else "Close", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AddDebtDialog(
-    viewModel: FinanceViewModel,
-    onDismiss: () -> Unit
-) {
-    val appLang by viewModel.appLanguage.collectAsState()
-    val isId = appLang == "id"
-
-    var personName by remember { mutableStateOf("") }
-    var totalAmountStr by remember { mutableStateOf("") }
-    var type by remember { mutableStateOf("HUTANG") } // HUTANG / PIUTANG
-    var notes by remember { mutableStateOf("") }
-    
-    // Strict Date Picker (DD/MM/YYYY)
-    val defaultDueDate = remember { System.currentTimeMillis() + 7 * 24 * 60 * 60 * 1000L }
-    var selectedDueDateMillis by remember { mutableStateOf(defaultDueDate) }
-    var showDatePicker by remember { mutableStateOf(false) }
-    val strictDateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
-    val formattedDueDateText = remember(selectedDueDateMillis) { strictDateFormatter.format(Date(selectedDueDateMillis)) }
-
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp
-    val screenHeight = configuration.screenHeightDp
-    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 520.dp
-
-    if (showDatePicker) {
-        val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = selectedDueDateMillis
-        )
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        datePickerState.selectedDateMillis?.let {
-                            selectedDueDateMillis = it
-                        }
-                        showDatePicker = false
-                    }
-                ) {
-                    Text(if (isId) "Pilih" else "Select")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
-                    Text(if (isId) "Batal" else "Cancel")
-                }
-            }
-        ) {
-            DatePicker(state = datePickerState)
-        }
-    }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Card(
-            modifier = Modifier
-                .width(dialogWidth)
-                .heightIn(max = (screenHeight * 0.85).dp)
-                .padding(12.dp),
-            shape = RoundedCornerShape(24.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    text = if (isId) "Catat Hutang/Piutang" else "Record Debt/Loan",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-
-                Box(
-                    modifier = Modifier
-                        .weight(1f, fill = false)
-                        .fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        // Selector (Modern Segmented Control)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                .padding(4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            val isHutang = type == "HUTANG"
-                            val dialogTabShape = RoundedCornerShape(8.dp)
-                            // HUTANG
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .background(
-                                        color = if (isHutang) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                        shape = dialogTabShape
-                                    )
-                                    .clip(dialogTabShape)
-                                    .clickable { type = "HUTANG" }
-                                    .padding(vertical = 10.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = if (isId) "Saya Berhutang" else "I Owe",
-                                    color = if (isHutang) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            // PIUTANG
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .background(
-                                        color = if (!isHutang) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                        shape = dialogTabShape
-                                    )
-                                    .clip(dialogTabShape)
-                                    .clickable { type = "PIUTANG" }
-                                    .padding(vertical = 10.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = if (isId) "Piutang Saya" else "Owed to Me",
-                                    color = if (!isHutang) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-
-                        OutlinedTextField(
-                            value = personName,
-                            onValueChange = { personName = it },
-                            label = { Text(if (isId) "Nama Orang / Lembaga" else "Person / Institution Name") },
-                            placeholder = { Text(if (isId) "misal: John Doe, Bank" else "e.g., John Doe, Bank") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-
-                        OutlinedTextField(
-                            value = totalAmountStr,
-                            onValueChange = { if (it.all { char -> char.isDigit() }) totalAmountStr = it },
-                            label = { Text(if (isId) "Jumlah Total" else "Total Amount") },
-                            prefix = { Text("Rp ") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            placeholder = { Text("0") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-
-                        // Strict Date Picker (DD/MM/YYYY)
-                        OutlinedTextField(
-                            value = formattedDueDateText,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text(if (isId) "Tanggal Jatuh Tempo (DD/MM/YYYY)" else "Due Date (DD/MM/YYYY)") },
-                            trailingIcon = {
-                                IconButton(onClick = { showDatePicker = true }) {
-                                    Icon(Icons.Default.CalendarToday, contentDescription = if (isId) "Pilih Tanggal" else "Select Date")
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { showDatePicker = true }
-                        )
-
-                        OutlinedTextField(
-                            value = notes,
-                            onValueChange = { notes = it },
-                            label = { Text(if (isId) "Catatan Tambahan" else "Additional Notes") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextButton(onClick = onDismiss) {
-                        Text(if (isId) "Batal" else "Cancel")
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            val amountVal = totalAmountStr.toDoubleOrNull() ?: 0.0
-                            
-                            if (personName.trim().isNotEmpty() && amountVal > 0) {
-                                viewModel.addDebt(
-                                    personName = personName,
-                                    totalAmount = amountVal,
-                                    dueDate = selectedDueDateMillis,
-                                    type = type,
-                                    notes = notes
-                                )
-                                onDismiss()
-                            }
-                        },
-                        enabled = personName.trim().isNotEmpty() && totalAmountStr.isNotEmpty()
-                    ) {
-                        Text(if (isId) "Simpan" else "Save")
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun PayDebtInstallmentDialog(
-    debt: Debt,
-    wallets: List<Wallet>,
-    viewModel: FinanceViewModel,
-    onDismiss: () -> Unit
-) {
-    val appLang by viewModel.appLanguage.collectAsState()
-    val isId = appLang == "id"
-
-    var amountPaidStr by remember { mutableStateOf("") }
-    var selectedWalletId by remember { mutableStateOf(wallets.firstOrNull()?.id ?: 0) }
-    var comment by remember { mutableStateOf("") }
-
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp
-    val screenHeight = configuration.screenHeightDp
-    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 520.dp
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Card(
-            modifier = Modifier
-                .width(dialogWidth)
-                .heightIn(max = (screenHeight * 0.85).dp)
-                .padding(12.dp),
-            shape = RoundedCornerShape(24.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    text = if (isId) "Catat Pembayaran untuk ${debt.personName}" else "Record Payment for ${debt.personName}",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-
-                Box(
-                    modifier = Modifier
-                        .weight(1f, fill = false)
-                        .fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Text((if (isId) "Sisa Hutang: " else "Remaining Debt: ") + viewModel.formatRupiah(debt.remainingAmount), fontWeight = FontWeight.SemiBold)
-
-                        OutlinedTextField(
-                            value = amountPaidStr,
-                            onValueChange = { if (it.all { char -> char.isDigit() }) amountPaidStr = it },
-                            label = { Text(if (isId) "Jumlah Pembayaran" else "Payment Amount") },
-                            prefix = { Text("Rp ") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            placeholder = { Text("0") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-
-                        Text(if (isId) "Pilih Dompet Sumber Pembayaran:" else "Select Payment Wallet/Account:", style = MaterialTheme.typography.labelMedium)
-                        if (wallets.isEmpty()) {
-                            Text(if (isId) "Tidak ada dompet ditemukan." else "No wallets found.", color = MaterialTheme.colorScheme.error)
-                        } else {
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                items(wallets, key = { it.id }) { w ->
-                                    SimpleCustomChip(
-                                        text = w.name,
-                                        isSelected = selectedWalletId == w.id,
-                                        onClick = { selectedWalletId = w.id }
-                                    )
-                                }
-                            }
-                        }
-
-                        OutlinedTextField(
-                            value = comment,
-                            onValueChange = { comment = it },
-                            label = { Text(if (isId) "Catatan / Keterangan Cicilan" else "Notes / Installment number") },
-                            placeholder = { Text(if (isId) "misal: Cicilan ke-1, pelunasan" else "e.g., Part payment 1, full repayment") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextButton(onClick = onDismiss) {
-                        Text(if (isId) "Batal" else "Cancel")
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            val payVal = amountPaidStr.toDoubleOrNull() ?: 0.0
-                            if (payVal > 0 && selectedWalletId != 0) {
-                                viewModel.payDebtInstallment(
-                                    debt = debt,
-                                    amountPaid = payVal,
-                                    walletId = selectedWalletId,
-                                    note = comment
-                                )
-                                onDismiss()
-                            }
-                        },
-                        enabled = amountPaidStr.isNotEmpty() && wallets.isNotEmpty()
-                    ) {
-                        Text(if (isId) "Simpan Pembayaran" else "Save Payment")
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ==========================================
-// 2. TAGIHAN (BILLS) TAB CONTENT & DIALOGS
-// ==========================================
-
-@Composable
-fun BillsTabContent(
-    bills: List<Bill>,
-    wallets: List<Wallet>,
-    viewModel: FinanceViewModel,
-    onAddClick: () -> Unit
-) {
-    val appLang by viewModel.appLanguage.collectAsState()
-    val isId = appLang == "id"
-
-    var selectedBillForPay by remember { mutableStateOf<Bill?>(null) }
-    var selectedBillForDelete by remember { mutableStateOf<Bill?>(null) }
-    var selectedBillForDetail by remember { mutableStateOf<Bill?>(null) }
-    var showPaidHistoryDialog by remember { mutableStateOf(false) }
-    var selectedTransactionForDetail by remember { mutableStateOf<Transaction?>(null) }
-
-    val totalUnpaid = remember(bills) { bills.filter { it.status != "LUNAS" }.sumOf { it.amount } }
-    val totalPaid = remember(bills) { bills.filter { it.status == "LUNAS" }.sumOf { it.amount } }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Summary Cards with Rich Gradients
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // Unpaid Bills Gradient Card
-            Card(
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Brush.horizontalGradient(listOf(Color(0xFFE65100), Color(0xFFF57C00))))
-                        .padding(14.dp)
-                ) {
-                    Column {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White.copy(alpha = 0.2f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Default.Receipt, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
-                            }
-                            Text(
-                                text = if (isId) "Belum Dibayar" else "Unpaid Bills",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White.copy(alpha = 0.9f),
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = viewModel.formatRupiah(totalUnpaid),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Black,
-                            color = Color.White
-                        )
-                        Text(
-                            text = if (isId) "${bills.count { it.status != "LUNAS" }} Tagihan" else "${bills.count { it.status != "LUNAS" }} Bills",
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                            color = Color.White.copy(alpha = 0.75f)
-                        )
-                    }
-                }
-            }
-
-            // Paid Bills Gradient Card (Clickable to view paid history)
-            Card(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(20.dp))
-                    .clickable { showPaidHistoryDialog = true },
-                shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Brush.horizontalGradient(listOf(Color(0xFF1E88E5), Color(0xFF1565C0))))
-                        .padding(14.dp)
-                ) {
-                    Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(20.dp)
-                                        .clip(CircleShape)
-                                        .background(Color.White.copy(alpha = 0.2f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
-                                }
-                                Text(
-                                    text = if (isId) "Sudah Lunas" else "Paid Bills",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color.White.copy(alpha = 0.9f),
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            Icon(
-                                Icons.Default.ChevronRight,
-                                contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.7f),
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = viewModel.formatRupiah(totalPaid),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Black,
-                            color = Color.White
-                        )
-                        Text(
-                            text = if (isId) "${bills.count { it.status == "LUNAS" }} Tagihan" else "${bills.count { it.status == "LUNAS" }} Bills",
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                            color = Color.White.copy(alpha = 0.75f)
-                        )
-                    }
-                }
-            }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(if (isId) "Daftar Tagihan Rutin" else "Recurring Bills List", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Button(
-                onClick = onAddClick,
+                onClick = onAddBillClick,
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
             ) {
-                Icon(painterResource(id = R.drawable.ic_add_custom), contentDescription = null, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(if (isId) "Tambah" else "Add", style = MaterialTheme.typography.bodySmall)
+                Text(if (isId) "Tambah" else "Add Bill", fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
         }
 
+        // List Tagihan Berulang
         if (bills.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -1472,39 +349,26 @@ fun BillsTabContent(
                     .weight(1f),
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(painterResource(id = R.drawable.ic_receipt_custom), contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f))
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(if (isId) "Belum ada tagihan rutin yang terdaftar." else "No recurring bills registered yet.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(imageVector = Icons.Default.Receipt, contentDescription = null, modifier = Modifier.size(44.dp), tint = TextSecondary.copy(alpha = 0.4f))
+                    Text(if (isId) "Belum ada tagihan terdaftar." else "No recurring bills set.", color = TextSecondary)
                 }
             }
         } else {
             LazyColumn(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(bills, key = { bill -> bill.id }) { bill ->
-                    val isLunas = bill.status == "LUNAS"
-                    val borderAccent = if (isLunas) {
-                        BorderStroke(1.dp, Color(0xFF2E7D32).copy(alpha = 0.3f))
-                    } else {
-                        BorderStroke(2.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.6f))
-                    }
+                items(bills, key = { it.id }) { bill ->
+                    val isPaid = bill.status == "LUNAS"
 
                     Card(
-                        modifier = Modifier
-                            .animateItem()
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(24.dp))
-                            .clickable { selectedBillForDetail = bill },
-                        shape = RoundedCornerShape(24.dp),
-                        border = borderAccent,
-                        colors = CardColors(
-                            containerColor = if (isLunas) MaterialTheme.colorScheme.surface.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surface,
-                            contentColor = MaterialTheme.colorScheme.onSurface,
-                            disabledContainerColor = MaterialTheme.colorScheme.surface,
-                            disabledContentColor = MaterialTheme.colorScheme.onSurface
-                        )
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = CardBg),
+                        border = BorderStroke(1.dp, CardBorder)
                     ) {
                         Row(
                             modifier = Modifier
@@ -1513,1002 +377,297 @@ fun BillsTabContent(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        if (isLunas) Icons.Default.CheckCircle else Icons.Default.Warning,
-                                        contentDescription = null,
-                                        tint = if (isLunas) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = bill.name,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isLunas) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    text = bill.name,
+                                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                                    color = TextPrimary
+                                )
                                 Text(
                                     text = viewModel.formatRupiah(bill.amount),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Black,
-                                    color = if (isLunas) Color(0xFF2E7D32).copy(alpha = 0.6f) else Color(0xFFC62828)
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                    color = if (isPaid) AccentBlue else AccentOrange
                                 )
                                 Text(
-                                    text = if (isId) "Jatuh Tempo: ${bill.dueDateValue}" else "Due Date: ${bill.dueDateValue}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    text = "${if (isId) "Jatuh tempo tgl" else "Due on day"} ${bill.dueDateValue}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextSecondary
                                 )
                             }
 
-                            Column(
-                                horizontalAlignment = Alignment.End,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    if (isLunas) {
-                                        TextButton(onClick = { viewModel.resetBillStatus(bill) }) {
-                                            Text("Reset", style = MaterialTheme.typography.bodySmall)
-                                        }
-                                    } else {
-                                        Button(
-                                            onClick = { selectedBillForPay = bill },
-                                            modifier = Modifier.height(36.dp),
-                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                                        ) {
-                                            Text(if (isId) "BAYAR TAGIHAN" else "RECORD PAYMENT", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-
-                                    IconButton(onClick = { selectedBillForDelete = bill }) {
-                                        Icon(Icons.Default.Delete, contentDescription = if (isId) "Hapus" else "Delete", tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if (selectedBillForPay != null) {
-        PayBillDialog(
-            bill = selectedBillForPay!!,
-            wallets = wallets,
-            viewModel = viewModel,
-            onDismiss = { selectedBillForPay = null }
-        )
-    }
-
-    if (selectedBillForDetail != null) {
-        BillDetailDialog(
-            bill = selectedBillForDetail!!,
-            wallets = wallets,
-            viewModel = viewModel,
-            onDismiss = { selectedBillForDetail = null },
-            onPayClick = {
-                val b = selectedBillForDetail
-                selectedBillForDetail = null
-                selectedBillForPay = b
-            },
-            onTransactionClick = { txn ->
-                selectedTransactionForDetail = txn
-            }
-        )
-    }
-
-    if (showPaidHistoryDialog) {
-        PaidBillsHistoryDialog(
-            bills = bills,
-            wallets = wallets,
-            viewModel = viewModel,
-            onDismiss = { showPaidHistoryDialog = false },
-            onTransactionClick = { txn ->
-                selectedTransactionForDetail = txn
-            }
-        )
-    }
-
-    if (selectedTransactionForDetail != null) {
-        val w = wallets.firstOrNull { it.id == selectedTransactionForDetail!!.walletId }
-        DebtBillPaymentDetailDialog(
-            transaction = selectedTransactionForDetail!!,
-            wallet = w,
-            viewModel = viewModel,
-            onDismiss = { selectedTransactionForDetail = null },
-            title = if (isId) "Rincian Pembayaran Tagihan" else "Bill Payment Details"
-        )
-    }
-
-    if (selectedBillForDelete != null) {
-        AlertDialog(
-            onDismissRequest = { selectedBillForDelete = null },
-            title = { Text(if (isId) "Hapus Tagihan?" else "Delete Bill?") },
-            text = { Text(if (isId) "Hapus tagihan rutin '${selectedBillForDelete!!.name}'?" else "Delete recurring bill '${selectedBillForDelete!!.name}'?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.deleteBill(selectedBillForDelete!!)
-                        selectedBillForDelete = null
-                    }
-                ) {
-                    Text(if (isId) "Hapus" else "Delete", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { selectedBillForDelete = null }) {
-                    Text(if (isId) "Batal" else "Cancel")
-                }
-            }
-        )
-    }
-}
-
-@Composable
-fun BillDetailDialog(
-    bill: Bill,
-    wallets: List<Wallet>,
-    viewModel: FinanceViewModel,
-    onDismiss: () -> Unit,
-    onPayClick: () -> Unit,
-    onTransactionClick: (Transaction) -> Unit
-) {
-    val appLang by viewModel.appLanguage.collectAsState()
-    val isId = appLang == "id"
-    val allTransactions by viewModel.transactions.collectAsState()
-
-    val isLunas = bill.status == "LUNAS"
-    val billTransactions = remember(bill, allTransactions) {
-        allTransactions.filter {
-            it.billId == bill.id || (it.note.contains("Tagihan") && it.note.contains(bill.name))
-        }.sortedByDescending { it.date }
-    }
-
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp
-    val screenHeight = configuration.screenHeightDp
-    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 520.dp
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Card(
-            modifier = Modifier
-                .width(dialogWidth)
-                .heightIn(max = (screenHeight * 0.88).dp)
-                .padding(12.dp),
-            shape = RoundedCornerShape(24.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = if (isId) "Rincian Tagihan Rutin" else "Recurring Bill Details",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = bill.name,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Black
-                        )
-                    }
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
-                    }
-                }
-
-                Box(
-                    modifier = Modifier
-                        .weight(1f, fill = false)
-                        .fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        // Summary Banner
-                        Surface(
-                            color = if (isLunas) Color(0xFF2E7D32).copy(alpha = 0.12f) else MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = if (isId) "Status Pembayaran" else "Payment Status",
-                                        style = MaterialTheme.typography.labelMedium
-                                    )
-                                    Text(
-                                        text = if (isLunas) (if (isId) "SUDAH LUNAS" else "PAID") else (if (isId) "BELUM DIBAYAR" else "UNPAID"),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Black,
-                                        color = if (isLunas) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error
-                                    )
-                                }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column {
-                                        Text(if (isId) "Nominal Tagihan" else "Bill Amount", style = MaterialTheme.typography.labelSmall)
-                                        Text(viewModel.formatRupiah(bill.amount), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
-                                    }
-                                    Column(horizontalAlignment = Alignment.End) {
-                                        Text(if (isId) "Jatuh Tempo Rutin" else "Recurring Due Date", style = MaterialTheme.typography.labelSmall)
-                                        Text(bill.dueDateValue, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        }
-
-                        // Payments history for this bill
-                        Text(
-                            text = if (isId) "Riwayat Pembayaran Tagihan (${billTransactions.size})" else "Bill Payment History (${billTransactions.size})",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = if (isId) "Ketuk transaksi untuk melihat detail tanggal, metode, dan frekuensi pembayaran." else "Tap any transaction to view payment date, method, and installment frequency.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        if (billTransactions.isEmpty()) {
-                            Surface(
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Box(
-                                    modifier = Modifier.padding(16.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = if (isId) "Belum ada transaksi pembayaran untuk tagihan ini." else "No payments recorded for this bill yet.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        } else {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                billTransactions.forEachIndexed { index, txn ->
-                                    val wallet = wallets.firstOrNull { it.id == txn.walletId }
-                                    val seqNum = txn.installmentNumber ?: (billTransactions.size - index)
-                                    Surface(
-                                        onClick = { onTransactionClick(txn) },
-                                        shape = RoundedCornerShape(14.dp),
-                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
-                                        modifier = Modifier.fillMaxWidth()
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (isPaid) {
+                                    OutlinedButton(
+                                        onClick = { viewModel.resetBillStatus(bill) },
+                                        shape = RoundedCornerShape(10.dp),
+                                        border = BorderStroke(1.dp, CardBorder),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                                     ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(12.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                            ) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(32.dp)
-                                                        .clip(CircleShape)
-                                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Icon(
-                                                        Icons.Default.ReceiptLong,
-                                                        contentDescription = null,
-                                                        tint = MaterialTheme.colorScheme.primary,
-                                                        modifier = Modifier.size(18.dp)
-                                                    )
-                                                }
-                                                Column {
-                                                    Text(
-                                                        text = if (isId) "Pembayaran Tagihan #$seqNum" else "Bill Payment #$seqNum",
-                                                        style = MaterialTheme.typography.bodyMedium,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                    Text(
-                                                        text = "Via: ${wallet?.name ?: (if (isId) "Dompet" else "Wallet")} • ${viewModel.formatDate(txn.date)}",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    )
-                                                }
-                                            }
-                                            Column(horizontalAlignment = Alignment.End) {
-                                                Text(
-                                                    text = viewModel.formatRupiah(txn.amount),
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    fontWeight = FontWeight.Black,
-                                                    color = Color(0xFF2E7D32)
-                                                )
-                                                Text(
-                                                    text = if (isId) "Ketuk rincian" else "Tap detail",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.primary
-                                                )
-                                            }
-                                        }
+                                        Text("Reset", fontSize = 12.sp, color = TextSecondary)
                                     }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Actions Footer
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (!isLunas) {
-                        Button(
-                            onClick = onPayClick,
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                        ) {
-                            Text(if (isId) "Bayar Tagihan" else "Record Payment", fontWeight = FontWeight.Bold)
-                        }
-                    } else {
-                        OutlinedButton(onClick = {
-                            viewModel.resetBillStatus(bill)
-                            onDismiss()
-                        }) {
-                            Text(if (isId) "Reset Status" else "Reset Status")
-                        }
-                    }
-
-                    TextButton(onClick = onDismiss) {
-                        Text(if (isId) "Tutup" else "Close", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun PaidBillsHistoryDialog(
-    bills: List<Bill>,
-    wallets: List<Wallet>,
-    viewModel: FinanceViewModel,
-    onDismiss: () -> Unit,
-    onTransactionClick: (Transaction) -> Unit
-) {
-    val appLang by viewModel.appLanguage.collectAsState()
-    val isId = appLang == "id"
-    val allTransactions by viewModel.transactions.collectAsState()
-
-    // Find all transactions that correspond to bills
-    val billTransactions = remember(bills, allTransactions) {
-        allTransactions.filter { txn ->
-            txn.billId != null || txn.note.startsWith("Bayar Tagihan", ignoreCase = true) || bills.any { it.name.isNotBlank() && txn.note.contains(it.name, ignoreCase = true) }
-        }.sortedByDescending { it.date }
-    }
-
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp
-    val screenHeight = configuration.screenHeightDp
-    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 520.dp
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Card(
-            modifier = Modifier
-                .width(dialogWidth)
-                .heightIn(max = (screenHeight * 0.88).dp)
-                .padding(12.dp),
-            shape = RoundedCornerShape(24.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = if (isId) "Riwayat Tagihan Selesai & Lunas" else "Paid & Completed Bills History",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = if (isId) "${billTransactions.size} Transaksi Pembayaran" else "${billTransactions.size} Payment Transactions",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
-                    }
-                }
-
-                Box(
-                    modifier = Modifier
-                        .weight(1f, fill = false)
-                        .fillMaxWidth()
-                ) {
-                    if (billTransactions.isEmpty()) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 24.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(20.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    Icons.Default.CheckCircleOutline,
-                                    contentDescription = null,
-                                    tint = Color(0xFF2E7D32).copy(alpha = 0.6f),
-                                    modifier = Modifier.size(48.dp)
-                                )
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Text(
-                                    text = if (isId) "Belum ada transaksi pembayaran tagihan tercatat." else "No paid bill transactions recorded yet.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    } else {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .verticalScroll(rememberScrollState()),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Text(
-                                text = if (isId) "Ketuk item di bawah untuk rincian tanggal, metode (via), dan frekuensi." else "Tap an item below to inspect payment date, method (via), and frequency.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-
-                            billTransactions.forEachIndexed { index, txn ->
-                                val wallet = wallets.firstOrNull { it.id == txn.walletId }
-                                val relatedBill = bills.firstOrNull { it.id == txn.billId }
-                                val billTitle = relatedBill?.name ?: run {
-                                    if (txn.note.contains("Tagihan:", ignoreCase = true)) {
-                                        txn.note.substringAfter("Tagihan:").substringBefore("(").trim()
-                                    } else {
-                                        if (isId) "Tagihan Rutin" else "Recurring Bill"
-                                    }
-                                }
-                                val seqNum = txn.installmentNumber ?: (billTransactions.size - index)
-
-                                Surface(
-                                    onClick = { onTransactionClick(txn) },
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(14.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                } else {
+                                    Button(
+                                        onClick = { onPayBillClick(bill) },
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                                     ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(36.dp)
-                                                    .clip(CircleShape)
-                                                    .background(Color(0xFF2E7D32).copy(alpha = 0.15f)),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(
-                                                    Icons.Default.Check,
-                                                    contentDescription = null,
-                                                    tint = Color(0xFF2E7D32),
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            }
-                                            Column {
-                                                Text(
-                                                    text = billTitle,
-                                                    style = MaterialTheme.typography.bodyLarge,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                                Text(
-                                                    text = "Via: ${wallet?.name ?: (if (isId) "Dompet" else "Wallet")} • ${viewModel.formatDate(txn.date)}",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                                Text(
-                                                    text = if (isId) "Pembayaran Tagihan #$seqNum" else "Payment #$seqNum",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.primary,
-                                                    fontWeight = FontWeight.SemiBold
-                                                )
-                                            }
-                                        }
-                                        Column(horizontalAlignment = Alignment.End) {
-                                            Text(
-                                                text = viewModel.formatRupiah(txn.amount),
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Black,
-                                                color = Color(0xFF2E7D32)
-                                            )
-                                            Surface(
-                                                color = Color(0xFF2E7D32).copy(alpha = 0.12f),
-                                                shape = RoundedCornerShape(6.dp)
-                                            ) {
-                                                Text(
-                                                    text = if (isId) "LUNAS" else "PAID",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = Color(0xFF2E7D32),
-                                                    fontWeight = FontWeight.Bold,
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                )
-                                            }
-                                        }
+                                        Text(if (isId) "Bayar" else "Mark Paid", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
-                            }
-                        }
-                    }
-                }
 
-                Button(
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text(if (isId) "Tutup" else "Close", fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun AddBillDialog(
-    viewModel: FinanceViewModel,
-    onDismiss: () -> Unit
-) {
-    val appLang by viewModel.appLanguage.collectAsState()
-    val isId = appLang == "id"
-
-    var name by remember { mutableStateOf("") }
-    var amountStr by remember { mutableStateOf("") }
-    var dueDateValue by remember { mutableStateOf("Every 10th") }
-
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp
-    val screenHeight = configuration.screenHeightDp
-    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 520.dp
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Card(
-            modifier = Modifier
-                .width(dialogWidth)
-                .heightIn(max = (screenHeight * 0.85).dp)
-                .padding(12.dp),
-            shape = RoundedCornerShape(24.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    text = if (isId) "Tambah Tagihan Baru" else "Add New Bill",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-
-                Box(
-                    modifier = Modifier
-                        .weight(1f, fill = false)
-                        .fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = name,
-                            onValueChange = { name = it },
-                            label = { Text(if (isId) "Nama Tagihan" else "Bill Name") },
-                            placeholder = { Text(if (isId) "misal: WiFi, Listrik, Asuransi Kesehatan" else "e.g., WiFi, Electricity, Health Insurance") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-
-                        OutlinedTextField(
-                            value = amountStr,
-                            onValueChange = { if (it.all { char -> char.isDigit() }) amountStr = it },
-                            label = { Text(if (isId) "Jumlah Bulanan" else "Monthly Amount") },
-                            prefix = { Text("Rp ") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            placeholder = { Text("0") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-
-                        OutlinedTextField(
-                            value = dueDateValue,
-                            onValueChange = { dueDateValue = it },
-                            label = { Text(if (isId) "Keterangan Jatuh Tempo" else "Due Date Statement") },
-                            placeholder = { Text(if (isId) "misal: Setiap tanggal 15 setiap bulan" else "e.g., Every 15th of the month") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextButton(onClick = onDismiss) {
-                        Text(if (isId) "Batal" else "Cancel")
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            val amountVal = amountStr.toDoubleOrNull() ?: 0.0
-                            if (name.trim().isNotEmpty() && amountVal > 0) {
-                                viewModel.addBill(
-                                    name = name,
-                                    amount = amountVal,
-                                    dueDateValue = dueDateValue
-                                )
-                                onDismiss()
-                            }
-                        },
-                        enabled = name.trim().isNotEmpty() && amountStr.isNotEmpty()
-                    ) {
-                        Text(if (isId) "Simpan" else "Save")
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun PayBillDialog(
-    bill: Bill,
-    wallets: List<Wallet>,
-    viewModel: FinanceViewModel,
-    onDismiss: () -> Unit
-) {
-    val appLang by viewModel.appLanguage.collectAsState()
-    val isId = appLang == "id"
-
-    var selectedWalletId by remember { mutableStateOf(wallets.firstOrNull()?.id ?: 0) }
-
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp
-    val screenHeight = configuration.screenHeightDp
-    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 520.dp
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Card(
-            modifier = Modifier
-                .width(dialogWidth)
-                .heightIn(max = (screenHeight * 0.85).dp)
-                .padding(12.dp),
-            shape = RoundedCornerShape(24.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    text = if (isId) "Bayar Tagihan: ${bill.name}" else "Pay Bill: ${bill.name}",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-
-                Box(
-                    modifier = Modifier
-                        .weight(1f, fill = false)
-                        .fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Text((if (isId) "Jumlah Tagihan: " else "Bill Amount: ") + viewModel.formatRupiah(bill.amount))
-                        Text(if (isId) "Pilih dompet/akun sumber pembayaran:" else "Select the source wallet/account for payment:")
-                        
-                        if (wallets.isEmpty()) {
-                            Text(if (isId) "Tidak ada dompet ditemukan." else "No wallets found.", color = MaterialTheme.colorScheme.error)
-                        } else {
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                items(wallets, key = { it.id }) { w ->
-                                    SimpleCustomChip(
-                                        text = w.name,
-                                        isSelected = selectedWalletId == w.id,
-                                        onClick = { selectedWalletId = w.id }
+                                IconButton(
+                                    onClick = { viewModel.deleteBill(bill) },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Delete",
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
                             }
                         }
                     }
                 }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextButton(onClick = onDismiss) {
-                        Text(if (isId) "Batal" else "Cancel")
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            if (selectedWalletId != 0) {
-                                viewModel.payBill(bill, selectedWalletId)
-                                onDismiss()
-                            }
-                        },
-                        enabled = wallets.isNotEmpty()
-                    ) {
-                        Text(if (isId) "Konfirmasi Pembayaran" else "Confirm Payment")
-                    }
-                }
             }
         }
     }
 }
 
+/**
+ * Subtab Debts & Loans View:
+ * Grid Card: My Debts (Hutang Saya - Ungu) & My Loans (Piutang Saya - Hijau).
+ * List Catatan Hutang/Piutang Aktif (atau Empty State jika kosong).
+ */
 @Composable
-private fun SimpleCustomChip(
-    text: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
+fun DebtsAndLoansView(
+    debts: List<Debt>,
+    viewModel: FinanceViewModel,
+    onAddDebtClick: () -> Unit,
+    isId: Boolean
 ) {
-    val chipShape = RoundedCornerShape(percent = 50)
-    val animatedBgColor by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-        label = "chipBgColor"
-    )
-    val animatedContentColor by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-        label = "chipContentColor"
-    )
-    Surface(
-        onClick = onClick,
-        shape = chipShape,
-        color = animatedBgColor,
-        contentColor = animatedContentColor,
-        modifier = Modifier.padding(vertical = 4.dp)
+    val myDebts = remember(debts) { debts.filter { it.type == "HUTANG" } }
+    val myLoans = remember(debts) { debts.filter { it.type == "PIUTANG" } }
+
+    val myDebtsTotal = remember(myDebts) { myDebts.sumOf { it.remainingAmount.coerceAtLeast(0.0) } }
+    val myLoansTotal = remember(myLoans) { myLoans.sumOf { it.remainingAmount.coerceAtLeast(0.0) } }
+
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Box(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            contentAlignment = Alignment.Center
+        // Grid Card: My Debts (Ungu) & My Loans (Hijau)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // My Debts (Hutang Saya - Ungu)
+            Card(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                border = BorderStroke(1.dp, CardBorder)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(AccentPurple.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.ArrowOutward, contentDescription = null, tint = AccentPurple, modifier = Modifier.size(16.dp))
+                        }
+                        Text(if (isId) "Hutang Saya" else "My Debts", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                    }
+                    Text(
+                        text = viewModel.formatRupiah(myDebtsTotal),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 17.sp),
+                        color = AccentPurple,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "${myDebts.size} ${if (isId) "Catatan" else "Notes"}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary
+                    )
+                }
+            }
+
+            // My Loans (Piutang Saya - Hijau)
+            Card(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                border = BorderStroke(1.dp, CardBorder)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(AccentGreen.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.CallReceived, contentDescription = null, tint = AccentGreen, modifier = Modifier.size(16.dp))
+                        }
+                        Text(if (isId) "Piutang Saya" else "My Loans", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                    }
+                    Text(
+                        text = viewModel.formatRupiah(myLoansTotal),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 17.sp),
+                        color = AccentGreen,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "${myLoans.size} ${if (isId) "Catatan" else "Notes"}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary
+                    )
+                }
+            }
+        }
+
+        // Section Header with Add Debt/Loan Button
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = text,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                text = if (isId) "Catatan Hutang & Piutang Aktif" else "Active Debts & Loans",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = TextPrimary
             )
+
+            Button(
+                onClick = onAddDebtClick,
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AccentPurple),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(if (isId) "Tambah" else "Add Entry", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            }
         }
-    }
-}
 
-@Composable
-fun ArchivedDebtsDialog(
-    archivedDebts: List<Debt>,
-    wallets: List<Wallet>,
-    viewModel: FinanceViewModel,
-    onDismiss: () -> Unit
-) {
-    val appLang by viewModel.appLanguage.collectAsState()
-    val isId = appLang == "id"
-
-    var selectedDebtForDetail by remember { mutableStateOf<Debt?>(null) }
-    var selectedDebtForDelete by remember { mutableStateOf<Debt?>(null) }
-    var selectedTransactionForDetail by remember { mutableStateOf<Transaction?>(null) }
-
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp
-    val screenHeight = configuration.screenHeightDp
-    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 520.dp
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Card(
-            modifier = Modifier
-                .width(dialogWidth)
-                .heightIn(max = (screenHeight * 0.88).dp)
-                .padding(12.dp),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
-            Column(
+        // List Catatan Hutang/Piutang Aktif (atau Empty State jika kosong)
+        if (debts.isEmpty()) {
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                    .weight(1f),
+                contentAlignment = Alignment.Center
             ) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = if (isId) "Arsip Hutang & Piutang Lunas" else "Archived & Settled Debts",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = if (isId) "${archivedDebts.size} catatan diarsipkan" else "${archivedDebts.size} archived records",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
-                    }
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(imageVector = Icons.Default.MoneyOff, contentDescription = null, modifier = Modifier.size(44.dp), tint = TextSecondary.copy(alpha = 0.4f))
+                    Text(if (isId) "Tidak ada hutang atau piutang aktif." else "No active debts or loans.", color = TextSecondary)
                 }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(debts, key = { it.id }) { debt ->
+                    val isHutang = debt.type == "HUTANG"
+                    val remaining = debt.remainingAmount.coerceAtLeast(0.0)
 
-                if (archivedDebts.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f, fill = false)
-                            .padding(vertical = 36.dp),
-                        contentAlignment = Alignment.Center
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = CardBg),
+                        border = BorderStroke(1.dp, CardBorder)
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                painterResource(id = R.drawable.ic_debts_custom),
-                                contentDescription = null,
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f)
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Text(
-                                text = if (isId) "Belum ada hutang/piutang yang diarsipkan." else "No archived debts found.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = (if (isHutang) AccentPurple else AccentGreen).copy(alpha = 0.2f)
+                                    ) {
+                                        Text(
+                                            text = if (isHutang) (if (isId) "HUTANG" else "DEBT") else (if (isId) "PIUTANG" else "LOAN"),
+                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = if (isHutang) AccentPurple else AccentGreen,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                    Text(
+                                        text = debt.personName,
+                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                                        color = TextPrimary
+                                    )
+                                }
+
+                                Text(
+                                    text = if (isId) "Sisa: ${viewModel.formatRupiah(remaining)}" else "Remaining: ${viewModel.formatRupiah(remaining)}",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                    color = TextPrimary
+                                )
+
+                                if (debt.notes.isNotBlank()) {
+                                    Text(
+                                        text = debt.notes,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextSecondary
+                                    )
+                                }
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = {
+                                        viewModel.payDebtInstallment(debt, debt.remainingAmount, 1, "Pelunasan")
+                                    },
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Text(if (isId) "Lunas" else "Settled", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+
+                                IconButton(
+                                    onClick = { viewModel.deleteDebt(debt) },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Delete",
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
                         }
                     }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.weight(1f, fill = false),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(archivedDebts, key = { it.id }) { debt ->
-                            DebtCardRow(
-                                debt = debt,
-                                viewModel = viewModel,
-                                onDetailClick = { selectedDebtForDetail = debt },
-                                onPayClick = {},
-                                onDeleteClick = { selectedDebtForDelete = debt }
-                            )
-                        }
-                    }
-                }
-
-                TextButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Text(if (isId) "Tutup" else "Close", fontWeight = FontWeight.Bold)
                 }
             }
         }
     }
-
-    if (selectedDebtForDetail != null) {
-        DebtDetailDialog(
-            debt = selectedDebtForDetail!!,
-            wallets = wallets,
-            viewModel = viewModel,
-            onDismiss = { selectedDebtForDetail = null },
-            onPayClick = {},
-            onTransactionClick = { txn -> selectedTransactionForDetail = txn }
-        )
-    }
-
-    if (selectedTransactionForDetail != null) {
-        val w = wallets.firstOrNull { it.id == selectedTransactionForDetail!!.walletId }
-        DebtBillPaymentDetailDialog(
-            transaction = selectedTransactionForDetail!!,
-            wallet = w,
-            viewModel = viewModel,
-            onDismiss = { selectedTransactionForDetail = null }
-        )
-    }
-
-    if (selectedDebtForDelete != null) {
-        AlertDialog(
-            onDismissRequest = { selectedDebtForDelete = null },
-            title = { Text(if (isId) "Hapus Catatan?" else "Delete Record?") },
-            text = { Text(if (isId) "Hapus catatan hutang/piutang ini? Saldo dompet tidak berubah." else "Delete this debt/loan record? Wallet balance will not change.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.deleteDebt(selectedDebtForDelete!!)
-                        selectedDebtForDelete = null
-                    }
-                ) {
-                    Text(if (isId) "Hapus" else "Delete", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { selectedDebtForDelete = null }) {
-                    Text(if (isId) "Batal" else "Cancel")
-                }
-            }
-        )
-    }
 }
-

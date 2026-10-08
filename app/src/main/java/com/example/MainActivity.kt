@@ -10,11 +10,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,8 +42,11 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.FastOutSlowInEasing
 import com.example.ui.screens.*
-import com.example.ui.theme.MyApplicationTheme
+import com.example.ui.theme.*
+import com.example.ui.components.NewTransactionModal
 import com.example.ui.viewmodel.FinanceViewModel
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -132,6 +139,7 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                 var showCategoryDialog by remember { mutableStateOf(false) }
                 var isTransactionsBulkMode by remember { mutableStateOf(false) }
                 var showArchivedDebtsDialog by remember { mutableStateOf(false) }
+                var showNewTransactionModal by remember { mutableStateOf(false) }
                 val archivedDebts by viewModel.archivedDebts.collectAsState()
 
                 fun navigateToTab(tabIndex: Int) {
@@ -244,10 +252,11 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
 
                         Scaffold(
                             modifier = Modifier.fillMaxSize(),
+                            containerColor = DarkBg,
                             topBar = {
                                 TopAppBar(
                                     navigationIcon = {
-                                        val showBackButton = selectedTab != 0 || (selectedTab == 5 && settingsSubmenu != null)
+                                        val showBackButton = selectedTab == 1 || (selectedTab == 5 && settingsSubmenu != null) || (selectedTab != 0 && selectedTab != 2 && selectedTab != 3 && selectedTab != 4)
                                         if (showBackButton) {
                                             IconButton(
                                                 onClick = { handleBackNavigation() },
@@ -256,216 +265,296 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                                                 Icon(
                                                     painter = painterResource(id = R.drawable.ic_arrow_back_custom),
                                                     contentDescription = "Back",
-                                                    tint = MaterialTheme.colorScheme.primary
+                                                    tint = TextPrimary
                                                 )
                                             }
                                         }
                                     },
-                            title = {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(
-                                                if (isFresh) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(id = R.drawable.ic_wallet_custom),
-                                            contentDescription = null,
-                                            tint = if (isFresh) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                    Column {
-                                        val headerTitle = when (selectedTab) {
-                                            0 -> "DuitKu"
-                                            1 -> if (isId) "Dompet Saya" else "My Wallets"
-                                            2 -> if (isId) "Riwayat Transaksi" else "Transaction History"
-                                            3 -> if (isId) "Analisis Finansial" else "Financial Analytics"
-                                            4 -> if (isId) "Utang & Tagihan" else "Debts & Bills"
-                                            5 -> {
-                                                when (settingsSubmenu) {
-                                                    1 -> if (isId) "Profil & Cadangan Data" else "Profile & Data Backup"
-                                                    2 -> if (isId) "Tampilan & Tema" else "Visuals & Themes"
-                                                    3 -> if (isId) "Keamanan & Kunci PIN" else "PIN Lock & Security"
-                                                    4 -> if (isId) "Info Aplikasi & Pembaruan" else "App Info & Updates"
-                                                    else -> if (isId) "Pengaturan & Keamanan" else "Settings & Security"
+                                    title = {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(38.dp)
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .background(AccentBlue.copy(alpha = 0.18f))
+                                                    .border(1.dp, AccentBlue.copy(alpha = 0.35f), RoundedCornerShape(12.dp)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    painter = painterResource(id = R.drawable.ic_wallet_custom),
+                                                    contentDescription = null,
+                                                    tint = AccentBlue,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                            Column {
+                                                val headerTitle = when (selectedTab) {
+                                                    0 -> "DuitKu"
+                                                    1 -> if (isId) "Dompet Saya" else "My Wallets"
+                                                    2 -> if (isId) "Riwayat Transaksi" else "Transactions"
+                                                    3 -> if (isId) "Analisis Finansial" else "Financial Analytics"
+                                                    4 -> if (isId) "Utang & Tagihan" else "Debts & Bills"
+                                                    5 -> {
+                                                        when (settingsSubmenu) {
+                                                            1 -> if (isId) "Profil & Cadangan Data" else "Profile & Data Backup"
+                                                            2 -> if (isId) "Tampilan & Tema" else "Visuals & Themes"
+                                                            3 -> if (isId) "Keamanan & Kunci PIN" else "PIN Lock & Security"
+                                                            4 -> if (isId) "Info Aplikasi & Pembaruan" else "App Info & Updates"
+                                                            else -> if (isId) "Pengaturan & Keamanan" else "Settings & Security"
+                                                        }
+                                                    }
+                                                    else -> "DuitKu"
+                                                }
+                                                Text(
+                                                    text = headerTitle,
+                                                    style = MaterialTheme.typography.titleMedium.copy(
+                                                        fontWeight = FontWeight.ExtraBold,
+                                                        fontSize = 18.sp
+                                                    ),
+                                                    color = TextPrimary,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                if (selectedTab == 0) {
+                                                    Text(
+                                                        text = if (isId) "Dompet Digital Cerdas" else "Smart Financial Wallet",
+                                                        style = MaterialTheme.typography.labelSmall.copy(
+                                                            fontSize = 10.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = TextSecondary
+                                                        )
+                                                    )
                                                 }
                                             }
-                                            else -> "DuitKu"
                                         }
-                                        Text(
-                                            text = headerTitle,
-                                            style = MaterialTheme.typography.titleMedium.copy(
-                                                fontWeight = FontWeight.ExtraBold,
-                                                letterSpacing = if (isFresh) 0.5.sp else 0.sp
-                                            ),
-                                            color = MaterialTheme.colorScheme.primary,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        if (isFresh && selectedTab == 0) {
+                                    },
+                                    actions = {
+                                        // Tombol Akses Cepat "Wallets" (Kotak kecil berikon biru) di pojok kanan atas
+                                        Box(
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(AccentBlue.copy(alpha = 0.15f))
+                                                .border(1.dp, AccentBlue.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                                                .clickable { navigateToTab(1) }
+                                                .testTag("quick_wallets_button"),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(id = R.drawable.ic_wallet_custom),
+                                                contentDescription = "My Wallets",
+                                                tint = AccentBlue,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(4.dp))
+
+                                        // Tombol Kebab Menu (tiga titik vertikal)
+                                        var showMenu by remember { mutableStateOf(false) }
+                                        Box {
+                                            IconButton(onClick = { showMenu = true }) {
+                                                Icon(
+                                                    Icons.Default.MoreVert,
+                                                    contentDescription = "Menu Options",
+                                                    tint = TextPrimary
+                                                )
+                                            }
+                                            DropdownMenu(
+                                                expanded = showMenu,
+                                                onDismissRequest = { showMenu = false },
+                                                offset = DpOffset(x = (-16).dp, y = 8.dp),
+                                                modifier = Modifier.widthIn(min = 160.dp, max = 260.dp)
+                                            ) {
+                                                if (selectedTab == 0) {
+                                                    DropdownMenuItem(
+                                                        text = { Text(if (isId) "Kelola Kategori" else "Manage Categories") },
+                                                        onClick = {
+                                                            showMenu = false
+                                                            showCategoryDialog = true
+                                                        }
+                                                    )
+                                                }
+                                                if (selectedTab == 2) {
+                                                    DropdownMenuItem(
+                                                        text = { Text(if (isTransactionsBulkMode) (if (isId) "Batal Hapus Massal" else "Cancel Bulk Delete") else (if (isId) "Hapus Massal" else "Bulk Delete")) },
+                                                        onClick = {
+                                                            showMenu = false
+                                                            isTransactionsBulkMode = !isTransactionsBulkMode
+                                                        }
+                                                    )
+                                                }
+                                                if (selectedTab == 4) {
+                                                    DropdownMenuItem(
+                                                        text = { Text(if (isId) "Hutang Diarsipkan (${archivedDebts.size})" else "Archived Debts (${archivedDebts.size})") },
+                                                        onClick = {
+                                                            showMenu = false
+                                                            showArchivedDebtsDialog = true
+                                                        }
+                                                    )
+                                                }
+                                                DropdownMenuItem(
+                                                    text = { Text(if (isId) "Pengaturan & Keamanan" else "Settings & Security") },
+                                                    onClick = {
+                                                        showMenu = false
+                                                        navigateToTab(5)
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    },
+                                    colors = TopAppBarDefaults.topAppBarColors(
+                                        containerColor = DarkBg,
+                                        titleContentColor = TextPrimary
+                                    )
+                                )
+                            },
+                            floatingActionButton = {
+                                val showFab = selectedTab == 0 || selectedTab == 2
+                                if (showFab) {
+                                    Box(
+                                        modifier = Modifier
+                                            .shadow(elevation = 14.dp, shape = RoundedCornerShape(24.dp), spotColor = AccentBlue)
+                                            .clip(RoundedCornerShape(24.dp))
+                                            .background(
+                                                Brush.horizontalGradient(
+                                                    colors = listOf(AccentBlue, AccentIndigo)
+                                                )
+                                            )
+                                            .clickable { showNewTransactionModal = true }
+                                            .padding(horizontal = 20.dp, vertical = 12.dp)
+                                            .testTag("new_transaction_fab"),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Add,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(20.dp)
+                                            )
                                             Text(
-                                                text = if (isId) "Dompet Digital Cerdas" else "Smart Financial Wallet",
-                                                style = MaterialTheme.typography.labelSmall.copy(
-                                                    fontSize = 9.sp,
+                                                text = if (isId) "Transaksi Baru" else "New Transaction",
+                                                style = MaterialTheme.typography.bodyMedium.copy(
                                                     fontWeight = FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.secondary
+                                                    color = Color.White
                                                 )
                                             )
                                         }
                                     }
                                 }
                             },
-                            actions = {
-                                var showMenu by remember { mutableStateOf(false) }
-                                Box {
-                                    IconButton(onClick = { showMenu = true }) {
-                                        Icon(
-                                            Icons.Default.MoreVert,
-                                            contentDescription = "Menu Options",
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
+                            bottomBar = {
+                                val isSubmenuOpen = selectedTab == 5 && settingsSubmenu != null
+                                if (!isSubmenuOpen) {
+                                    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+                                    val screenWidth = configuration.screenWidthDp
+                                    val labelStyle = if (screenWidth < 380) {
+                                        MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp)
+                                    } else {
+                                        MaterialTheme.typography.labelSmall
                                     }
-                                    DropdownMenu(
-                                        expanded = showMenu,
-                                        onDismissRequest = { showMenu = false },
-                                        offset = DpOffset(x = (-16).dp, y = 8.dp),
-                                        modifier = Modifier.widthIn(min = 160.dp, max = 260.dp)
-                                    ) {
-                                        if (selectedTab == 0) {
-                                            DropdownMenuItem(
-                                                text = { Text(if (isId) "Kelola Kategori" else "Manage Categories") },
-                                                onClick = {
-                                                    showMenu = false
-                                                    showCategoryDialog = true
-                                                }
-                                            )
-                                        }
-                                        if (selectedTab == 2) {
-                                            DropdownMenuItem(
-                                                text = { Text(if (isTransactionsBulkMode) (if (isId) "Batal Hapus Massal" else "Cancel Bulk Delete") else (if (isId) "Hapus Massal" else "Bulk Delete")) },
-                                                onClick = {
-                                                    showMenu = false
-                                                    isTransactionsBulkMode = !isTransactionsBulkMode
-                                                }
-                                            )
-                                        }
-                                        if (selectedTab == 4) {
-                                            DropdownMenuItem(
-                                                text = { Text(if (isId) "Hutang Diarsipkan (${archivedDebts.size})" else "Archived Debts (${archivedDebts.size})") },
-                                                onClick = {
-                                                    showMenu = false
-                                                    showArchivedDebtsDialog = true
-                                                }
-                                            )
-                                        }
-                                        DropdownMenuItem(
-                                            text = { Text(if (isId) "Pengaturan & Keamanan" else "Settings & Security") },
-                                            onClick = {
-                                                showMenu = false
-                                                navigateToTab(5)
-                                            }
-                                        )
-                                    }
-                                }
-                            },
-                            colors = TopAppBarDefaults.topAppBarColors(
-                                containerColor = if (isFresh) MaterialTheme.colorScheme.surface.copy(alpha = 0.95f) else MaterialTheme.colorScheme.surface
-                            )
-                        )
-                    },
-                    bottomBar = {
-                        val isSubmenuOpen = selectedTab == 5 && settingsSubmenu != null
-                        if (!isSubmenuOpen) {
-                            val configuration = androidx.compose.ui.platform.LocalConfiguration.current
-                            val screenWidth = configuration.screenWidthDp
-                            val labelStyle = if (screenWidth < 380) {
-                                MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp)
-                            } else {
-                                MaterialTheme.typography.labelSmall
-                            }
 
-                            NavigationBar(
-                                containerColor = if (isFresh) Color.Transparent else MaterialTheme.colorScheme.surface,
-                                tonalElevation = if (isFresh) 0.dp else 3.dp,
-                                modifier = if (isFresh) {
-                                    Modifier
-                                        .navigationBarsPadding()
-                                        .padding(horizontal = 14.dp, vertical = 10.dp)
-                                        .clip(RoundedCornerShape(24.dp))
-                                        .border(
-                                            width = 1.5.dp, 
-                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), 
-                                            shape = RoundedCornerShape(24.dp)
+                                    NavigationBar(
+                                        containerColor = CardBg,
+                                        tonalElevation = 0.dp,
+                                        modifier = Modifier
+                                            .navigationBarsPadding()
+                                            .fillMaxWidth()
+                                            .border(
+                                                BorderStroke(1.dp, CardBorder)
+                                            )
+                                    ) {
+                                        NavigationBarItem(
+                                            selected = selectedTab == 0,
+                                            onClick = { navigateToTab(0) },
+                                            icon = { Icon(painterResource(id = R.drawable.ic_home_custom), contentDescription = "Dashboard", modifier = Modifier.size(22.dp)) },
+                                            label = {
+                                                Text(
+                                                    text = if (isId) "Dasbor" else "Dashboard",
+                                                    style = labelStyle,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            },
+                                            colors = NavigationBarItemDefaults.colors(
+                                                selectedIconColor = AccentBlue,
+                                                selectedTextColor = TextPrimary,
+                                                indicatorColor = AccentBlue.copy(alpha = 0.18f),
+                                                unselectedIconColor = TextSecondary,
+                                                unselectedTextColor = TextSecondary
+                                            )
                                         )
-                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.96f))
-                                } else {
-                                    Modifier
+                                        NavigationBarItem(
+                                            selected = selectedTab == 2,
+                                            onClick = { navigateToTab(2) },
+                                            icon = { Icon(painterResource(id = R.drawable.ic_receipt_custom), contentDescription = "Transactions", modifier = Modifier.size(22.dp)) },
+                                            label = {
+                                                Text(
+                                                    text = if (isId) "Transaksi" else "Transactions",
+                                                    style = labelStyle,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            },
+                                            colors = NavigationBarItemDefaults.colors(
+                                                selectedIconColor = AccentBlue,
+                                                selectedTextColor = TextPrimary,
+                                                indicatorColor = AccentBlue.copy(alpha = 0.18f),
+                                                unselectedIconColor = TextSecondary,
+                                                unselectedTextColor = TextSecondary
+                                            )
+                                        )
+                                        NavigationBarItem(
+                                            selected = selectedTab == 3,
+                                            onClick = { navigateToTab(3) },
+                                            icon = { Icon(painterResource(id = R.drawable.ic_analytics_custom), contentDescription = "Analytics", modifier = Modifier.size(22.dp)) },
+                                            label = {
+                                                Text(
+                                                    text = if (isId) "Analisis" else "Analytics",
+                                                    style = labelStyle,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            },
+                                            colors = NavigationBarItemDefaults.colors(
+                                                selectedIconColor = AccentBlue,
+                                                selectedTextColor = TextPrimary,
+                                                indicatorColor = AccentBlue.copy(alpha = 0.18f),
+                                                unselectedIconColor = TextSecondary,
+                                                unselectedTextColor = TextSecondary
+                                            )
+                                        )
+                                        NavigationBarItem(
+                                            selected = selectedTab == 4,
+                                            onClick = { navigateToTab(4) },
+                                            icon = { Icon(painterResource(id = R.drawable.ic_debts_custom), contentDescription = "Debts/Bills", modifier = Modifier.size(22.dp)) },
+                                            label = {
+                                                Text(
+                                                    text = if (isId) "Utang/Tagihan" else "Debts/Bills",
+                                                    style = labelStyle,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            },
+                                            colors = NavigationBarItemDefaults.colors(
+                                                selectedIconColor = AccentBlue,
+                                                selectedTextColor = TextPrimary,
+                                                indicatorColor = AccentBlue.copy(alpha = 0.18f),
+                                                unselectedIconColor = TextSecondary,
+                                                unselectedTextColor = TextSecondary
+                                            )
+                                        )
+                                    }
                                 }
-                            ) {
-                                NavigationBarItem(
-                                    selected = selectedTab == 0,
-                                    onClick = { navigateToTab(0) },
-                                    icon = { Icon(painterResource(id = R.drawable.ic_home_custom), contentDescription = "Dashboard", modifier = Modifier.size(24.dp)) },
-                                    label = {
-                                        Text(
-                                            text = if (isId) "Dasbor" else "Dashboard",
-                                            style = labelStyle,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                )
-                                NavigationBarItem(
-                                    selected = selectedTab == 2,
-                                    onClick = { navigateToTab(2) },
-                                    icon = { Icon(painterResource(id = R.drawable.ic_receipt_custom), contentDescription = "Transactions", modifier = Modifier.size(24.dp)) },
-                                    label = {
-                                        Text(
-                                            text = if (isId) "Transaksi" else "Transactions",
-                                            style = labelStyle,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                )
-                                NavigationBarItem(
-                                    selected = selectedTab == 3,
-                                    onClick = { navigateToTab(3) },
-                                    icon = { Icon(painterResource(id = R.drawable.ic_analytics_custom), contentDescription = "Analytics", modifier = Modifier.size(24.dp)) },
-                                    label = {
-                                        Text(
-                                            text = if (isId) "Analisis" else "Analytics",
-                                            style = labelStyle,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                )
-                                NavigationBarItem(
-                                    selected = selectedTab == 4,
-                                    onClick = { navigateToTab(4) },
-                                    icon = { Icon(painterResource(id = R.drawable.ic_debts_custom), contentDescription = "Debts/Bills", modifier = Modifier.size(24.dp)) },
-                                    label = {
-                                        Text(
-                                            text = if (isId) "Utang/Tagihan" else "Debts/Bills",
-                                            style = labelStyle,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                )
                             }
-                        }
-                    }
-                ) { innerPadding ->
+                        ) { innerPadding ->
                             // Navigation routing container using an animated fluid tab switcher
                             Box(modifier = Modifier.padding(innerPadding)) {
                                 AnimatedContent(
@@ -518,6 +607,13 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
                                     CategoryManagementDialog(
                                         viewModel = viewModel,
                                         onDismiss = { showCategoryDialog = false }
+                                    )
+                                }
+
+                                if (showNewTransactionModal) {
+                                    NewTransactionModal(
+                                        viewModel = viewModel,
+                                        onDismiss = { showNewTransactionModal = false }
                                     )
                                 }
                             }

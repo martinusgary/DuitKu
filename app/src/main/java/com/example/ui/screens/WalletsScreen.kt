@@ -1,18 +1,15 @@
 package com.example.ui.screens
 
+import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.ui.draw.alpha
-import androidx.compose.foundation.border
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -22,21 +19,29 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import com.example.data.model.Wallet
-import com.example.ui.viewmodel.FinanceViewModel
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.data.model.Wallet
+import com.example.ui.components.AddWalletModal
+import com.example.ui.theme.*
+import com.example.ui.viewmodel.FinanceViewModel
+
+// Distinctive luxury gradient themes for cards
+private val WalletGradients = listOf(
+    listOf(Color(0xFF1E3A8A), Color(0xFF3B82F6)), // Deep Blue -> Electric Blue (Mandiri / Bank)
+    listOf(Color(0xFF0F766E), Color(0xFF14B8A6)), // Dark Teal -> Emerald (GoPay / E-Money)
+    listOf(Color(0xFF581C87), Color(0xFF8B5CF6)), // Royal Purple -> Violet (Jago Main)
+    listOf(Color(0xFFC2410C), Color(0xFFF97316)), // Deep Orange -> Orange (ShopeePay)
+    listOf(Color(0xFF065F46), Color(0xFF10B981)), // Dark Green -> Emerald (Cash)
+    listOf(Color(0xFF1E293B), Color(0xFF475569)), // Slate -> Steel (Savings)
+    listOf(Color(0xFF831843), Color(0xFFEC4899))  // Wine -> Pink (Pocket)
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,111 +49,119 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
     val wallets by viewModel.wallets.collectAsState()
     val appLang by viewModel.appLanguage.collectAsState()
     val isId = appLang == "id"
-    
-    var showAddWalletDialog by remember { mutableStateOf(false) }
+
+    var showAddWalletModal by remember { mutableStateOf(false) }
     var selectedWalletForDetail by remember { mutableStateOf<Wallet?>(null) }
     var selectedWalletForEdit by remember { mutableStateOf<Wallet?>(null) }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(DarkBg)
     ) {
-        if (wallets.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Header with Add Wallet button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_wallet_custom),
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        if (isId) "Dompet tidak ditemukan." else "No wallets found.",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        text = if (isId) "Dompet & Akun Saya" else "My Wallets & Accounts",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 20.sp
+                        ),
+                        color = TextPrimary
                     )
                     Text(
-                        if (isId) "Buat dompet baru untuk mencatat saldo." else "Create a wallet to record balance.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = if (isId) "${wallets.size} dompet terhubung" else "${wallets.size} connected wallets",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = { showAddWalletDialog = true },
-                        modifier = Modifier.testTag("create_wallet_btn")
-                    ) {
-                        Icon(painterResource(id = R.drawable.ic_add_custom), contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(if (isId) "Tambah Dompet Baru" else "Add New Wallet")
-                    }
+                }
+
+                Button(
+                    onClick = { showAddWalletModal = true },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (isId) "Tambah Dompet" else "Add Wallet",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
                 }
             }
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    text = if (isId) "Dompet & Akun Saya" else "My Wallets & Accounts",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Black,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Text(
-                    text = if (isId) "Ketuk dompet untuk rincian atau edit." else "Tap a wallet to view details or edit.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
 
+            // Grid 2 Kolom Card Dompet/Bank
+            if (wallets.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_wallet_custom),
+                            contentDescription = null,
+                            modifier = Modifier.size(54.dp),
+                            tint = TextSecondary.copy(alpha = 0.4f)
+                        )
+                        Text(
+                            text = if (isId) "Belum ada dompet tersimpan." else "No wallets saved yet.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextSecondary
+                        )
+                    }
+                }
+            } else {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(wallets, key = { it.id }) { wallet ->
+                        val index = wallets.indexOf(wallet)
+                        val gradientColors = WalletGradients[index % WalletGradients.size]
+
                         WalletGridCard(
                             wallet = wallet,
+                            gradientColors = gradientColors,
                             viewModel = viewModel,
                             onClick = { selectedWalletForDetail = wallet },
-                            modifier = Modifier.animateItem()
+                            isId = isId
                         )
                     }
-                }
-            }
-
-            // Floating Fab to Add Wallet when list is not empty
-            if (!showAddWalletDialog && selectedWalletForDetail == null) {
-                FloatingActionButton(
-                    onClick = { showAddWalletDialog = true },
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 16.dp, bottom = 16.dp)
-                        .testTag("add_wallet_fab"),
-                    shape = RoundedCornerShape(16.dp),
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                ) {
-                    Icon(painterResource(id = R.drawable.ic_add_custom), contentDescription = if (isId) "Tambah Dompet" else "Add Wallet")
                 }
             }
         }
     }
 
-    if (showAddWalletDialog) {
-        AddWalletDialog(
+    if (showAddWalletModal) {
+        AddWalletModal(
             viewModel = viewModel,
-            onDismiss = { showAddWalletDialog = false }
+            onDismiss = { showAddWalletModal = false }
         )
     }
 
+    // Detail Dialog
     selectedWalletForDetail?.let { wallet ->
         WalletDetailDialog(
             wallet = wallet,
@@ -157,34 +170,35 @@ fun WalletsScreen(viewModel: FinanceViewModel) {
             onEditRequest = {
                 selectedWalletForDetail = null
                 selectedWalletForEdit = wallet
-            }
+            },
+            isId = isId
         )
     }
 
+    // Edit Dialog
     selectedWalletForEdit?.let { wallet ->
         EditWalletDialog(
             wallet = wallet,
             viewModel = viewModel,
-            onDismiss = { selectedWalletForEdit = null }
+            onDismiss = { selectedWalletForEdit = null },
+            isId = isId
         )
     }
 }
 
+/**
+ * Grid 2 Kolom Card Dompet/Bank:
+ * Tiap card memiliki warna gradien unik, badge kategori, ikon spesifik, dan sisa saldo.
+ */
 @Composable
-fun WalletDetailDialog(
+fun WalletGridCard(
     wallet: Wallet,
+    gradientColors: List<Color>,
     viewModel: FinanceViewModel,
-    onDismiss: () -> Unit,
-    onEditRequest: () -> Unit
+    onClick: () -> Unit,
+    isId: Boolean,
+    modifier: Modifier = Modifier
 ) {
-    val appLang by viewModel.appLanguage.collectAsState()
-    val isId = appLang == "id"
-    var showDeleteConfirm by remember { mutableStateOf(false) }
-
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp
-    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 500.dp
-
     val iconPainter = when (wallet.icon) {
         "bank" -> painterResource(id = R.drawable.ic_wallet_type_bank)
         "wallet" -> painterResource(id = R.drawable.ic_wallet_type_wallet)
@@ -196,264 +210,179 @@ fun WalletDetailDialog(
         "bank" -> "Bank"
         "wallet" -> "E-Money"
         "savings" -> if (isId) "Tabungan" else "Savings"
-        else -> if (isId) "Tunai / Cash" else "Cash"
+        else -> if (isId) "Tunai" else "Cash"
     }
 
-    val gradientBrush = when (wallet.icon) {
-        "bank" -> Brush.verticalGradient(listOf(Color(0xFF1E88E5), Color(0xFF1565C0)))
-        "wallet" -> Brush.verticalGradient(listOf(Color(0xFF8E24AA), Color(0xFF5E35B1)))
-        "savings" -> Brush.verticalGradient(listOf(Color(0xFF43A047), Color(0xFF2E7D32)))
-        else -> Brush.verticalGradient(listOf(Color(0xFFFFA000), Color(0xFFF57C00)))
+    val cardShape = RoundedCornerShape(20.dp)
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(150.dp)
+            .clip(cardShape)
+            .clickable { onClick() },
+        shape = cardShape,
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Brush.linearGradient(gradientColors))
+                .padding(14.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Top: Icon and Badge
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.22f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = iconPainter,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.White.copy(alpha = 0.22f)
+                    ) {
+                        Text(
+                            text = typeLabel,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+
+                // Bottom: Name & Balance
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = wallet.name,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = viewModel.formatRupiah(wallet.balance),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 16.sp
+                        ),
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
     }
+}
+
+@Composable
+fun WalletDetailDialog(
+    wallet: Wallet,
+    viewModel: FinanceViewModel,
+    onDismiss: () -> Unit,
+    onEditRequest: () -> Unit,
+    isId: Boolean
+) {
+    val context = LocalContext.current
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = CardBg,
+        shape = RoundedCornerShape(22.dp),
+        title = {
+            Text(wallet.name, fontWeight = FontWeight.Bold, color = TextPrimary)
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "Saldo: ${viewModel.formatRupiah(wallet.balance)}",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                    color = AccentTeal
+                )
+                Text(
+                    text = if (isId) "Kategori: ${wallet.icon.uppercase()}" else "Category: ${wallet.icon.uppercase()}",
+                    color = TextSecondary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        },
+        confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onEditRequest,
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Edit")
+                }
+                Button(
+                    onClick = { showDeleteConfirm = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentRed),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(if (isId) "Hapus" else "Delete")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(if (isId) "Tutup" else "Close", color = TextSecondary)
+            }
+        }
+    )
 
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text(if (isId) "Hapus Dompet: ${wallet.name}?" else "Delete Wallet: ${wallet.name}?") },
-            text = { Text(if (isId) "Hapus dompet ini? Riwayat transaksi lama tetap tersimpan." else "Delete this wallet? Previous transactions remain saved.") },
+            containerColor = CardBg,
+            shape = RoundedCornerShape(20.dp),
+            title = {
+                Text(if (isId) "Hapus Dompet?" else "Delete Wallet?", fontWeight = FontWeight.Bold, color = TextPrimary)
+            },
+            text = {
+                Text(
+                    if (isId) "Apakah Anda yakin ingin menghapus dompet ini?" else "Are you sure you want to delete this wallet?",
+                    color = TextSecondary
+                )
+            },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = {
                         viewModel.deleteWallet(wallet)
                         showDeleteConfirm = false
                         onDismiss()
-                    }
+                        Toast.makeText(context, if (isId) "Dompet dihapus" else "Wallet deleted", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentRed)
                 ) {
-                    Text(if (isId) "Ya, Hapus" else "Yes, Delete", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                    Text(if (isId) "Hapus" else "Delete", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text(if (isId) "Batal" else "Cancel")
+                    Text(if (isId) "Batal" else "Cancel", color = TextSecondary)
                 }
             }
         )
-    }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Card(
-            modifier = Modifier
-                .width(dialogWidth)
-                .padding(12.dp),
-            shape = RoundedCornerShape(24.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (isId) "Informasi Dompet" else "Wallet Details",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
-                    }
-                }
-
-                // Visual Hero Card
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(130.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(gradientBrush)
-                            .padding(16.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(34.dp)
-                                        .clip(CircleShape)
-                                        .background(Color.White.copy(alpha = 0.22f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        iconPainter,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                Surface(
-                                    color = Color.White.copy(alpha = 0.2f),
-                                    shape = RoundedCornerShape(8.dp)
-                                ) {
-                                    Text(
-                                        text = typeLabel,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                    )
-                                }
-                            }
-
-                            Column {
-                                Text(
-                                    text = wallet.name,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = viewModel.formatRupiah(wallet.balance),
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    fontWeight = FontWeight.Black,
-                                    color = Color.White
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Balance summary description
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_wallet_custom),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Text(
-                            text = if (isId) 
-                                "Saldo aktif dapat dipakai untuk transaksi atau transfer."
-                            else 
-                                "Active balance is ready for transactions or transfer.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                // Savings Goal / Target Section
-                if (wallet.icon == "savings" || wallet.targetLimit != null) {
-                    if (wallet.targetLimit != null && wallet.targetLimit > 0) {
-                        val progress = (wallet.balance / wallet.targetLimit).coerceIn(0.0, 1.0).toFloat()
-                        val percent = ((wallet.balance / wallet.targetLimit) * 100).toInt()
-                        Surface(
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(if (isId) "Target Tabungan" else "Savings Target", style = MaterialTheme.typography.labelMedium)
-                                    Text(viewModel.formatRupiah(wallet.targetLimit), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                                }
-                                LinearProgressIndicator(
-                                    progress = { progress },
-                                    modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
-                                    color = Color(0xFF2E7D32)
-                                )
-                                Text(
-                                    text = if (isId) "Tercapai $percent% dari target limit" else "$percent% achieved of target limit",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    } else if (wallet.isLimitless) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(Icons.Default.AllInclusive, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                                Text(
-                                    text = if (isId) "Tabungan Tanpa Batas (Limitless)" else "Limitless Savings",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Actions Footer
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Single Delete Button
-                    TextButton(
-                        onClick = { showDeleteConfirm = true },
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_delete_custom),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(if (isId) "Hapus" else "Delete")
-                    }
-
-                    // Edit Button
-                    Button(
-                        onClick = onEditRequest,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_edit_custom),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(if (isId) "Edit Dompet" else "Edit Wallet")
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -461,668 +390,70 @@ fun WalletDetailDialog(
 fun EditWalletDialog(
     wallet: Wallet,
     viewModel: FinanceViewModel,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    isId: Boolean
 ) {
-    val appLang by viewModel.appLanguage.collectAsState()
-    val isId = appLang == "id"
+    var name by remember { mutableStateOf(wallet.name) }
+    var balanceStr by remember { mutableStateOf(wallet.balance.toInt().toString()) }
 
-    var walletName by remember(wallet) { mutableStateOf(wallet.name) }
-    var balanceStr by remember(wallet) { 
-        mutableStateOf(if (wallet.balance % 1.0 == 0.0) wallet.balance.toLong().toString() else wallet.balance.toString()) 
-    }
-    var selectedIcon by remember(wallet) { mutableStateOf(wallet.icon) }
-    var isLimitless by remember(wallet) { mutableStateOf(wallet.isLimitless) }
-    var targetLimitStr by remember(wallet) { 
-        mutableStateOf(wallet.targetLimit?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() } ?: "") 
-    }
-
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp
-    val screenHeight = configuration.screenHeightDp
-    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 520.dp
-
-    Dialog(
+    AlertDialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Card(
-            modifier = Modifier
-                .width(dialogWidth)
-                .heightIn(max = (screenHeight * 0.85).dp)
-                .padding(12.dp),
-            shape = RoundedCornerShape(24.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    text = if (isId) "Edit Dompet / Akun" else "Edit Wallet / Account",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
+        containerColor = CardBg,
+        shape = RoundedCornerShape(22.dp),
+        title = {
+            Text(if (isId) "Edit Dompet" else "Edit Wallet", fontWeight = FontWeight.Bold, color = TextPrimary)
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(if (isId) "Nama Dompet" else "Wallet Name") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = DarkBg,
+                        unfocusedContainerColor = DarkBg,
+                        focusedBorderColor = AccentBlue,
+                        unfocusedBorderColor = CardBorder,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary
+                    )
                 )
-
-                Box(
-                    modifier = Modifier
-                        .weight(1f, fill = false)
-                        .fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = walletName,
-                            onValueChange = { walletName = it },
-                            label = { Text(if (isId) "Nama Dompet / Akun" else "Wallet / Account Name") },
-                            placeholder = { Text(if (isId) "misal: Rekening Bank, Tunai, E-wallet" else "e.g. Bank Account, Cash, E-wallet") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-
-                        OutlinedTextField(
-                            value = balanceStr,
-                            onValueChange = { if (it.all { char -> char.isDigit() || char == '.' }) balanceStr = it },
-                            label = { Text(if (isId) "Saldo Dompet" else "Wallet Balance") },
-                            prefix = { Text("Rp ") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            placeholder = { Text("0") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-
-                        Text(if (isId) "Tipe / Ikon Dompet:" else "Wallet Type / Icon:", style = MaterialTheme.typography.labelMedium)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            val icons = listOf(
-                                Triple("cash", painterResource(id = R.drawable.ic_wallet_type_cash), if (isId) "Tunai" else "Cash"),
-                                Triple("bank", painterResource(id = R.drawable.ic_wallet_type_bank), "Bank"),
-                                Triple("wallet", painterResource(id = R.drawable.ic_wallet_type_wallet), "E-Money"),
-                                Triple("savings", painterResource(id = R.drawable.ic_wallet_type_savings), if (isId) "Tabungan" else "Savings")
-                            )
-
-                            icons.forEach { (key, painter, label) ->
-                                val isSelected = selectedIcon == key
-                                OutlinedIconContainerButton(
-                                    painter = painter,
-                                    label = label,
-                                    isSelected = isSelected,
-                                    onClick = { selectedIcon = key },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-
-                        // Conditional Savings Target Configuration
-                        if (selectedIcon == "savings") {
-                            Surface(
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
-                                shape = RoundedCornerShape(16.dp),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(14.dp),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    Text(
-                                        text = if (isId) "Tipe Target Tabungan" else "Savings Target Mode",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-
-                                    // Selector: With Target Limit vs Limitless
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(
-                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                                shape = RoundedCornerShape(12.dp)
-                                            )
-                                            .padding(4.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        val tabShape = RoundedCornerShape(8.dp)
-                                        // With Target Limit
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .background(
-                                                    color = if (!isLimitless) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                                    shape = tabShape
-                                                )
-                                                .clip(tabShape)
-                                                .clickable { isLimitless = false }
-                                                .padding(vertical = 10.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = if (isId) "Dengan Target" else "With Target Limit",
-                                                color = if (!isLimitless) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontWeight = FontWeight.Bold,
-                                                textAlign = TextAlign.Center
-                                            )
-                                        }
-
-                                        // Limitless
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .background(
-                                                    color = if (isLimitless) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                                    shape = tabShape
-                                                )
-                                                .clip(tabShape)
-                                                .clickable { isLimitless = true }
-                                                .padding(vertical = 10.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = if (isId) "Tanpa Batas (Bebas)" else "Limitless",
-                                                color = if (isLimitless) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontWeight = FontWeight.Bold,
-                                                textAlign = TextAlign.Center
-                                            )
-                                        }
-                                    }
-
-                                    if (!isLimitless) {
-                                        OutlinedTextField(
-                                            value = targetLimitStr,
-                                            onValueChange = { if (it.all { char -> char.isDigit() }) targetLimitStr = it },
-                                            label = { Text(if (isId) "Target Nominal Tabungan" else "Target Savings Amount") },
-                                            prefix = { Text("Rp ") },
-                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                            placeholder = { Text("10.000.000") },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            singleLine = true
-                                        )
-                                    } else {
-                                        Text(
-                                            text = if (isId) "Tabungan tanpa target batas nominal akhir." else "Open-ended savings with no predefined upper limit.",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f).height(48.dp),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(if (isId) "Batal" else "Cancel", maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    Button(
-                        onClick = {
-                            val balanceVal = balanceStr.toDoubleOrNull() ?: 0.0
-                            val targetVal = if (selectedIcon == "savings" && !isLimitless) targetLimitStr.toDoubleOrNull() else null
-                            if (walletName.trim().isNotEmpty()) {
-                                viewModel.updateWallet(
-                                    wallet.copy(
-                                        name = walletName.trim(),
-                                        balance = balanceVal,
-                                        icon = selectedIcon,
-                                        targetLimit = targetVal,
-                                        isLimitless = if (selectedIcon == "savings") isLimitless else true
-                                    )
-                                )
-                                onDismiss()
-                            }
-                        },
-                        enabled = walletName.trim().isNotEmpty(),
-                        modifier = Modifier.weight(1.4f).height(48.dp),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(if (isId) "Simpan Perubahan" else "Save Changes", fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun WalletGridCard(
-    wallet: Wallet,
-    viewModel: FinanceViewModel,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val appLang by viewModel.appLanguage.collectAsState()
-    val isId = appLang == "id"
-
-    val gradientBrush = when (wallet.icon) {
-        "bank" -> Brush.verticalGradient(
-            colors = listOf(Color(0xFF1E88E5), Color(0xFF1565C0))
-        )
-        "wallet" -> Brush.verticalGradient(
-            colors = listOf(Color(0xFF8E24AA), Color(0xFF5E35B1))
-        )
-        "savings" -> Brush.verticalGradient(
-            colors = listOf(Color(0xFF43A047), Color(0xFF2E7D32))
-        )
-        else -> Brush.verticalGradient(
-            colors = listOf(Color(0xFFFFA000), Color(0xFFF57C00)) // CASH
-        )
-    }
-
-    val iconPainter = when (wallet.icon) {
-        "bank" -> painterResource(id = R.drawable.ic_wallet_type_bank)
-        "wallet" -> painterResource(id = R.drawable.ic_wallet_type_wallet)
-        "savings" -> painterResource(id = R.drawable.ic_wallet_type_savings)
-        else -> painterResource(id = R.drawable.ic_wallet_type_cash) // CASH
-    }
-
-    val uiStyle by viewModel.uiStyle.collectAsState()
-    val isFresh = uiStyle == "FRESH"
-    val cardShape = RoundedCornerShape(24.dp)
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(130.dp)
-            .clip(cardShape)
-            .clickable { onClick() }
-            .then(
-                if (isFresh) {
-                    Modifier.border(
-                        BorderStroke(1.5.dp, Color.White.copy(alpha = 0.22f)),
-                        cardShape
+                OutlinedTextField(
+                    value = balanceStr,
+                    onValueChange = { if (it.all { c -> c.isDigit() }) balanceStr = it },
+                    label = { Text(if (isId) "Saldo" else "Balance") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = DarkBg,
+                        unfocusedContainerColor = DarkBg,
+                        focusedBorderColor = AccentBlue,
+                        unfocusedBorderColor = CardBorder,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary
                     )
-                } else {
-                    Modifier
-                }
-            ),
-        shape = cardShape,
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isFresh) 4.dp else 2.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(gradientBrush)
-                .padding(16.dp)
-        ) {
-            // Background canvas digital decoration circle
-            if (isFresh) {
-                Canvas(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .alpha(0.12f)
-                ) {
-                    drawCircle(
-                        color = Color.White,
-                        radius = size.width * 0.42f,
-                        center = androidx.compose.ui.geometry.Offset(size.width * 0.92f, size.height * 0.15f)
-                    )
-                }
-            }
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            iconPainter,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    
-                    Text(
-                        text = when (wallet.icon) {
-                            "bank" -> "Bank"
-                            "wallet" -> "E-Money"
-                            "savings" -> if (isId) "Tabungan" else "Savings"
-                            else -> if (isId) "Tunai" else "Cash"
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.8f),
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Column {
-                    Text(
-                        text = wallet.name,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = viewModel.formatRupiah(wallet.balance),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color.White,
-                        fontWeight = FontWeight.Black
-                    )
-                    if (wallet.icon == "savings" && wallet.targetLimit != null && wallet.targetLimit > 0) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        val progress = (wallet.balance / wallet.targetLimit).coerceIn(0.0, 1.0).toFloat()
-                        LinearProgressIndicator(
-                            progress = { progress },
-                            modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
-                            color = Color.White,
-                            trackColor = Color.White.copy(alpha = 0.3f)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun AddWalletDialog(
-    viewModel: FinanceViewModel,
-    onDismiss: () -> Unit
-) {
-    val appLang by viewModel.appLanguage.collectAsState()
-    val isId = appLang == "id"
-
-    var walletName by remember { mutableStateOf("") }
-    var initialBalanceStr by remember { mutableStateOf("") }
-    var selectedIcon by remember { mutableStateOf("cash") } // "cash", "bank", "wallet", "savings"
-    var isLimitless by remember { mutableStateOf(true) }
-    var targetLimitStr by remember { mutableStateOf("") }
-
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp
-    val screenHeight = configuration.screenHeightDp
-    val dialogWidth = if (screenWidth < 600) (screenWidth * 0.94).dp else 520.dp
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Card(
-            modifier = Modifier
-                .width(dialogWidth)
-                .heightIn(max = (screenHeight * 0.85).dp)
-                .padding(12.dp),
-            shape = RoundedCornerShape(24.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    text = if (isId) "Tambah Dompet / Akun" else "Add Wallet / Account",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
                 )
-
-                Box(
-                    modifier = Modifier
-                        .weight(1f, fill = false)
-                        .fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = walletName,
-                            onValueChange = { walletName = it },
-                            label = { Text(if (isId) "Nama Dompet / Akun" else "Wallet / Account Name") },
-                            placeholder = { Text(if (isId) "misal: Rekening Bank, Tunai, E-wallet" else "e.g. Bank Account, Cash, E-wallet") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-
-                        OutlinedTextField(
-                            value = initialBalanceStr,
-                            onValueChange = { if (it.all { char -> char.isDigit() }) initialBalanceStr = it },
-                            label = { Text(if (isId) "Saldo Awal" else "Starting Balance") },
-                            prefix = { Text("Rp ") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            placeholder = { Text("0") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-
-                        Text(if (isId) "Tipe / Ikon Dompet:" else "Wallet Type / Icon:", style = MaterialTheme.typography.labelMedium)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            val icons = listOf(
-                                Triple("cash", painterResource(id = R.drawable.ic_wallet_type_cash), if (isId) "Tunai" else "Cash"),
-                                Triple("bank", painterResource(id = R.drawable.ic_wallet_type_bank), "Bank"),
-                                Triple("wallet", painterResource(id = R.drawable.ic_wallet_type_wallet), "E-Money"),
-                                Triple("savings", painterResource(id = R.drawable.ic_wallet_type_savings), if (isId) "Tabungan" else "Savings")
-                            )
-
-                            icons.forEach { (key, painter, label) ->
-                                val isSelected = selectedIcon == key
-                                OutlinedIconContainerButton(
-                                    painter = painter,
-                                    label = label,
-                                    isSelected = isSelected,
-                                    onClick = { selectedIcon = key },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-
-                        // Conditional Savings Target Configuration
-                        if (selectedIcon == "savings") {
-                            Surface(
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
-                                shape = RoundedCornerShape(16.dp),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(14.dp),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    Text(
-                                        text = if (isId) "Tipe Target Tabungan" else "Savings Target Mode",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-
-                                    // Selector: With Target Limit vs Limitless
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(
-                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                                shape = RoundedCornerShape(12.dp)
-                                            )
-                                            .padding(4.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        val tabShape = RoundedCornerShape(8.dp)
-                                        // With Target Limit
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .background(
-                                                    color = if (!isLimitless) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                                    shape = tabShape
-                                                )
-                                                .clip(tabShape)
-                                                .clickable { isLimitless = false }
-                                                .padding(vertical = 10.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = if (isId) "Dengan Target" else "With Target Limit",
-                                                color = if (!isLimitless) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontWeight = FontWeight.Bold,
-                                                textAlign = TextAlign.Center
-                                            )
-                                        }
-
-                                        // Limitless
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .background(
-                                                    color = if (isLimitless) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                                    shape = tabShape
-                                                )
-                                                .clip(tabShape)
-                                                .clickable { isLimitless = true }
-                                                .padding(vertical = 10.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = if (isId) "Tanpa Batas (Bebas)" else "Limitless",
-                                                color = if (isLimitless) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontWeight = FontWeight.Bold,
-                                                textAlign = TextAlign.Center
-                                            )
-                                        }
-                                    }
-
-                                    if (!isLimitless) {
-                                        OutlinedTextField(
-                                            value = targetLimitStr,
-                                            onValueChange = { if (it.all { char -> char.isDigit() }) targetLimitStr = it },
-                                            label = { Text(if (isId) "Target Nominal Tabungan" else "Target Savings Amount") },
-                                            prefix = { Text("Rp ") },
-                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                            placeholder = { Text("10.000.000") },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            singleLine = true
-                                        )
-                                    } else {
-                                        Text(
-                                            text = if (isId) "Tabungan tanpa target batas nominal akhir." else "Open-ended savings with no predefined upper limit.",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f).height(48.dp),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(if (isId) "Batal" else "Cancel", maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    Button(
-                        onClick = {
-                            val balanceVal = initialBalanceStr.toDoubleOrNull() ?: 0.0
-                            val targetVal = if (selectedIcon == "savings" && !isLimitless) targetLimitStr.toDoubleOrNull() else null
-                            if (walletName.trim().isNotEmpty()) {
-                                viewModel.addWallet(
-                                    name = walletName,
-                                    balance = balanceVal,
-                                    icon = selectedIcon,
-                                    targetLimit = targetVal,
-                                    isLimitless = if (selectedIcon == "savings") isLimitless else true
-                                )
-                                onDismiss()
-                            }
-                        },
-                        enabled = walletName.trim().isNotEmpty(),
-                        modifier = Modifier.weight(1.4f).height(48.dp),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(if (isId) "Tambah Dompet" else "Add Wallet", fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val newBalance = balanceStr.toDoubleOrNull() ?: wallet.balance
+                    viewModel.updateWallet(wallet.copy(name = name.trim(), balance = newBalance))
+                    onDismiss()
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Text("Simpan", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(if (isId) "Batal" else "Cancel", color = TextSecondary)
             }
         }
-    }
-}
-
-@Composable
-fun OutlinedIconContainerButton(
-    painter: androidx.compose.ui.graphics.painter.Painter,
-    label: String,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val cardShape = RoundedCornerShape(12.dp)
-    Card(
-        modifier = modifier
-            .padding(2.dp)
-            .clip(cardShape)
-            .clickable { onClick() },
-        shape = cardShape,
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-        ),
-        border = if (isSelected) null else androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(vertical = 8.dp)
-                .fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                painter = painter,
-                contentDescription = label,
-                tint = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                label,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
+    )
 }
